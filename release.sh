@@ -51,7 +51,7 @@ git commit -a -m 'Create release version '"$VERSION_THIS"
 git tag -a -f -m 'Release '"$VERSION_THIS" v"$VERSION_THIS"
 
 make -C images
-make -C images docker-push
+make -C push-manifests
 
 set_version "$VERSION_NEXT"
 git commit -a -m 'Set version to '"$VERSION_NEXT"

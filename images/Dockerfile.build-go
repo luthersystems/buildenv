@@ -9,7 +9,7 @@ RUN go install honnef.co/go/tools/cmd/staticcheck@2021.1.2
 FROM golang:$GOLANG_VERSION
 MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
-RUN apt-get update && apt-get install -y libltdl-dev curl make rsync zip git-lfs jq tini ca-certificates docker.io && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev curl make rsync zip git-lfs jq tini ca-certificates docker.io && rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
 
 COPY --from=go-downloader /go/bin/go-bindata /go/bin/go-bindata

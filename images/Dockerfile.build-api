@@ -12,7 +12,7 @@ RUN go install github.com/go-swagger/go-swagger/cmd/swagger@v0.29.0
 FROM golang:$GOLANG_VERSION
 MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
-RUN apt-get update && apt-get install -y libltdl-dev curl make rsync zip git-lfs jq tini ca-certificates protobuf-compiler && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev curl make rsync zip git-lfs jq tini ca-certificates protobuf-compiler && rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
 
 COPY --from=go-downloader /go/bin/go-bindata /go/bin/go-bindata

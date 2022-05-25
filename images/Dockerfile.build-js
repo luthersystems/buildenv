@@ -16,10 +16,7 @@ RUN gpg --verify awscliv2.sig awscliv2.zip
 FROM node:14.19-bullseye
 MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
-ARG AZCLI_VER=2.18.0
-ENV AZCLI_VER=$AZCLI_VER
-
-RUN apt-get update && apt-get install -y libltdl-dev rsync zip git-lfs tini ca-certificates docker.io apt-transport-https lsb-release gnupg && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev rsync zip git-lfs tini ca-certificates docker.io apt-transport-https lsb-release gnupg && rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
 
 RUN npm install -g npm
@@ -38,5 +35,8 @@ RUN curl -sL https://packages.microsoft.com/keys/microsoft.asc | \
 
 RUN echo "deb [arch=$(uname -m)] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | \
     tee /etc/apt/sources.list.d/azure-cli.list
+
+ARG AZCLI_VER=2.18.0
+ENV AZCLI_VER=$AZCLI_VER
 
 RUN apt-get update && apt-get install -y azure-cli=${AZCLI_VER}\*

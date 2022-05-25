@@ -1,7 +1,67 @@
-version: 2
+version: 2.1
+
+commands:
+  configure-dockerhub:
+    description: Configure Docker Hub access
+    steps:
+      - run:
+          name: Configure Docker Hub
+          command: |
+            [ -z "$DOCKERHUB_USERNAME" ] && exit 0
+            [ -z "$DOCKERHUB_TOKEN" ] && exit 0
+            docker login --username $DOCKERHUB_USERNAME --password=$DOCKERHUB_TOKEN
+
 jobs:
-  build:
+  build-amd64:
     machine: true
+    resource_class: medium
     steps:
       - checkout
-      - run: cd images && make
+      - configure-dockerhub
+      - run:
+          name: Build and push docker image for amd64
+          command: cd images && make PLATFORMS=linux/amd64 DOCKER_BUILDX_OPTS=--push TAG_SUFFIX=-amd64
+  build-arm64:
+    machine: true
+    resource_class: arm.medium
+    steps:
+      - checkout
+      - configure-dockerhub
+      - run:
+          name: Build and push docker image for arm64
+          command: cd images && make PLATFORMS=linux/arm64 DOCKER_BUILDX_OPTS=--push TAG_SUFFIX=-arm64
+  push-multiarch-image:
+    docker:
+      - image: cimg/base:2022.05
+    steps:
+      - checkout
+      - setup_remote_docker
+      - configure-dockerhub
+      - run:
+          name: Create and push manifest for multiarch
+          command: cd images && make push-manifests
+
+workflows:
+  build-publish:
+    jobs:
+      - build-amd64:
+          context: dockerhubsecret # the circleci context that contain your access token to dockerhub
+          filters:
+            branches:
+              only:
+                - main
+      - build-arm64:
+          context: dockerhubsecret
+          filters:
+            branches:
+              only:
+                - main
+      - push-multiarch-image:
+          context: dockerhubsecret
+          requires:
+            - build-arm64
+            - build-amd64
+          filters:
+            branches:
+              only:
+                - main

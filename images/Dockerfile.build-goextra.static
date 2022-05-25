@@ -5,7 +5,7 @@ RUN echo "nobody:x:1:1:nobody:/:/bin/sh" >> /etc/passwd
 RUN echo "nobody:x:1:" >> /etc/group
 RUN chmod 1777 /tmp
 RUN apt-get update && apt-get install -y libltdl-dev tini ca-certificates && rm -rf /var/lib/apt/lists/*
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
+{}
 USER nobody
 WORKDIR /opt
 VOLUME ["/opt"]

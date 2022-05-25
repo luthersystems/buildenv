@@ -4,7 +4,7 @@ DOCKER=docker
 TINI_VERSION?=0.19.0
 
 .PHONY: static
-static: build/artifact
+static:
 	@echo "Static ${STATIC_IMAGE}"
 	${DOCKER} build \
 		--build-arg BIN=$(notdir ${BIN}) \
@@ -13,15 +13,11 @@ static: build/artifact
 		-t ${STATIC_IMAGE}:${VERSION} \
 		-f -  . < /opt/Dockerfile.java.static
 
-build/artifact:
-	mkdir -p $@
-	cp -r /opt/artifact/* build/artifact
-
 .PHONY: build
 build:
 	@echo "Building BIN=\"${BIN}\" VERSION=\"${VERSION}\" in ${PWD}"
 	mvn versions:set -DnewVersion=${VERSION}
-	mvn package spring-boot:repackage -Dmaven.test.skip=true
+	mvn package -Dmaven.test.skip=true
 
 .PHONY: protos
 protos:

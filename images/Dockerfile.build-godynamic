@@ -26,9 +26,6 @@ RUN go install honnef.co/go/tools/cmd/staticcheck@2021.1.2
 FROM alpine:$ALPINE_VERSION
 MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
-ARG AZCLI_VER=2.18.0
-ENV AZCLI_VER=$AZCLI_VER
-
 CMD ["/bin/sh"]
 RUN [ ! -e /etc/nsswitch.conf ] && echo "hosts: files dns" >/etc/nsswitch.conf
 
@@ -62,6 +59,9 @@ COPY --from=go-alpine-downloader /go/bin/staticcheck /go/bin/staticcheck
 # extra functionality required by pipelines runs (CI)
 COPY --from=aws /tmp/awscliv2.zip /tmp/awscliv2.zip
 RUN unzip -d /tmp /tmp/awscliv2.zip && /tmp/aws/install && rm -rf /tmp/aws*
+
+ARG AZCLI_VER=2.18.0
+ENV AZCLI_VER=$AZCLI_VER
 
 RUN apk add --no-cache -q --virtual=build gcc musl-dev python3-dev py3-pip libffi-dev openssl-dev cargo make \
      && pip install --no-cache-dir azure-cli==${AZCLI_VER} -q \

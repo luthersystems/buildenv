@@ -6,8 +6,8 @@ IMAGES=luthersystems/build-go-alpine luthersystems/service-base-alpine luthersys
 MULTI_STAGE_IMAGES=luthersystems/build-go luthersystems/build-goextra luthersystems/build-godynamic luthersystems/build-java luthersystems/build-js
 ALL_IMAGES=${IMAGES} ${MULTI_STAGE_IMAGES}
 
-ECR_LOGIN=bash get-ecr-token.sh ${ECR_HOST}
-
+TAG_SUFFIX=
+DOCKER_BUILDX_OPTS=
 PLATFORMS=linux/amd64,linux/arm64
 
 # do *NOT* delete intermediate artifacts!
@@ -20,12 +20,8 @@ PUSH_DUMMYS := $(foreach I,$(ALL_IMAGES),$(call PUSH_DUMMY,$I))
 .PHONY: default
 default: ${IMAGE_DUMMYS}
 
-.PHONY: docker-login
-docker-login:
-	${ECR_LOGIN}
-
-.PHONY: docker-push
-docker-push: docker-login ${PUSH_DUMMYS}
+.PHONY: docker-push-manifest
+push-manifests: ${PUSH_DUMMYS}
 	@
 
 .PHONY: clean
@@ -43,12 +39,12 @@ $(call IMAGE_DUMMY,multi-luthersystems/%): Dockerfile.%.static %.mk $(call IMAGE
 
 $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} $(call DUMMY_TARGET,deps,luthersystems/%)
 	@echo "Building image $*"
-	${DOCKER} buildx build \
+	${DOCKER} buildx inspect --bootstrap
+	${DOCKER} buildx build ${DOCKER_BUILDX_OPTS} \
 		--platform ${PLATFORMS} \
-		-t luthersystems/$*:latest \
-		-t luthersystems/$*:${VERSION} \
-		-t ${ECR_HOST}/luthersystems/$*:latest \
-		-t ${ECR_HOST}/luthersystems/$*:${VERSION} \
+		--progress plain \
+		-t luthersystems/$*:latest${TAG_SUFFIX} \
+		-t luthersystems/$*:${VERSION}${TAG_SUFFIX} \
 		-f $< .
 	${MKDIR_P} $(dir $@)
 	${TOUCH} $@
@@ -74,13 +70,14 @@ $(call DUMMY_TARGET,deps,luthersystems/build-goextra):
 $(call DUMMY_TARGET,deps,luthersystems/build-go-alpine):
 	@
 
-$(call PUSH_DUMMY,luthersystems/%): $(call IMAGE_DUMMY,luthersystems/%)
-	$(MAKE) docker-login
-	${DOCKER} buildx build \
-		--push \
-		--platform ${PLATFORMS} \
-		-t luthersystems/$*:latest \
-		-t luthersystems/$*:${VERSION} \
-		-t ${ECR_HOST}/luthersystems/$*:${VERSION} \
-		-t ${ECR_HOST}/luthersystems/$*:latest \
-		.
+$(call PUSH_DUMMY,luthersystems/%):
+	${DOCKER} manifest create \
+		luthersystems/$*:latest \
+		--amend luthersystems/$*:latest-arm64 \
+		--amend luthersystems/$*:latest-amd64
+	${DOCKER} manifest push luthersystems/$*:latest
+	${DOCKER} manifest create \
+		luthersystems/$*:${VERSION} \
+		--amend luthersystems/$*:${VERSION}-arm64 \
+		--amend luthersystems/$*:${VERSION}-amd64
+	${DOCKER} manifest push luthersystems/$*:${VERSION}
