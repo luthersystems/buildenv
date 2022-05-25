@@ -1,0 +1,29 @@
+ARG GOLANG_VERSION=1.16.14
+FROM golang:$GOLANG_VERSION as go-downloader
+
+RUN go install github.com/go-bindata/go-bindata/v3/go-bindata@v3.1.3
+RUN go install github.com/securego/gosec/v2/cmd/gosec@v2.11.0
+RUN go install gotest.tools/gotestsum@v1.8.1
+RUN go install honnef.co/go/tools/cmd/staticcheck@2021.1.2
+
+FROM golang:$GOLANG_VERSION
+MAINTAINER Sam Wood <sam.wood@luthersystems.com>
+
+RUN apt-get update && apt-get install -y libltdl-dev curl make rsync zip git-lfs jq tini ca-certificates docker.io && rm -rf /var/lib/apt/lists/*
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
+
+COPY --from=go-downloader /go/bin/go-bindata /go/bin/go-bindata
+COPY --from=go-downloader /go/bin/gosec /go/bin/gosec
+COPY --from=go-downloader /go/bin/gotestsum /go/bin/gotestsum
+COPY --from=go-downloader /go/bin/staticcheck /go/bin/staticcheck
+
+COPY build-go.mk /opt/Dockerfile.go.mk
+COPY Dockerfile.build-go.static /opt/Dockerfile.go.static
+ENV GOCACHE /tmp
+
+# set up private repo access for go mod
+RUN git config --system url."git@bitbucket.org:".insteadOf "https://bitbucket.org/"
+RUN ssh-keyscan -H bitbucket.org | tee -a /etc/ssh/ssh_known_hosts
+ENV GOPRIVATE bitbucket.org/luthersystems
+
+ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.go.mk"]

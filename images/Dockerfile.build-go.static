@@ -1,0 +1,14 @@
+FROM busybox:1.31.0-glibc
+MAINTAINER Sam Wood <sam.wood@luthersystems.com>
+
+RUN echo "nobody:x:1:1:nobody:/:/bin/sh" >> /etc/passwd
+RUN echo "nobody:x:1:" >> /etc/group
+RUN chmod 1777 /tmp
+RUN apk --no-cache add libltdl tini tzdata ca-certificates
+USER nobody
+WORKDIR /opt
+VOLUME ["/opt"]
+ARG BIN
+ENV BIN ${BIN}
+ADD build/bin/${BIN} /opt/app
+ENTRYPOINT ["tini", "--", "/opt/app"]

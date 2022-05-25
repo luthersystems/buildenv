@@ -1,0 +1,5 @@
+Dockerfile*
+Makefile
+_build/deps
+_build/images
+!Dockerfile.*.static

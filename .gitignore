@@ -1,0 +1,4 @@
+*.retry
+*.tar.gz
+*.zip
+.DS_Store

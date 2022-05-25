@@ -1,0 +1,10 @@
+FROM maven:3.8.5-openjdk-8
+MAINTAINER Sam Wood <sam.wood@luthersystems.com>
+
+RUN apt-get update && apt-get install -y make tini ca-certificates docker.io && rm -rf /var/lib/apt/lists/*
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
+
+ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.java.mk"]
+
+COPY build-java.mk /opt/Dockerfile.java.mk
+COPY Dockerfile.build-java.static /opt/Dockerfile.java.static
