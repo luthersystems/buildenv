@@ -1,11 +1,8 @@
 PROJECT=buildenv
-IMAGE_PREFIX=luthersystems
-PROJECT_PATH=bitbucket.org/luthersystems/${PROJECT}
+PROJECT_PATH=github.com/luthersystems/${PROJECT}
 
-VERSION=0.0.52-SNAPSHOT
-
-AWS_REGION=eu-west-2
-ECR_HOST=967058059066.dkr.ecr.${AWS_REGION}.amazonaws.com
+GIT_REVISION ?= $(shell git rev-parse HEAD)
+VERSION=$(if $(GIT_TAG),$(GIT_TAG:v/%=%),$(GIT_REVISION))
 
 ifeq ($(OS),Windows_NT)
 	IS_WINDOWS=1
@@ -48,3 +45,4 @@ DOCKER_DIR=$(if $(IS_WINDOWS),$(call DOCKER_WIN_DIR, $(1)),$(call DOCKER_NIX_DIR
 # make echo:VERSION
 echo\:%:
 	@echo $($*)
+

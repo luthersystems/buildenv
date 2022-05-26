@@ -22,7 +22,7 @@ jobs:
       - configure-dockerhub
       - run:
           name: Build and push docker image for amd64
-          command: cd images && make PLATFORMS=linux/amd64 DOCKER_BUILDX_OPTS=--push TAG_SUFFIX=-amd64
+          command: cd images && make PLATFORMS=linux/amd64 TAG_SUFFIX=-amd64 GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>
   build-arm64:
     machine:
       image: ubuntu-2004:current
@@ -33,7 +33,7 @@ jobs:
       - configure-dockerhub
       - run:
           name: Build and push docker image for arm64
-          command: cd images && make PLATFORMS=linux/arm64 DOCKER_BUILDX_OPTS=--push TAG_SUFFIX=-arm64
+          command: cd images && make PLATFORMS=linux/arm64 TAG_SUFFIX=-arm64 GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>
   push-multiarch-image:
     docker:
       - image: cimg/base:2022.05
@@ -43,8 +43,7 @@ jobs:
       - configure-dockerhub
       - run:
           name: Create and push manifest for multiarch
-          command: cd images && make push-manifests
-
+          command: cd images && make push-manifest GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>
 workflows:
   build-publish:
     jobs:
@@ -66,6 +65,7 @@ workflows:
             - build-arm64
             - build-amd64
           filters:
+            tags:
+              only: /^v.*/
             branches:
-              only:
-                - main
+              ignore: /.*/

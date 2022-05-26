@@ -7,7 +7,7 @@ MULTI_STAGE_IMAGES=luthersystems/build-go luthersystems/build-goextra luthersyst
 ALL_IMAGES=${IMAGES} ${MULTI_STAGE_IMAGES}
 
 TAG_SUFFIX=
-DOCKER_BUILDX_OPTS=
+DOCKER_BUILDX_OPTS=$(if $(GIT_TAG),--push,)
 PLATFORMS=linux/amd64,linux/arm64
 
 # do *NOT* delete intermediate artifacts!
@@ -43,7 +43,6 @@ $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} $(
 	${DOCKER} buildx build ${DOCKER_BUILDX_OPTS} \
 		--platform ${PLATFORMS} \
 		--progress plain \
-		-t luthersystems/$*:latest${TAG_SUFFIX} \
 		-t luthersystems/$*:${VERSION}${TAG_SUFFIX} \
 		-f $< .
 	${MKDIR_P} $(dir $@)
@@ -73,8 +72,8 @@ $(call DUMMY_TARGET,deps,luthersystems/build-go-alpine):
 $(call PUSH_DUMMY,luthersystems/%):
 	${DOCKER} manifest create \
 		luthersystems/$*:latest \
-		--amend luthersystems/$*:latest-arm64 \
-		--amend luthersystems/$*:latest-amd64
+		--amend luthersystems/$*:${VERSION}-arm64 \
+		--amend luthersystems/$*:${VERSION}-amd64
 	${DOCKER} manifest push luthersystems/$*:latest
 	${DOCKER} manifest create \
 		luthersystems/$*:${VERSION} \
