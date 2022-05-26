@@ -52,11 +52,15 @@ workflows:
           filters:
             tags:
               only: /.*/
+            branches:
+              ignore: main
       - build-arm64:
           context: dockerhubsecret
           filters:
             tags:
               only: /.*/
+            branches:
+              ignore: main
       - push-multiarch-image:
           context: dockerhubsecret
           requires:
