@@ -13,7 +13,9 @@ commands:
 
 jobs:
   build-amd64:
-    machine: true
+    machine:
+      image: ubuntu-2004:current
+      docker_layer_caching: true
     resource_class: medium
     steps:
       - checkout
@@ -22,7 +24,9 @@ jobs:
           name: Build and push docker image for amd64
           command: cd images && make PLATFORMS=linux/amd64 DOCKER_BUILDX_OPTS=--push TAG_SUFFIX=-amd64
   build-arm64:
-    machine: true
+    machine:
+      image: ubuntu-2004:current
+      docker_layer_caching: true
     resource_class: arm.medium
     steps:
       - checkout
