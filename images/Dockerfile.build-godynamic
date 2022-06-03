@@ -35,9 +35,9 @@ ENV GOPATH=/go
 ENV PATH=/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 WORKDIR /go
-RUN apk add --no-cache ca-certificates tzdata libltdl rsync zip openssh git-lfs bash shadow gcc musl-dev make linux-headers curl tini gcompat python3 jq
+RUN apk add --no-cache ca-certificates tzdata libltdl rsync zip openssh git-lfs bash shadow gcc musl-dev make linux-headers curl tini gcompat python3 jq py3-pip
 
-RUN apk add --update docker openrc
+RUN apk add --no-cache docker docker-compose openrc
 RUN rc-update add docker boot
 
 COPY build-godynamic.mk /opt/Dockerfile.godynamic.mk
