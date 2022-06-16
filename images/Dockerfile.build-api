@@ -1,4 +1,4 @@
-ARG GOLANG_VERSION=1.16.14
+ARG GOLANG_VERSION=1.18.3
 FROM golang:$GOLANG_VERSION as go-downloader
 
 RUN go install github.com/go-bindata/go-bindata/v3/go-bindata@v3.1.3
