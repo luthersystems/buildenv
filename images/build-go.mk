@@ -1,5 +1,6 @@
 GO_TEST_FLAGS ?= -cover
 GO_BUILD_TAGS ?= netgo,cgo,timetzdata
+GO_BUILD_EXTRA_FLAGS ?= -a
 
 GO_BUILD_FLAGS=-installsuffix ${GO_BUILD_TAGS} -tags ${GO_BUILD_TAGS}
 GO_LD_FLAGS=-X $(shell go list)/version.Version=${VERSION} -extldflags "-static"
@@ -21,7 +22,7 @@ build:
 	mkdir -p build/bin
 	go env
 	# build static binary with CGO extensions enabled and libtool
-	CGO_ENABLED=1 GOOS=linux go build -a ${GO_BUILD_FLAGS} -ldflags '${GO_LD_FLAGS}' -o ${BIN}
+	CGO_ENABLED=1 GOOS=linux go build ${GO_BUILD_EXTRA_FLAGS} ${GO_BUILD_FLAGS} -ldflags '${GO_LD_FLAGS}' -o ${BIN}
 	chown ${DOCKER_CHOWN_USER}:${DOCKER_CHOWN_GROUP} build/bin
 
 .PHONY: test
