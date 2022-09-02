@@ -1,6 +1,8 @@
 PROJECT_DIR=..
 COMMON_MAKEFILE=${PROJECT_DIR}/common.mk
 include ${COMMON_MAKEFILE}
+CONFIG_MAKEFILE=${PROJECT_DIR}/common.config.mk
+include ${CONFIG_MAKEFILE}
 
 IMAGES=luthersystems/build-go-alpine luthersystems/service-base-alpine luthersystems/build-api luthersystems/build-swaggercodegen
 MULTI_STAGE_IMAGES=luthersystems/build-go luthersystems/build-goextra luthersystems/build-godynamic luthersystems/build-java luthersystems/build-js
@@ -37,12 +39,19 @@ multi-%: $(call IMAGE_DUMMY,multi-luthersystems/%)
 $(call IMAGE_DUMMY,multi-luthersystems/%): Dockerfile.%.static %.mk $(call IMAGE_DUMMY,luthersystems/%)
 	@
 
-$(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} $(call DUMMY_TARGET,deps,luthersystems/%)
+$(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} ${CONFIG_MAKEFILE} $(call DUMMY_TARGET,deps,luthersystems/%)
 	@echo "Building image $*"
 	${DOCKER} buildx inspect --bootstrap
 	${DOCKER} buildx build ${DOCKER_BUILDX_OPTS} \
 		--platform ${PLATFORMS} \
 		--progress plain \
+		--build-arg GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION} \
+		--build-arg GOLANG_VERSION=${GOLANG_VERSION} \
+		--build-arg ALPINE_VERSION=${ALPINE_VERSION} \
+		--build-arg GO_BINDATA_VERSION=${GO_BINDATA_VERSION} \
+		--build-arg GO_TESTSUM_VERSION=${GO_TESTSUM_VERSION} \
+		--build-arg BUF_VERSION=${BUF_VERSION} \
+		--build-arg GO_SWAGGER_VERSION=${GO_SWAGGER_VERSION} \
 		-t luthersystems/$*:${VERSION}${TAG_SUFFIX} \
 		-f $< .
 	${MKDIR_P} $(dir $@)
