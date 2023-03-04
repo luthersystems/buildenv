@@ -1,4 +1,4 @@
-FROM ubuntu:20.04 as aws
+FROM ubuntu:22.04 as aws
 
 RUN apt-get update
 RUN apt-get install --no-install-recommends -y gnupg curl ca-certificates
@@ -33,7 +33,7 @@ RUN curl -sL https://packages.microsoft.com/keys/microsoft.asc | \
     gpg --dearmor | \
     tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
 
-RUN echo "deb [arch=$(uname -m)] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | \
+RUN echo "deb [arch=$(dpkg --print-architecture)] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | \
     tee /etc/apt/sources.list.d/azure-cli.list
 
 ARG AZCLI_VER=2.18.0

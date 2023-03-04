@@ -50,7 +50,7 @@ FROM alpine:$ALPINE_VERSION
 MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 CMD ["/bin/sh"]
-RUN [ ! -e /etc/nsswitch.conf ] && echo "hosts: files dns" >/etc/nsswitch.conf
+RUN test -e /etc/nsswitch.conf || echo "hosts: files dns" >/etc/nsswitch.conf
 
 COPY --from=go-alpine-downloader /usr/local/go/ /usr/local/go/
 

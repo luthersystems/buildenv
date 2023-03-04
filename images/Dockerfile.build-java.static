@@ -1,5 +1,4 @@
-ARG ALPINE_VERSION=3.15
-FROM openjdk:19-jdk-alpine${ALPINE_VERSION}
+FROM openjdk:19-jdk-alpine3.16
 MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 RUN echo "nobody:x:1:1:nobody:/:/bin/sh" >> /etc/passwd
