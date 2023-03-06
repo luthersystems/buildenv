@@ -19,7 +19,6 @@ RUN set -eux; \
     mkdir /aws; \
     git clone --single-branch --depth 1 -b ${AWSCLI_VER} https://github.com/aws/aws-cli.git /aws; \
     cd /aws; \
-    sed -i'' 's/PyInstaller.*/PyInstaller==4.10/g' requirements-build.txt; \
     python -m venv venv; \
     . venv/bin/activate; \
     ./scripts/installers/make-exe
