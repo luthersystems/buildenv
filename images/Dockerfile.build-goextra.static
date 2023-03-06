@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 RUN echo "nobody:x:1:1:nobody:/:/bin/sh" >> /etc/passwd

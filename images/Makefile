@@ -52,6 +52,8 @@ $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} ${
 		--build-arg GO_TESTSUM_VERSION=${GO_TESTSUM_VERSION} \
 		--build-arg BUF_VERSION=${BUF_VERSION} \
 		--build-arg GO_SWAGGER_VERSION=${GO_SWAGGER_VERSION} \
+		--build-arg AZCLI_VER=${AZCLI_VER} \
+		--build-arg AWSCLI_VER=${AWSCLI_VER} \
 		-t luthersystems/$*:${VERSION}${TAG_SUFFIX} \
 		-f $< .
 	${MKDIR_P} $(dir $@)

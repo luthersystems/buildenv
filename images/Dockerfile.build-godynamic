@@ -19,7 +19,6 @@ RUN set -eux; \
     mkdir /aws; \
     git clone --single-branch --depth 1 -b ${AWSCLI_VER} https://github.com/aws/aws-cli.git /aws; \
     cd /aws; \
-    sed -i'' 's/PyInstaller.*/PyInstaller==4.10/g' requirements-build.txt; \
     python -m venv venv; \
     . venv/bin/activate; \
     ./scripts/installers/make-exe
@@ -50,7 +49,7 @@ FROM alpine:$ALPINE_VERSION
 MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 CMD ["/bin/sh"]
-RUN [ ! -e /etc/nsswitch.conf ] && echo "hosts: files dns" >/etc/nsswitch.conf
+RUN test -e /etc/nsswitch.conf || echo "hosts: files dns" >/etc/nsswitch.conf
 
 COPY --from=go-alpine-downloader /usr/local/go/ /usr/local/go/
 
