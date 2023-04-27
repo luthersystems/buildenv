@@ -8,7 +8,7 @@ RUN go install "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}"
 ARG GOLANGCI_LINT_VERSION=1.46.2
 RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s "v${GOLANGCI_LINT_VERSION}"
 
-ARG BUF_VERSION=1.4.0
+ARG BUF_VERSION=1.17.0
 RUN go install "github.com/bufbuild/buf/cmd/buf@v${BUF_VERSION}"
 ARG GO_SWAGGER_VERSION=0.29.0
 RUN go install "github.com/go-swagger/go-swagger/cmd/swagger@v${GO_SWAGGER_VERSION}"
