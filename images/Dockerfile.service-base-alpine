@@ -1,4 +1,4 @@
-ARG ALPINE_VERSION=3.17
+ARG ALPINE_VERSION
 FROM alpine:${ALPINE_VERSION}
 MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
