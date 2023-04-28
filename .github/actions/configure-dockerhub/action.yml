@@ -1,0 +1,10 @@
+name: configure-dockerhub
+runs:
+  using: composite
+  steps:
+  - name: Configure Docker Hub
+    run: |-
+      [ -z "$DOCKERHUB_USERNAME" ] && exit 0
+      [ -z "$DOCKERHUB_TOKEN" ] && exit 0
+      docker login --username $DOCKERHUB_USERNAME --password=$DOCKERHUB_TOKEN
+    shell: bash
