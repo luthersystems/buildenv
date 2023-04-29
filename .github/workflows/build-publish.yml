@@ -17,7 +17,7 @@ jobs:
     - uses: actions/checkout@v3.5.0
     - uses: "./.github/actions/configure-dockerhub"
     - name: Build and push docker image for amd64
-      run: script -q -e -c "cd images && make PLATFORMS=linux/amd64 TAG_SUFFIX=-amd64 GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>"
+      run: cd images && make PLATFORMS=linux/amd64 TAG_SUFFIX=-amd64 GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>
   build-arm64:
     if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-20.04
@@ -25,7 +25,7 @@ jobs:
     - uses: actions/checkout@v3.5.0
     - uses: "./.github/actions/configure-dockerhub"
     - name: Build and push docker image for arm64
-      run: script -q -e -c "cd images && make PLATFORMS=linux/arm64 TAG_SUFFIX=-arm64 GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>"
+      run: cd images && make PLATFORMS=linux/arm64 TAG_SUFFIX=-arm64 GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>
   push-multiarch-image:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
@@ -38,4 +38,4 @@ jobs:
     - uses: actions/checkout@v3.5.0
     - uses: "./.github/actions/configure-dockerhub"
     - name: Create and push manifest for multiarch
-      run: script -q -e -c "cd images && make push-manifests GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>"
+      run: cd images && make push-manifests GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>
