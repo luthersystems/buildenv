@@ -1,11 +1,14 @@
-name: luthersystems/buildenv/build-publish
+name: Build and Push
 on:
   push:
+    tags:
+    - '*'
+  pull_request:
     branches:
     - main
 env:
-  DOCKERHUB_TOKEN: xxxxvB7w
-  DOCKERHUB_USERNAME: xxxxther
+  DOCKERHUB_TOKEN:  ${{ secrets.DOCKERHUB_TOKEN }}
+  DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
 jobs:
   build-amd64:
     if: github.ref != 'refs/heads/main'
@@ -14,7 +17,7 @@ jobs:
     - uses: actions/checkout@v3.5.0
     - uses: "./.github/actions/configure-dockerhub"
     - name: Build and push docker image for amd64
-      run: cd images && make PLATFORMS=linux/amd64 TAG_SUFFIX=-amd64 GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>
+      run: script -q -e -c "cd images && make PLATFORMS=linux/amd64 TAG_SUFFIX=-amd64 GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>"
   build-arm64:
     if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-20.04
@@ -22,10 +25,9 @@ jobs:
     - uses: actions/checkout@v3.5.0
     - uses: "./.github/actions/configure-dockerhub"
     - name: Build and push docker image for arm64
-      run: cd images && make PLATFORMS=linux/arm64 TAG_SUFFIX=-arm64 GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>
+      run: script -q -e -c "cd images && make PLATFORMS=linux/arm64 TAG_SUFFIX=-arm64 GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>"
   push-multiarch-image:
-    if: # GitHub does not currently support regular expressions inside if conditions
-#         (github.ref == 'refs/tags//^v.*/') && (github.ref != 'refs/heads//.*/')
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     container:
       image: ubuntu
@@ -34,7 +36,6 @@ jobs:
     - build-amd64
     steps:
     - uses: actions/checkout@v3.5.0
-#     # 'setup_remote_docker' was not transformed because there is no suitable equivalent in GitHub Actions
     - uses: "./.github/actions/configure-dockerhub"
     - name: Create and push manifest for multiarch
-      run: cd images && make push-manifests GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>
+      run: script -q -e -c "cd images && make push-manifests GIT_TAG=<<pipeline.git.tag>> GIT_REVISION=<<pipeline.git.revision>>"
