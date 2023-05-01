@@ -17,11 +17,11 @@ jobs:
           - service-base-alpine
           - build-api
           - build-swaggercodegen
-          - build-go
-          - build-goextra
-          - build-godynamic
-          - build-java
-          - build-js
+          - multi-build-go
+          - multi-build-goextra
+          - multi-build-godynamic
+          - multi-build-java
+          - multi-build-js
     steps:
     - uses: actions/checkout@v3.5.0
     - uses: "./.github/actions/configure-dockerhub"
