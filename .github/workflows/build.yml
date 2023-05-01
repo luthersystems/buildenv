@@ -1,4 +1,4 @@
-name: Build
+name: Build docker images
 on:
   pull_request:
     branches:
@@ -6,12 +6,16 @@ on:
 env:
   DOCKERHUB_TOKEN:  ${{ secrets.DOCKERHUB_TOKEN }}
   DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    name: Docker build ${{ matrix.image }} - ${{ matrix.arch }}
+    runs-on: ${{ matrix.arch == 'arm64' ? 'buildjet-2vcpu-ubuntu-2204-arm' : 'ubuntu-20.04' }}
     strategy:
       matrix:
-        arch: ["amd64", "arm64"]
+        arch:
+          - amd64
+          - arm64
         image:
           - build-go-alpine
           - service-base-alpine
@@ -23,13 +27,9 @@ jobs:
           - multi-build-java
           - multi-build-js
     steps:
-    - uses: actions/checkout@v3.5.0
-    - uses: "./.github/actions/configure-dockerhub"
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-      with:
-        platforms: linux/${{ matrix.arch }}
-    - name: Build docker image for ${{ matrix.arch }}
-      run: cd images && make PLATFORMS=linux/${{ matrix.arch }} TAG_SUFFIX=-${{ matrix.arch }} GIT_REVISION=$GITHUB_SHA ${{ matrix.image }}
+      - name: 'Build container'
+        uses: ./.github/actions/build-docker-images
+        with:
+          arch: ${{ matrix.arch }}
+          image: ${{ matrix.image }}
+          git_rev: $GITHUB_SHA
