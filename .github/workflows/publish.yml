@@ -12,6 +12,16 @@ jobs:
     strategy:
       matrix:
         arch: ["amd64", "arm64"]
+        image:
+          - build-go-alpine
+          - service-base-alpine
+          - build-api
+          - build-swaggercodegen
+          - build-go
+          - build-goextra
+          - build-godynamic
+          - build-java
+          - build-js
     steps:
     - uses: actions/checkout@v3.5.0
     - uses: "./.github/actions/configure-dockerhub"
@@ -22,7 +32,7 @@ jobs:
       with:
         platforms: linux/${{ matrix.arch }}
     - name: Build and push docker image for ${{ matrix.arch }}
-      run: cd images && make PLATFORMS=linux/${{ matrix.arch }} TAG_SUFFIX=-${{ matrix.arch }} GIT_TAG=$GITHUB_REF_NAME
+      run: cd images && make PLATFORMS=linux/${{ matrix.arch }} TAG_SUFFIX=-${{ matrix.arch }} GIT_TAG=$GITHUB_REF_NAME ${{ matrix.image }}
   push-manifests:
     runs-on: ubuntu-latest
     container:
