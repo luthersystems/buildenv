@@ -29,8 +29,7 @@ jobs:
     container:
       image: ubuntu
     needs:
-    - build-arm64
-    - build-amd64
+    - build-push
     steps:
     - uses: actions/checkout@v3.5.0
     - uses: "./.github/actions/configure-dockerhub"
