@@ -29,4 +29,5 @@ runs:
         platforms: linux/${{ inputs.arch }}
 
     - name: 'Build docker image for ${{ inputs.arch }}'
+      shell: bash
       run: cd images && make PLATFORMS=linux/${{ inputs.arch }} TAG_SUFFIX=-${{ inputs.arch }} GIT_TAG=${{ inputs.git_tag }} GIT_REVISION=${{ inputs.git_rev }} ${{ inputs.image }}
