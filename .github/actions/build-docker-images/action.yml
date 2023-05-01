@@ -9,10 +9,10 @@ inputs:
     required: true
   git_tag:
     description: 'Git release tag'
-    defualt: ''
+    default: ''
   git_rev:
     description: 'Git commit hash'
-    defualt: ''
+    default: ''
 
 runs:
   using: 'composite'
