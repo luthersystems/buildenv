@@ -9,7 +9,7 @@ env:
 jobs:
   build:
     name: Docker build & push ${{ matrix.image }} - ${{ matrix.arch }}
-    runs-on: ${{ matrix.arch == 'arm64' ? 'buildjet-2vcpu-ubuntu-2204-arm' : 'ubuntu-20.04' }}
+    runs-on: ${{ fromJSON('{"arm64":"buildjet-2vcpu-ubuntu-2204-arm","amd64":"ubuntu-20.04"}')[matrix.arch] }}
     strategy:
       matrix:
         arch:
