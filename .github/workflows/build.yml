@@ -28,7 +28,7 @@ jobs:
           - multi-build-js
     steps:
       - uses: actions/checkout@v3.5.0
-      - name: 'Build container'
+      - name: Build container
         uses: ./.github/actions/build-docker-images
         with:
           arch: ${{ matrix.arch }}

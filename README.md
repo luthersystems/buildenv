@@ -2,8 +2,6 @@
 
 Common build and run containers for Luther applications.
 
-[![CircleCI](https://circleci.com/gh/luthersystems/buildenv.svg?style=svg)](https://circleci.com/gh/luthersystems/buildenv)
-
 ## Local Testing
 
 Build locally and test with:
@@ -21,6 +19,6 @@ make echo:VERSION
 
 ## Releases
 
-CircleCI is configured to push releaes on version tag pushes. Create a release
-for the new version via the github UI and it will automatically kick off the
-release pipeline.
+Github actions is configured to push releaes on version tag pushes. Create a
+release for the new version via the github UI and it will automatically kick
+off the release pipeline.
