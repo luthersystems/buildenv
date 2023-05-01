@@ -1,33 +1,33 @@
-name: 'Build Docker Images'
-description: 'A custom action to build Docker images for specified platforms and images'
+name: Build Docker Images
+description: A custom action to build Docker images for specified platforms and images
 inputs:
   arch:
-    description: 'The platform architecture'
+    description: The platform architecture
     required: true
   image:
-    description: 'The image to build'
+    description: The image to build
     required: true
   git_tag:
-    description: 'Git release tag'
+    description: Git release tag
     default: ''
   git_rev:
-    description: 'Git commit hash'
+    description: Git commit hash
     default: ''
 
 runs:
-  using: 'composite'
+  using: composite
   steps:
-    - name: 'Checkout Repository'
+    - name: Checkout Repository
       uses: actions/checkout@v3.5.0
 
-    - name: 'Configure DockerHub'
-      uses: './.github/actions/configure-dockerhub'
+    - name: Configure DockerHub
+      uses: ./.github/actions/configure-dockerhub
 
-    - name: 'Set up Docker Buildx'
+    - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
       with:
         platforms: linux/${{ inputs.arch }}
 
-    - name: 'Build docker image for ${{ inputs.arch }}'
+    - name: Build docker image for ${{ inputs.arch }}
       shell: bash
       run: cd images && make PLATFORMS=linux/${{ inputs.arch }} TAG_SUFFIX=-${{ inputs.arch }} GIT_TAG=${{ inputs.git_tag }} GIT_REVISION=${{ inputs.git_rev }} ${{ inputs.image }}
