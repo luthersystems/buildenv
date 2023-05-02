@@ -81,13 +81,11 @@ $(call DUMMY_TARGET,deps,luthersystems/build-go-alpine):
 	@
 
 $(call PUSH_DUMMY,luthersystems/%):
-	${DOCKER} manifest create \
-		luthersystems/$*:latest \
+	${DOCKER} buildx imagetools create \
+		--tag luthersystems/$*:latest \
 		luthersystems/$*:${VERSION}-arm64 \
 		luthersystems/$*:${VERSION}-amd64
-	${DOCKER} manifest push luthersystems/$*:latest
-	${DOCKER} manifest create \
-		luthersystems/$*:${VERSION} \
+	${DOCKER} buildx imagetools create \
+		--tag luthersystems/$*:${VERSION} \
 		luthersystems/$*:${VERSION}-arm64 \
 		luthersystems/$*:${VERSION}-amd64
-	${DOCKER} manifest push luthersystems/$*:${VERSION}
