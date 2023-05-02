@@ -8,7 +8,7 @@ env:
   DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
 jobs:
   build:
-    name: Docker build & push ${{ matrix.image }} - ${{ matrix.arch }}
+    name: ${{ matrix.image }} - ${{ matrix.arch }} docker build & push
     runs-on: ${{ fromJSON('{"arm64":"buildjet-2vcpu-ubuntu-2204-arm","amd64":"ubuntu-20.04"}')[matrix.arch] }}
     strategy:
       matrix:
