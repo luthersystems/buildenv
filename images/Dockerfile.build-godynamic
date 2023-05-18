@@ -68,7 +68,7 @@ ENV GOCACHE /tmp
 
 # set up private repo access for go mod
 RUN git config --system url."git@bitbucket.org:".insteadOf "https://bitbucket.org/"
-RUN ssh-keyscan -H bitbucket.org | tee -a /etc/ssh/ssh_known_hosts
+RUN ssh-keyscan -t Ed25519 -H bitbucket.org | tee -a /etc/ssh/ssh_known_hosts
 ENV GOPRIVATE bitbucket.org/luthersystems
 
 ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.godynamic.mk"]
