@@ -23,8 +23,6 @@ RUN set -eux; \
     . venv/bin/activate; \
     ./scripts/installers/make-exe
 
-RUN pip install --upgrade pyinstaller ipaddress
-
 RUN set -ex; \
     unzip /aws/dist/awscli-exe.zip; \
     ./aws/install --bin-dir /aws-cli-bin; \
