@@ -7,7 +7,7 @@ RUN gpg --import /tmp/aws-cli-pkg-key.asc
 
 WORKDIR /tmp
 
-ARG AWSCLI_VER=2.7.0
+ARG AWSCLI_VER
 ENV AWSCLI_VER=$AWSCLI_VER
 RUN curl -fsSL -o awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m)-${AWSCLI_VER}.zip"
 RUN curl -fsSL -o awscliv2.sig "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m)-${AWSCLI_VER}.zip.sig"
