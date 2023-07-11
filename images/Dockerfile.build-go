@@ -24,8 +24,8 @@ ENV GOCACHE /tmp
 
 # set up private repo access for go mod
 RUN git config --system url."git@bitbucket.org:".insteadOf "https://bitbucket.org/"
-RUN git config --system url."git@github.com:luthersystems/license.git".insteadOf "https://github.com/luthersystems/license.git"
-RUN git config --system url."git@github.com:luthersystems/lutherauth-sdk-go.git".insteadOf "https://github.com/luthersystems/lutherauth-sdk-go.git"
+RUN git config --system url."git@github.com:luthersystems/license.git".insteadOf "https://github.com/luthersystems/license"
+RUN git config --system url."git@github.com:luthersystems/lutherauth-sdk-go.git".insteadOf "https://github.com/luthersystems/lutherauth-sdk-go"
 RUN ssh-keyscan -t Ed25519 -H bitbucket.org | tee -a /etc/ssh/ssh_known_hosts
 RUN ssh-keyscan -t Ed25519 -H github.com | tee -a /etc/ssh/ssh_known_hosts
 
