@@ -19,7 +19,7 @@ MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev rsync zip git-lfs tini ca-certificates docker.io apt-transport-https lsb-release gnupg python2 python2-dev groff && rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
 
-RUN npm install -g npm
+RUN npm install -g npm -W
 
 COPY build-js.mk /opt/Dockerfile.js.mk
 COPY Dockerfile.build-js.static /opt/Dockerfile.js.static
