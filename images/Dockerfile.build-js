@@ -13,7 +13,7 @@ RUN curl -fsSL -o awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-linux-$(
 RUN curl -fsSL -o awscliv2.sig "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m)-${AWSCLI_VER}.zip.sig"
 RUN gpg --verify awscliv2.sig awscliv2.zip
 
-FROM node:14.19-bullseye
+FROM node:20.5.0-bullseye
 MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev rsync zip git-lfs tini ca-certificates docker.io apt-transport-https lsb-release gnupg python2 python2-dev groff && rm -rf /var/lib/apt/lists/*
