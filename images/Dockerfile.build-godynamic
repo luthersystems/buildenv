@@ -76,8 +76,6 @@ RUN git config --system url."git@github.com:luthersystems/chainidentifier.git".i
 RUN ssh-keyscan -t Ed25519 -H bitbucket.org | tee -a /etc/ssh/ssh_known_hosts
 RUN ssh-keyscan -t Ed25519 -H github.com | tee -a /etc/ssh/ssh_known_hosts
 
-ENV GOPRIVATE bitbucket.org/luthersystems
-
 ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.godynamic.mk"]
 
 COPY --from=go-alpine-downloader /go/bin/go-bindata /go/bin/go-bindata
