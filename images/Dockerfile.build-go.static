@@ -1,4 +1,4 @@
-FROM alpine:3.17
+FROM alpine:3.18
 MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 RUN echo "nobody:x:1:1:nobody:/:/bin/sh" >> /etc/passwd
