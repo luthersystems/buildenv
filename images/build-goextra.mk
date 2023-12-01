@@ -22,6 +22,7 @@ static: build
 build:
 	@echo "Building BIN=\"${BIN}\" VERSION=\"${VERSION}\""
 	mkdir -p build/bin
+	go env
 	# build static binary with CGO extensions enabled and libtool
 	CGO_ENABLED=1 GOOS=linux go build ${GO_BUILD_EXTRA_FLAGS}  ${GO_BUILD_FLAGS} -ldflags '${GO_LD_FLAGS}' -o ${BIN}
 

@@ -23,7 +23,6 @@ build:
 	go env
 	# build static binary with CGO extensions enabled and libtool
 	CGO_ENABLED=1 GOOS=linux go build ${GO_BUILD_EXTRA_FLAGS} ${GO_BUILD_FLAGS} -ldflags '${GO_LD_FLAGS}' -o ${BIN}
-	chown ${DOCKER_CHOWN_USER}:${DOCKER_CHOWN_GROUP} build/bin
 
 .PHONY: test
 test:
