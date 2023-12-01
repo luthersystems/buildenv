@@ -1,5 +1,5 @@
 GO_TEST_FLAGS ?= -cover
-GO_BUILD_TAGS ?= netgo,cgo,timetzdata
+GO_BUILD_TAGS ?= netgo,timetzdata
 GO_BUILD_EXTRA_FLAGS ?= -a
 
 GO_BUILD_FLAGS=-installsuffix ${GO_BUILD_TAGS} -tags ${GO_BUILD_TAGS} -buildvcs=false
@@ -24,9 +24,9 @@ build:
 	mkdir -p build/bin
 	go env
 	# build static binary with CGO extensions enabled and libtool
-	CGO_ENABLED=1 GOOS=linux go build ${GO_BUILD_EXTRA_FLAGS}  ${GO_BUILD_FLAGS} -ldflags '${GO_LD_FLAGS}' -o ${BIN}
+	go build ${GO_BUILD_EXTRA_FLAGS}  ${GO_BUILD_FLAGS} -ldflags '${GO_LD_FLAGS}' -o ${BIN}
 
 .PHONY: test
 test:
 	@echo "Test"
-	CGO_LDFLAGS_ALLOW=-I/usr/local/share/libtool GOCACHE=off go test ${GO_TEST_FLAGS} ${GO_BUILD_FLAGS} ./...
+	go test ${GO_TEST_FLAGS} ${GO_BUILD_FLAGS} ./...
