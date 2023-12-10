@@ -3,7 +3,7 @@ GO_BUILD_TAGS ?= netgo,timetzdata
 GO_BUILD_EXTRA_FLAGS ?= -a
 
 GO_BUILD_FLAGS=-installsuffix ${GO_BUILD_TAGS} -tags ${GO_BUILD_TAGS} -buildvcs=false
-GO_LD_FLAGS=-X $(shell go list)/version.Version=${VERSION} -extldflags "-static"
+GO_LD_FLAGS=-X $(shell go list -buildvcs=false)/version.Version=${VERSION} -extldflags "-static"
 
 DOCKER=docker
 
