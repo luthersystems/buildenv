@@ -29,6 +29,25 @@ RUN set -ex; \
     /aws-cli-bin/aws --version
 
 #
+# Azure CLI builder
+#
+
+FROM python:3.8-alpine${ALPINE_VERSION} as azcli
+
+ARG AZCLI_VER
+ENV AZCLI_VER=$AZCLI_VER
+
+RUN set -ex; \
+    apk add --no-cache \
+    build-base libffi-dev openssl-dev cargo python3-dev
+
+RUN set -eux; \
+    mkdir /az; \
+    python -m venv /az/venv; \
+    . /az/venv/bin/activate; \
+    pip install --no-cache-dir azure-cli==${AZCLI_VER}
+
+#
 # Go utils
 #
 
@@ -85,9 +104,9 @@ COPY --from=go-alpine-downloader /go/bin/golangci-lint /go/bin/golangci-lint
 ARG AZCLI_VER
 ENV AZCLI_VER=$AZCLI_VER
 
-RUN apk add --no-cache -q --virtual=build gcc musl-dev python3-dev py3-pip libffi-dev openssl-dev cargo make \
-     && pip install --no-cache-dir azure-cli==${AZCLI_VER} -q \
-     && apk del --purge build
-
 COPY --from=aws /usr/local/aws-cli/ /usr/local/aws-cli/
 COPY --from=aws /aws-cli-bin/ /usr/local/bin/
+
+COPY --from=azcli /az/venv /az/venv
+
+ENV PATH="/az/venv/bin:$PATH"
