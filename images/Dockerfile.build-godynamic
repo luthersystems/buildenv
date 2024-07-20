@@ -5,34 +5,34 @@ ARG ALPINE_VERSION
 # aws builder
 #
 
-FROM python:3.8-alpine${ALPINE_VERSION} as aws
+FROM python:3.8-alpine${ALPINE_VERSION} AS aws
 
 RUN set -ex; \
-    apk add --no-cache \
-    git unzip groff \
-    build-base libffi-dev cmake
+  apk add --no-cache \
+  git unzip groff \
+  build-base libffi-dev cmake
 
 ARG AWSCLI_VER
 ENV AWSCLI_VER=$AWSCLI_VER
 
 RUN set -eux; \
-    mkdir /aws; \
-    git clone --single-branch --depth 1 -b ${AWSCLI_VER} https://github.com/aws/aws-cli.git /aws; \
-    cd /aws; \
-    python -m venv venv; \
-    . venv/bin/activate; \
-    ./scripts/installers/make-exe
+  mkdir /aws; \
+  git clone --single-branch --depth 1 -b ${AWSCLI_VER} https://github.com/aws/aws-cli.git /aws; \
+  cd /aws; \
+  python -m venv venv; \
+  . venv/bin/activate; \
+  ./scripts/installers/make-exe
 
 RUN set -ex; \
-    unzip /aws/dist/awscli-exe.zip; \
-    ./aws/install --bin-dir /aws-cli-bin; \
-    /aws-cli-bin/aws --version
+  unzip /aws/dist/awscli-exe.zip; \
+  ./aws/install --bin-dir /aws-cli-bin; \
+  /aws-cli-bin/aws --version
 
 #
 # Azure CLI builder
 #
 
-FROM alpine:${ALPINE_VERSION} as azcli
+FROM alpine:${ALPINE_VERSION} AS azcli
 
 ARG AZCLI_VER
 ENV AZCLI_VER=$AZCLI_VER
@@ -40,17 +40,17 @@ ENV AZCLI_VER=$AZCLI_VER
 WORKDIR /az
 
 RUN set -ex; \
-    apk add --no-cache \
-    build-base libffi-dev openssl-dev cargo python3-dev py3-pip; \
-    python3 -m venv ./venv; \
-    . ./venv/bin/activate; \
-    pip install --no-cache-dir azure-cli==${AZCLI_VER}
+  apk add --no-cache \
+  build-base libffi-dev openssl-dev cargo python3-dev py3-pip; \
+  python3 -m venv ./venv; \
+  . ./venv/bin/activate; \
+  pip install --no-cache-dir azure-cli==${AZCLI_VER}
 
 #
 # Go utils
 #
 
-FROM golang:${GOLANG_VERSION}-alpine${ALPINE_VERSION} as go-alpine-downloader
+FROM golang:${GOLANG_VERSION}-alpine${ALPINE_VERSION} AS go-alpine-downloader
 
 ARG GO_BINDATA_VERSION
 RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VERSION}"
@@ -64,7 +64,6 @@ RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master
 #
 
 FROM alpine:$ALPINE_VERSION
-MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 CMD ["/bin/sh"]
 RUN test -e /etc/nsswitch.conf || echo "hosts: files dns" >/etc/nsswitch.conf
@@ -75,8 +74,8 @@ ENV PATH=/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr
 WORKDIR /go
 
 RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
-    apk add --no-cache ca-certificates tzdata libltdl rsync zip openssh git-lfs bash shadow gcc musl-dev make linux-headers curl tini gcompat jq python3-dev py3-pip groff docker docker-compose openrc && \
-    rc-update add docker boot
+  apk add --no-cache ca-certificates tzdata libltdl rsync zip openssh git-lfs bash shadow gcc musl-dev make linux-headers curl tini gcompat jq python3-dev py3-pip groff docker docker-compose openrc && \
+  rc-update add docker boot
 
 ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.godynamic.mk"]
 COPY build-godynamic.mk /opt/Dockerfile.godynamic.mk
@@ -84,12 +83,12 @@ COPY Dockerfile.build-godynamic.static /opt/Dockerfile.godynamic.static
 
 # set up private repo access for go mod
 RUN git config --system url."git@bitbucket.org:".insteadOf "https://bitbucket.org/"; \
-    git config --system url."git@github.com:luthersystems/license.git".insteadOf "https://github.com/luthersystems/license"; \
-    git config --system url."git@github.com:luthersystems/lutherauth-sdk-go.git".insteadOf "https://github.com/luthersystems/lutherauth-sdk-go"; \
-    git config --system url."git@github.com:luthersystems/substrate.git".insteadOf "https://github.com/luthersystems/substrate"; \
-    git config --system url."git@github.com:luthersystems/chainidentifier.git".insteadOf "https://github.com/luthersystems/chainidentifier"; \
-    ssh-keyscan -t Ed25519 -H bitbucket.org | tee -a /etc/ssh/ssh_known_hosts; \
-    ssh-keyscan -t Ed25519 -H github.com | tee -a /etc/ssh/ssh_known_hosts
+  git config --system url."git@github.com:luthersystems/license.git".insteadOf "https://github.com/luthersystems/license"; \
+  git config --system url."git@github.com:luthersystems/lutherauth-sdk-go.git".insteadOf "https://github.com/luthersystems/lutherauth-sdk-go"; \
+  git config --system url."git@github.com:luthersystems/substrate.git".insteadOf "https://github.com/luthersystems/substrate"; \
+  git config --system url."git@github.com:luthersystems/chainidentifier.git".insteadOf "https://github.com/luthersystems/chainidentifier"; \
+  ssh-keyscan -t Ed25519 -H bitbucket.org | tee -a /etc/ssh/ssh_known_hosts; \
+  ssh-keyscan -t Ed25519 -H github.com | tee -a /etc/ssh/ssh_known_hosts
 
 COPY --from=go-alpine-downloader /usr/local/go/ /usr/local/go/
 COPY --from=go-alpine-downloader /go/bin/go-bindata /go/bin/go-bindata

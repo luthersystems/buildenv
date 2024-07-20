@@ -1,5 +1,4 @@
 FROM maven:3.8.5-openjdk-8
-MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 RUN apt-get update && apt-get install --no-install-recommends -y make tini ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
@@ -8,4 +7,4 @@ COPY --from=swaggerapi/swagger-codegen-cli-v3:3.0.34 /opt/swagger-codegen-cli/sw
 
 ENTRYPOINT ["tini", "--", "sh", "-c", "make -f /opt/Dockerfile.swaggercodegen.mk -C $PWD build"]
 
-ADD build-swaggercodegen.mk /opt/Dockerfile.swaggercodegen.mk
+COPY build-swaggercodegen.mk /opt/Dockerfile.swaggercodegen.mk

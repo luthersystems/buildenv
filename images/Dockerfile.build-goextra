@@ -1,5 +1,5 @@
 ARG GOLANG_VERSION
-FROM golang:$GOLANG_VERSION as go-downloader
+FROM golang:$GOLANG_VERSION AS go-downloader
 
 ARG GO_BINDATA_VERSION
 RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VERSION}"
@@ -9,7 +9,6 @@ ARG GOLANGCI_LINT_VERSION
 RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s "v${GOLANGCI_LINT_VERSION}"
 
 FROM golang:$GOLANG_VERSION
-MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev curl make rsync zip git-lfs jq tini ca-certificates docker.io && rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
