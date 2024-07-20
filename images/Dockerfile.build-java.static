@@ -1,5 +1,4 @@
 FROM openjdk:19-jdk-alpine3.16
-MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 RUN echo "nobody:x:1:1:nobody:/:/bin/sh" >> /etc/passwd
 RUN echo "nobody:x:1:" >> /etc/group
@@ -10,5 +9,5 @@ WORKDIR /opt
 VOLUME ["/opt"]
 ARG BIN
 ENV BIN ${BIN}
-ADD target/${BIN} /opt/app.jar
+COPY target/${BIN} /opt/app.jar
 ENTRYPOINT ["tini", "--", "java", "-jar", "/opt/app.jar"]

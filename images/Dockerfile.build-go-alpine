@@ -1,7 +1,7 @@
 ARG GOLANG_VERSION
 ARG ALPINE_VERSION
 
-FROM golang:${GOLANG_VERSION}-alpine${ALPINE_VERSION} as go-alpine-downloader
+FROM golang:${GOLANG_VERSION}-alpine${ALPINE_VERSION} AS go-alpine-downloader
 
 ARG GO_BINDATA_VERSION
 RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VERSION}"
@@ -11,22 +11,21 @@ ARG GOLANGCI_LINT_VERSION
 RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s "v${GOLANGCI_LINT_VERSION}"
 
 FROM golang:${GOLANG_VERSION}-alpine${ALPINE_VERSION}
-MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 RUN apk add --no-cache \
-    ca-certificates \
-    tzdata \
-    bash \
-    gcc \
-    git-lfs \
-    libltdl \
-    linux-headers \
-    make \
-    musl-dev \
-    rsync \
-    shadow \
-    tini \
-    zip \
-    jq
+  ca-certificates \
+  tzdata \
+  bash \
+  gcc \
+  git-lfs \
+  libltdl \
+  linux-headers \
+  make \
+  musl-dev \
+  rsync \
+  shadow \
+  tini \
+  zip \
+  jq
 
 COPY --from=go-alpine-downloader /go/bin/go-bindata /go/bin/go-bindata
 COPY --from=go-alpine-downloader /go/bin/gotestsum /go/bin/gotestsum

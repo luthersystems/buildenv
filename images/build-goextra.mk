@@ -10,8 +10,6 @@ DOCKER=docker
 .PHONY: static
 static: build
 	@echo "Static ${STATIC_IMAGE}"
-	bash -c 'while read LINE; do if [ "$$LINE" == "{}" ]; then cat ./fragment.txt; else echo "$$LINE"; fi; done' </opt/Dockerfile.goextra.static >/tmp/Dockerfile.goextra.static
-	cat /tmp/Dockerfile.goextra.static
 	${DOCKER} build \
 		--build-arg BIN=$(notdir ${BIN}) \
 		-t ${STATIC_IMAGE}:latest \

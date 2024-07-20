@@ -1,5 +1,5 @@
 ARG GOLANG_VERSION
-FROM golang:$GOLANG_VERSION as go-downloader
+FROM golang:$GOLANG_VERSION AS go-downloader
 
 ARG GO_BINDATA_VERSION
 RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VERSION}"
@@ -14,7 +14,6 @@ ARG GO_SWAGGER_VERSION
 RUN go install "github.com/go-swagger/go-swagger/cmd/swagger@v${GO_SWAGGER_VERSION}"
 
 FROM golang:$GOLANG_VERSION
-MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev curl make rsync zip git-lfs jq tini ca-certificates protobuf-compiler && rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
@@ -26,5 +25,5 @@ COPY --from=go-downloader /go/bin/golangci-lint /go/bin/golangci-lint
 COPY --from=go-downloader /go/bin/buf /go/bin/buf
 COPY --from=go-downloader /go/bin/swagger /go/bin/swagger
 
-ADD build-api.mk /opt/Dockerfile.api.mk
+COPY build-api.mk /opt/Dockerfile.api.mk
 ENTRYPOINT ["tini", "--", "sh", "-c", "make -f /opt/Dockerfile.api.mk -C $PWD build"]

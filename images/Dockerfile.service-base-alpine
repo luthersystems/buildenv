@@ -1,6 +1,5 @@
 ARG ALPINE_VERSION
 FROM alpine:${ALPINE_VERSION}
-MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 RUN echo "nobody:x:1:1:nobody:/:/bin/sh" >> /etc/passwd
 RUN echo "nobody:x:1:" >> /etc/group

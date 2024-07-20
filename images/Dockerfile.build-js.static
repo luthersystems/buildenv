@@ -1,2 +1,2 @@
 FROM luthersystems/nginx-frontend:0.2.0
-ADD build /html
+COPY build /html

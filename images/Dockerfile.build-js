@@ -1,8 +1,8 @@
-FROM ubuntu:22.04 as aws
+FROM ubuntu:22.04 AS aws
 
 RUN apt-get update
 RUN apt-get install --no-install-recommends -y gnupg curl ca-certificates
-ADD aws-cli-pkg-key.asc /tmp/aws-cli-pkg-key.asc
+COPY aws-cli-pkg-key.asc /tmp/aws-cli-pkg-key.asc
 RUN gpg --import /tmp/aws-cli-pkg-key.asc
 
 WORKDIR /tmp
@@ -14,7 +14,6 @@ RUN curl -fsSL -o awscliv2.sig "https://awscli.amazonaws.com/awscli-exe-linux-$(
 RUN gpg --verify awscliv2.sig awscliv2.zip
 
 FROM node:20.5.0-bullseye
-MAINTAINER Sam Wood <sam.wood@luthersystems.com>
 
 RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev rsync zip git-lfs tini ca-certificates docker.io apt-transport-https lsb-release gnupg python2 python2-dev groff && rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
@@ -30,11 +29,11 @@ COPY --from=aws /tmp/awscliv2.zip /tmp/awscliv2.zip
 RUN unzip -d /tmp /tmp/awscliv2.zip && /tmp/aws/install && rm -rf /tmp/aws*
 
 RUN curl -sL https://packages.microsoft.com/keys/microsoft.asc | \
-    gpg --dearmor | \
-    tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
+  gpg --dearmor | \
+  tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
 
 RUN echo "deb [arch=$(dpkg --print-architecture)] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | \
-    tee /etc/apt/sources.list.d/azure-cli.list
+  tee /etc/apt/sources.list.d/azure-cli.list
 
 ARG AZCLI_VER=2.18.0
 ENV AZCLI_VER=$AZCLI_VER
