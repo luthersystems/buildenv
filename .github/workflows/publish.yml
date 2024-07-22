@@ -2,9 +2,9 @@ name: Build and Push
 on:
   push:
     tags:
-    - '*'
+      - "*"
 env:
-  DOCKERHUB_TOKEN:  ${{ secrets.DOCKERHUB_TOKEN }}
+  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
   DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
 jobs:
   build:
@@ -21,7 +21,6 @@ jobs:
           - build-api
           - build-swaggercodegen
           - multi-build-go
-          - multi-build-goextra
           - multi-build-godynamic
           - multi-build-java
           - multi-build-js
@@ -37,13 +36,13 @@ jobs:
   push-manifests:
     runs-on: ubuntu-20.04
     needs:
-    - build
+      - build
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3.5.0
-    - name:  Configure DockerHub
-      uses: ./.github/actions/configure-dockerhub
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    - name: Create and push manifest for multiarch
-      run: cd images && make push-manifests GIT_TAG=$GITHUB_REF_NAME
+      - name: Checkout Repository
+        uses: actions/checkout@v3.5.0
+      - name: Configure DockerHub
+        uses: ./.github/actions/configure-dockerhub
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Create and push manifest for multiarch
+        run: cd images && make push-manifests GIT_TAG=$GITHUB_REF_NAME
