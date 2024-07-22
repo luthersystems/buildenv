@@ -25,22 +25,21 @@ RUN apk add --no-cache \
   shadow \
   tini \
   zip \
-  jq
+  jq \
+  openssh
 
 COPY --from=go-alpine-downloader /go/bin/go-bindata /go/bin/go-bindata
 COPY --from=go-alpine-downloader /go/bin/gotestsum /go/bin/gotestsum
 COPY --from=go-alpine-downloader /go/bin/golangci-lint /go/bin/golangci-lint
 
 # set up private repo access for go mod
-RUN git config --system url."git@bitbucket.org:".insteadOf "https://bitbucket.org/"
-RUN git config --system url."git@github.com:luthersystems/license.git".insteadOf "https://github.com/luthersystems/license"
-RUN git config --system url."git@github.com:luthersystems/lutherauth-sdk-go.git".insteadOf "https://github.com/luthersystems/lutherauth-sdk-go"
-RUN git config --system url."git@github.com:luthersystems/substrate.git".insteadOf "https://github.com/luthersystems/substrate"
-RUN git config --system url."git@github.com:luthersystems/chainidentifier.git".insteadOf "https://github.com/luthersystems/chainidentifier"
-
-RUN apk add --no-cache openssh
-RUN ssh-keyscan -t Ed25519 -H bitbucket.org | tee -a /etc/ssh/ssh_known_hosts
-RUN ssh-keyscan -t Ed25519 -H github.com | tee -a /etc/ssh/ssh_known_hosts
+RUN git config --system url."git@bitbucket.org:".insteadOf "https://bitbucket.org/"; \
+  git config --system url."git@github.com:luthersystems/license.git".insteadOf "https://github.com/luthersystems/license"; \
+  git config --system url."git@github.com:luthersystems/lutherauth-sdk-go.git".insteadOf "https://github.com/luthersystems/lutherauth-sdk-go"; \
+  git config --system url."git@github.com:luthersystems/substrate.git".insteadOf "https://github.com/luthersystems/substrate"; \
+  git config --system url."git@github.com:luthersystems/chainidentifier.git".insteadOf "https://github.com/luthersystems/chainidentifier"; \
+  ssh-keyscan -t Ed25519 -H bitbucket.org | tee -a /etc/ssh/ssh_known_hosts; \
+  ssh-keyscan -t Ed25519 -H github.com | tee -a /etc/ssh/ssh_known_hosts
 
 ENV GOCACHE /tmp
 ENTRYPOINT ["tini", "--"]
