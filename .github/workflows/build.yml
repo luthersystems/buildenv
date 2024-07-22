@@ -2,9 +2,9 @@ name: Build docker images
 on:
   pull_request:
     branches:
-    - main
+      - main
 env:
-  DOCKERHUB_TOKEN:  ${{ secrets.DOCKERHUB_TOKEN }}
+  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
   DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
 
 jobs:
@@ -22,7 +22,6 @@ jobs:
           - build-api
           - build-swaggercodegen
           - multi-build-go
-          - multi-build-goextra
           - multi-build-godynamic
           - multi-build-java
           - multi-build-js

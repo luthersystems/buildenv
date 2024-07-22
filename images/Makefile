@@ -5,7 +5,7 @@ CONFIG_MAKEFILE=${PROJECT_DIR}/common.config.mk
 include ${CONFIG_MAKEFILE}
 
 IMAGES=luthersystems/build-go-alpine luthersystems/service-base-alpine luthersystems/build-api luthersystems/build-swaggercodegen
-MULTI_STAGE_IMAGES=luthersystems/build-go luthersystems/build-goextra luthersystems/build-godynamic luthersystems/build-java luthersystems/build-js
+MULTI_STAGE_IMAGES=luthersystems/build-go luthersystems/build-godynamic luthersystems/build-java luthersystems/build-js
 ALL_IMAGES=${IMAGES} ${MULTI_STAGE_IMAGES}
 
 TAG_SUFFIX=
@@ -72,9 +72,6 @@ $(call DUMMY_TARGET,deps,luthersystems/build-swaggercodegen): build-swaggercodeg
 	@
 
 $(call DUMMY_TARGET,deps,luthersystems/build-go):
-	@
-
-$(call DUMMY_TARGET,deps,luthersystems/build-goextra):
 	@
 
 $(call DUMMY_TARGET,deps,luthersystems/build-go-alpine):
