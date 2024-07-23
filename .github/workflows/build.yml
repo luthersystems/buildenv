@@ -10,7 +10,7 @@ env:
 jobs:
   build:
     name: ${{ matrix.image }} - ${{ matrix.arch }} docker build
-    runs-on: ${{ fromJSON('{"arm64":"buildjet-2vcpu-ubuntu-2204-arm","amd64":"ubuntu-20.04"}')[matrix.arch] }}
+    runs-on: ${{ fromJSON('{"arm64":"buildjet-2vcpu-ubuntu-2204-arm","amd64":"ubuntu-22.04"}')[matrix.arch] }}
     strategy:
       matrix:
         arch:
@@ -26,7 +26,7 @@ jobs:
           - multi-build-java
           - multi-build-js
     steps:
-      - uses: actions/checkout@v3.5.0
+      - uses: actions/checkout@v4
       - name: Build container
         uses: ./.github/actions/build-docker-images
         with:
