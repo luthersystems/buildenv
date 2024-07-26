@@ -18,6 +18,7 @@ jobs:
         image:
           - build-go-alpine
           - service-base-alpine
+          - nginx-frontend
           - build-api
           - build-swaggercodegen
           - multi-build-go
