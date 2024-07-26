@@ -35,7 +35,7 @@ jobs:
           git_tag: $GITHUB_REF_NAME
 
   push-manifests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs:
       - build
     steps:
