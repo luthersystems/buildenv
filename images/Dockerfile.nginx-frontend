@@ -9,3 +9,5 @@ VOLUME ["/html"]
 ENTRYPOINT ["sh", "/opt/nginx_serve.sh"]
 
 EXPOSE 9090
+
+CMD ["nginx", "-g", "daemon off;"]
