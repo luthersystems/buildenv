@@ -1,5 +1,6 @@
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 
+COPY nginx/nginx_serve.sh /opt/
 COPY nginx/default.conf.template /etc/nginx/templates/
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 
@@ -11,3 +12,5 @@ ENV NGINX_API_ENDPOINT=/v1/oracle \
   NGINX_API_ADDR=localhost
 
 EXPOSE 9090
+
+ENTRYPOINT ["sh", "/opt/nginx_serve.sh"]
