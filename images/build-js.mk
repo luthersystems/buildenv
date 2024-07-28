@@ -11,7 +11,6 @@ static: build
 .PHONY: build
 build:
 	@echo "Building in ${PWD}"
-	npm --allow-same-version version ${VERSION}
 	npm install --verbose --prefer-offline
 	npm rebuild node-sass
 	npm run build
