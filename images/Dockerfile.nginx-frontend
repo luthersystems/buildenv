@@ -14,3 +14,4 @@ ENV NGINX_API_ENDPOINT=/v1/oracle \
 EXPOSE 9090
 
 ENTRYPOINT ["sh", "/opt/nginx_serve.sh"]
+CMD ["nginx", "-g", "daemon off;"]
