@@ -1,2 +1,2 @@
-FROM luthersystems/nginx-frontend:v0.0.86
+FROM luthersystems/nginx-frontend:v0.0.88
 COPY build /html
