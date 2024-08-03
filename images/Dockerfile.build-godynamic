@@ -69,7 +69,7 @@ CMD ["/bin/sh"]
 RUN test -e /etc/nsswitch.conf || echo "hosts: files dns" >/etc/nsswitch.conf
 
 ENV GOPATH=/go
-ENV GOCACHE /tmp
+ENV GOCACHE=/tmp
 ENV PATH=/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 WORKDIR /go
 
