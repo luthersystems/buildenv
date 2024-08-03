@@ -19,7 +19,7 @@ COPY --from=go-downloader /go/bin/golangci-lint /go/bin/golangci-lint
 
 COPY build-go.mk /opt/Dockerfile.go.mk
 COPY Dockerfile.build-go.static /opt/Dockerfile.go.static
-ENV GOCACHE /tmp
+ENV GOCACHE=/tmp
 
 # set up private repo access for go mod
 RUN git config --system url."git@bitbucket.org:".insteadOf "https://bitbucket.org/"; \

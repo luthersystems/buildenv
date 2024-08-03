@@ -8,6 +8,6 @@ USER nobody
 WORKDIR /opt
 VOLUME ["/opt"]
 ARG BIN
-ENV BIN ${BIN}
+ENV BIN=${BIN}
 COPY build/bin/${BIN} /opt/app
 ENTRYPOINT ["tini", "--", "/opt/app"]

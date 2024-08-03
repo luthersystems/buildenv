@@ -8,6 +8,6 @@ USER nobody
 WORKDIR /opt
 VOLUME ["/opt"]
 ARG BIN
-ENV BIN ${BIN}
+ENV BIN=${BIN}
 COPY target/${BIN} /opt/app.jar
 ENTRYPOINT ["tini", "--", "java", "-jar", "/opt/app.jar"]

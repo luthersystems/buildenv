@@ -41,5 +41,5 @@ RUN git config --system url."git@bitbucket.org:".insteadOf "https://bitbucket.or
   ssh-keyscan -t Ed25519 -H bitbucket.org | tee -a /etc/ssh/ssh_known_hosts; \
   ssh-keyscan -t Ed25519 -H github.com | tee -a /etc/ssh/ssh_known_hosts
 
-ENV GOCACHE /tmp
+ENV GOCACHE=/tmp
 ENTRYPOINT ["tini", "--"]
