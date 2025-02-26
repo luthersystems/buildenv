@@ -5,7 +5,8 @@ ARG ALPINE_VERSION
 # aws builder
 #
 
-FROM python:3.9-alpine${ALPINE_VERSION} AS aws
+# TODO: use newer alpine and python
+FROM python:3.8-alpine3.20 AS aws
 
 RUN set -ex; \
   apk add --no-cache \
