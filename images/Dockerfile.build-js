@@ -13,7 +13,8 @@ RUN curl -fsSL -o awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-linux-$(
 RUN curl -fsSL -o awscliv2.sig "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m)-${AWSCLI_VER}.zip.sig"
 RUN gpg --verify awscliv2.sig awscliv2.zip
 
-FROM node:20.5.0-bullseye
+ARG NODE_VERSION
+FROM node:${NODE_VERSION}-bullseye
 
 RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev rsync zip git-lfs tini ca-certificates docker.io apt-transport-https lsb-release gnupg python2 python2-dev groff && rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
@@ -35,7 +36,7 @@ RUN curl -sL https://packages.microsoft.com/keys/microsoft.asc | \
 RUN echo "deb [arch=$(dpkg --print-architecture)] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | \
   tee /etc/apt/sources.list.d/azure-cli.list
 
-ARG AZCLI_VER=2.18.0
+ARG AZCLI_VER
 ENV AZCLI_VER=$AZCLI_VER
 
 RUN apt-get update && apt-get install -y azure-cli=${AZCLI_VER}\*
