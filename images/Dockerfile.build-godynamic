@@ -5,28 +5,28 @@ ARG ALPINE_VERSION
 # aws builder
 #
 
-FROM alpine:${ALPINE_VERSION} AS aws
+FROM python:3.9-alpine${ALPINE_VERSION} AS aws
 
 RUN set -ex; \
   apk add --no-cache \
-  unzip groff curl
+  git unzip groff \
+  build-base libffi-dev cmake
 
-# Detect architecture dynamically
-RUN ARCH=$(uname -m); \
-  if [ "$ARCH" = "x86_64" ]; then \
-  AWS_ARCH="x86_64"; \
-  elif [ "$ARCH" = "aarch64" ]; then \
-  AWS_ARCH="aarch64"; \
-  else \
-  echo "Unsupported architecture: $ARCH"; exit 1; \
-  fi; \
-  curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" -o awscliv2.zip; \
-  unzip awscliv2.zip; \
+ARG AWSCLI_VER
+ENV AWSCLI_VER=$AWSCLI_VER
+
+RUN set -eux; \
+  mkdir /aws; \
+  git clone --single-branch --depth 1 -b ${AWSCLI_VER} https://github.com/aws/aws-cli.git /aws; \
+  cd /aws; \
+  python -m venv venv; \
+  . venv/bin/activate; \
+  ./scripts/installers/make-exe
+
+RUN set -ex; \
+  unzip /aws/dist/awscli-exe.zip; \
   ./aws/install --bin-dir /aws-cli-bin; \
-  rm -rf awscliv2.zip aws/
-
-# Verify installation
-RUN /aws-cli-bin/aws --version
+  /aws-cli-bin/aws --version
 
 #
 # Azure CLI builder
