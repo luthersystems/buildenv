@@ -32,5 +32,10 @@ proto:
 
 .PHONY: validate-swagger
 validate-swagger:
-	swagger -q validate --stop-on-error ./srvpb/*/*.swagger.json
-
+	@echo "Validating generated swagger files"
+	@SWAGGER_FILES=$$(find ./srvpb -type f -name '*.swagger.json'); \
+	if [ -n "$$SWAGGER_FILES" ]; then \
+		swagger -q validate --stop-on-error $$SWAGGER_FILES; \
+	else \
+		echo "No swagger files found. Skipping validation."; \
+	fi
