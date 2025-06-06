@@ -13,11 +13,24 @@ SRV_PROTOS=$(wildcard srvpb/*/*.proto)
 ARTIFACTS=${MODEL_PROTOS} ${SRV_PROTOS}
 
 .PHONY: build
-build: ${ARTIFACTS}
+build: format lint proto validate-swagger
+
+.PHONY: format
+format:
 	@echo "Formating protos ${MODEL_PROTOS} ${SRV_PROTOS}"
 	buf format -w
+
+.PHONY: lint
+lint:
 	@echo "Linting protos ${MODEL_PROTOS} ${SRV_PROTOS}"
 	buf lint
+
+.PHONY: proto
+proto:
 	@echo "Building protos $@ ${VERSION}"
 	buf generate
+
+.PHONY: validate-swagger
+validate-swagger:
 	swagger -q validate --stop-on-error ./srvpb/*/*.swagger.json
+
