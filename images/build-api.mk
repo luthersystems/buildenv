@@ -33,7 +33,7 @@ $(info SUBMODULE_PROTOS: ${SUBMODULE_PROTOS})
 $(info ARTIFACTS: ${ARTIFACTS})
 
 .PHONY: build
-build: validate-swagger ${ARTIFACTS}
+build: format lint gen validate-swagger ${ARTIFACTS}
 
 .PHONY: format
 format:
