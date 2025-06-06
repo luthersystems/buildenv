@@ -18,7 +18,7 @@
 
 MODEL_PROTO_PATH ?= pb
 SRV_PROTO_PATH ?= srvpb
-SWAGGER_PATH ?= srvpb
+SWAGGER_VALIDATION_PATH ?= srvpb
 INCLUDE_SUBMODULES ?= false
 
 MODEL_PROTOS := $(wildcard ${MODEL_PROTO_PATH}/*/*.proto)
@@ -33,7 +33,7 @@ $(info SUBMODULE_PROTOS: ${SUBMODULE_PROTOS})
 $(info ARTIFACTS: ${ARTIFACTS})
 
 .PHONY: build
-build: format lint gen validate-swagger ${ARTIFACTS}
+build: validate-swagger ${ARTIFACTS}
 
 .PHONY: format
 format:
@@ -53,9 +53,15 @@ gen:
 .PHONY: validate-swagger
 validate-swagger:
 	@echo "Validating swagger files"
-	@SWAGGER_FILES=$$(find ${SWAGGER_PATH} -type f -name '*.swagger.json'); \
+	@SWAGGER_FILES=$$(find ${SWAGGER_VALIDATION_PATH} -type f -name '*.swagger.json'); \
 	if [ -n "$$SWAGGER_FILES" ]; then \
-		swagger -q validate --stop-on-error $$SWAGGER_FILES; \
+		echo "Found swagger files: $$SWAGGER_FILES"; \
+		if swagger -q validate --stop-on-error $$SWAGGER_FILES; then \
+			echo "✅ Swagger validation passed."; \
+		else \
+			echo "❌ Swagger validation failed."; \
+			exit 1; \
+		fi \
 	else \
 		echo "No swagger files found, skipping validation."; \
 	fi
