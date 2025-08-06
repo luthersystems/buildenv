@@ -27,7 +27,7 @@ build: gen validate-swagger
 .PHONY: gen
 gen:
 	@ARTIFACTS=$$(find $(PROTO_PATH) -type f -name "*.proto"); \
-	echo "Formating protos $$ARTIFACTS"; \
+	echo "Formatting protos $$ARTIFACTS"; \
 	buf format -w; \
 	echo "Linting protos $$ARTIFACTS"; \
 	buf lint; \
