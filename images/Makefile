@@ -4,7 +4,7 @@ include ${COMMON_MAKEFILE}
 CONFIG_MAKEFILE=${PROJECT_DIR}/common.config.mk
 include ${CONFIG_MAKEFILE}
 
-IMAGES=luthersystems/build-go-alpine luthersystems/service-base-alpine luthersystems/build-api luthersystems/build-swaggercodegen luthersystems/nginx-frontend
+IMAGES=luthersystems/build-go-alpine luthersystems/service-base-alpine luthersystems/build-api luthersystems/build-swaggercodegen luthersystems/nginx-frontend luthersystems/dynamodb-mcp-server
 MULTI_STAGE_IMAGES=luthersystems/build-go luthersystems/build-godynamic luthersystems/build-java luthersystems/build-js
 ALL_IMAGES=${IMAGES} ${MULTI_STAGE_IMAGES}
 

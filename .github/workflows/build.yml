@@ -26,6 +26,7 @@ jobs:
           - multi-build-godynamic
           - multi-build-java
           - multi-build-js
+          - dynamodb-mcp-server
     steps:
       - uses: actions/checkout@v4
       - name: Build container
