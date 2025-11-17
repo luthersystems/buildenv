@@ -10,7 +10,7 @@ RUN ARCH=$(dpkg --print-architecture | sed 's/arm64/aarch64/; s/amd64/x86_64/') 
     mv /tmp/docker/docker /usr/local/bin/docker && \
     chmod +x /usr/local/bin/docker && \
     rm -rf /tmp/docker && \
-    docker version
+    docker version --client
 
 ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.java.mk"]
 
