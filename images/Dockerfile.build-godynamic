@@ -85,7 +85,7 @@ RUN ARCH=$(uname -m | sed 's/aarch64/arm64/; s/x86_64/x86_64/') && \
     mv /tmp/docker/docker /usr/local/bin/docker && \
     chmod +x /usr/local/bin/docker && \
     rm -rf /tmp/docker && \
-    docker version
+    docker version --client
 
 ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.godynamic.mk"]
 COPY build-godynamic.mk /opt/Dockerfile.godynamic.mk
