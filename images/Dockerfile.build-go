@@ -20,7 +20,7 @@ RUN ARCH=$(dpkg --print-architecture | sed 's/arm64/aarch64/; s/amd64/x86_64/') 
     mv /tmp/docker/docker /usr/local/bin/docker && \
     chmod +x /usr/local/bin/docker && \
     rm -rf /tmp/docker && \
-    docker version --client
+    docker --version
 
 COPY --from=go-downloader /go/bin/go-bindata /go/bin/go-bindata
 COPY --from=go-downloader /go/bin/gotestsum /go/bin/gotestsum
