@@ -79,7 +79,7 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
 
 # Install Docker CLI (static binary) - version 27.3.1 supports API 1.44+
 # Alpine's docker package is old, so we install the static binary instead
-RUN ARCH=$(uname -m | sed 's/aarch64/arm64/; s/x86_64/x86_64/') && \
+RUN ARCH=$(apk --print-arch | sed 's/aarch64/arm64/; s/x86_64/x86_64/') && \
     curl -fsSL https://download.docker.com/linux/static/stable/${ARCH}/docker-27.3.1.tgz | tar -xz -C /tmp && \
     mv /tmp/docker/docker /usr/local/bin/docker && \
     chmod +x /usr/local/bin/docker && \
