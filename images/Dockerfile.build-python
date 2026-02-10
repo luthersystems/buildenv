@@ -1,0 +1,38 @@
+ARG PYTHON_VERSION
+FROM python:${PYTHON_VERSION}-slim
+
+# Install system dependencies for build and testing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    postgresql-client \
+    git \
+    make \
+    curl \
+    ca-certificates \
+    tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Docker CLI (useful for Docker-in-Docker builds)
+RUN ARCH=$(dpkg --print-architecture | sed 's/arm64/aarch64/; s/amd64/x86_64/') && \
+    curl -fsSL https://download.docker.com/linux/static/stable/${ARCH}/docker-27.3.1.tgz | tar -xz -C /tmp && \
+    mv /tmp/docker/docker /usr/local/bin/docker && \
+    chmod +x /usr/local/bin/docker && \
+    rm -rf /tmp/docker
+
+# Install common Python build/test tools
+RUN pip install --no-cache-dir \
+    pip \
+    setuptools \
+    wheel \
+    flake8 \
+    black \
+    mypy \
+    pytest \
+    uvicorn
+
+# Copy helper scripts
+COPY build-python.mk /opt/Dockerfile.python.mk
+COPY Dockerfile.build-python-agent.static /opt/Dockerfile.python-agent.static
+
+# Set entrypoint to run make commands
+ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.python.mk"]

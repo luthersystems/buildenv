@@ -1,0 +1,25 @@
+ARG PYTHON_VERSION
+FROM python:${PYTHON_VERSION}-slim
+
+WORKDIR /app
+
+# Install only runtime system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy virtual environment and application code
+COPY .venv /app/.venv
+COPY src /app/src
+
+# Copy config files (grouping allows step_types.yaml to be optional via wildcard)
+COPY agent.yaml prompt.txt step_types.yam* /app/
+
+# Enable the virtual environment
+ENV PATH="/app/.venv/bin:$PATH"
+
+EXPOSE 8000
+
+ENTRYPOINT ["tini", "--"]
+CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]

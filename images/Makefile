@@ -5,7 +5,7 @@ CONFIG_MAKEFILE=${PROJECT_DIR}/common.config.mk
 include ${CONFIG_MAKEFILE}
 
 IMAGES=luthersystems/build-go-alpine luthersystems/service-base-alpine luthersystems/build-api luthersystems/build-swaggercodegen luthersystems/nginx-frontend
-MULTI_STAGE_IMAGES=luthersystems/build-go luthersystems/build-godynamic luthersystems/build-java luthersystems/build-js
+MULTI_STAGE_IMAGES=luthersystems/build-go luthersystems/build-godynamic luthersystems/build-java luthersystems/build-js luthersystems/build-python
 ALL_IMAGES=${IMAGES} ${MULTI_STAGE_IMAGES}
 
 TAG_SUFFIX=
@@ -47,6 +47,7 @@ $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} ${
 		--progress plain \
 		--build-arg GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION} \
 		--build-arg NODE_VERSION=${NODE_VERSION} \
+		--build-arg PYTHON_VERSION=${PYTHON_VERSION} \
 		--build-arg GOLANG_VERSION=${GOLANG_VERSION} \
 		--build-arg ALPINE_VERSION=${ALPINE_VERSION} \
 		--build-arg GO_BINDATA_VERSION=${GO_BINDATA_VERSION} \
