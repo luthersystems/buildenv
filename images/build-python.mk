@@ -19,10 +19,10 @@ static: build
 
 .PHONY: build
 build:
-	@echo "Setting up Python environment..."
-	# Create virtualenv and install deps
-	${PYTHON} -m venv .venv
-	. .venv/bin/activate && ${PIP} install --no-cache-dir -r requirements.txt
+	@echo "Setting up Python environment with uv..."
+	# Create venv and install dependencies from pyproject.toml
+	# uv sync automatically creates .venv if it doesn't exist and installs deps
+	uv sync --frozen
 
 .PHONY: test
 test:
@@ -30,7 +30,7 @@ test:
 
 .PHONY: lint
 lint:
-	. .venv/bin/activate && flake8 src/ && black --check src/
+	. .venv/bin/activate && ruff check src/ && ruff format --check src/
 
 .PHONY: push
 push:

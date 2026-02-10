@@ -14,7 +14,7 @@ COPY .venv /app/.venv
 COPY src /app/src
 
 # Copy config files (grouping allows step_types.yaml to be optional via wildcard)
-COPY agent.yaml prompt.txt step_types.yam* /app/
+COPY agent.yaml prompt.txt step_types.yam* pyproject.toml /app/
 
 # Enable the virtual environment
 ENV PATH="/app/.venv/bin:$PATH"

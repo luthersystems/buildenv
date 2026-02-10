@@ -4,7 +4,6 @@ FROM python:${PYTHON_VERSION}-slim
 # Install system dependencies for build and testing
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    postgresql-client \
     git \
     make \
     curl \
@@ -19,16 +18,19 @@ RUN ARCH=$(dpkg --print-architecture | sed 's/arm64/aarch64/; s/amd64/x86_64/') 
     chmod +x /usr/local/bin/docker && \
     rm -rf /tmp/docker
 
-# Install common Python build/test tools
-RUN pip install --no-cache-dir \
-    pip \
-    setuptools \
-    wheel \
+# Install uv (modern, fast python package manager)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+ENV UV_SYSTEM_PYTHON=1
+
+# Install common Python build/test tools using uv (faster!)
+# We install these into the system python of the builder so they are always available
+RUN uv pip install \
     flake8 \
     black \
     mypy \
     pytest \
-    uvicorn
+    uvicorn \
+    ruff
 
 # Copy helper scripts
 COPY build-python.mk /opt/Dockerfile.python.mk
