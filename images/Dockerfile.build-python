@@ -18,6 +18,15 @@ RUN ARCH=$(dpkg --print-architecture | sed 's/arm64/aarch64/; s/amd64/x86_64/') 
     chmod +x /usr/local/bin/docker && \
     rm -rf /tmp/docker
 
+# Install Docker Buildx Plugin
+# Required for 'docker buildx build --load' commands in Makefiles
+ARG BUILDX_VERSION=v0.17.1
+RUN ARCH=$(dpkg --print-architecture) && \
+    mkdir -p /usr/local/lib/docker/cli-plugins && \
+    curl -SL "https://github.com/docker/buildx/releases/download/${BUILDX_VERSION}/buildx-${BUILDX_VERSION}.linux-${ARCH}" -o /usr/local/lib/docker/cli-plugins/docker-buildx && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
+
+
 # Install uv (modern, fast python package manager)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 ENV UV_SYSTEM_PYTHON=1
@@ -34,7 +43,7 @@ RUN uv pip install \
 
 # Copy helper scripts
 COPY build-python.mk /opt/Dockerfile.python.mk
-COPY Dockerfile.build-python-agent.static /opt/Dockerfile.python-agent.static
+COPY Dockerfile.build-python.static /opt/Dockerfile.python.static
 
 # Set entrypoint to run make commands
 ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.python.mk"]

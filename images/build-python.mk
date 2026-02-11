@@ -15,7 +15,7 @@ static: build
 		--build-arg PYTHON_VERSION=${PYTHON_VERSION} \
 		-t ${STATIC_IMAGE}:latest \
 		-t ${STATIC_IMAGE}:${VERSION} \
-		-f - . < /opt/Dockerfile.python-agent.static
+		-f - . < /opt/Dockerfile.python.static
 
 .PHONY: build
 build:

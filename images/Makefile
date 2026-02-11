@@ -10,7 +10,14 @@ ALL_IMAGES=${IMAGES} ${MULTI_STAGE_IMAGES}
 
 TAG_SUFFIX=
 DOCKER_BUILDX_OPTS=$(if $(GIT_TAG),--push,)
-PLATFORMS=linux/amd64,linux/arm64
+
+ifneq ($(GIT_TAG),)
+PLATFORMS ?= linux/amd64,linux/arm64
+else
+# Default to local architecture for dev builds to avoid docker driver multi-platform issues
+LOCAL_ARCH := $(shell uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
+PLATFORMS ?= linux/$(LOCAL_ARCH)
+endif
 
 # do *NOT* delete intermediate artifacts!
 .SECONDARY:
@@ -29,6 +36,12 @@ push-manifests: ${PUSH_DUMMYS}
 .PHONY: clean
 clean:
 	${RM} -rf _build
+
+luthersystems/%: $(call IMAGE_DUMMY,luthersystems/%)
+	@
+
+multi-luthersystems/%: $(call IMAGE_DUMMY,multi-luthersystems/%)
+	@
 
 %: $(call IMAGE_DUMMY,luthersystems/%)
 	@
