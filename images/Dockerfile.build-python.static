@@ -3,23 +3,27 @@ FROM python:${PYTHON_VERSION}-slim
 
 WORKDIR /app
 
-# Install only runtime system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     tini \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy virtual environment and application code
-COPY .venv /app/.venv
+# uv to install deps inside the image for the target arch
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+ENV UV_SYSTEM_PYTHON=1
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv
+
+# Copy lock + manifest first (cache-friendly)
+COPY pyproject.toml uv.lock /app/
+
+RUN uv sync --frozen
+
+# Copy the actual app
 COPY src /app/src
+COPY agent.yaml prompt.txt step_types.yam* /app/
 
-# Copy config files (grouping allows step_types.yaml to be optional via wildcard)
-COPY agent.yaml prompt.txt step_types.yam* pyproject.toml /app/
-
-# Enable the virtual environment
 ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8000
-
 ENTRYPOINT ["tini", "--"]
 CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
