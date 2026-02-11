@@ -4,14 +4,19 @@ PIP=pip3
 
 # Default registry if not provided (can be overridden by CI environment)
 REGISTRY ?= luthersystems
+
 # Optional suffix (e.g. -amd64, -arm64) for multi-arch builds
 TAG_SUFFIX ?=
 
+# Target platform (CI will override to linux/arm64)
+PLATFORM ?= linux/amd64
+
 .PHONY: static
 static: build
-	@echo "Building Static Image: ${STATIC_IMAGE}"
-	# Uses the static Dockerfile template to build the final runtime image
+	@echo "Building Static Image: ${STATIC_IMAGE} for ${PLATFORM}"
+	# Build the final runtime image for the requested architecture
 	${DOCKER} buildx build --load \
+		--platform ${PLATFORM} \
 		--build-arg PYTHON_VERSION=${PYTHON_VERSION} \
 		-t ${STATIC_IMAGE}:latest \
 		-t ${STATIC_IMAGE}:${VERSION} \
@@ -20,8 +25,6 @@ static: build
 .PHONY: build
 build:
 	@echo "Setting up Python environment with uv..."
-	# Create venv and install dependencies from pyproject.toml
-	# uv sync automatically creates .venv if it doesn't exist and installs deps
 	uv sync --frozen
 
 .PHONY: test
