@@ -3,7 +3,7 @@ DOCKER=docker
 .PHONY: static
 static:
 	@echo "Static ${STATIC_IMAGE}"
-	${DOCKER} buildx build --load \
+	${DOCKER} build \
 		--build-arg BIN=$(notdir ${BIN}) \
 		-t ${STATIC_IMAGE}:latest \
 		-t ${STATIC_IMAGE}:${VERSION} \
