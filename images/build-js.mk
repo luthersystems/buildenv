@@ -3,7 +3,7 @@ DOCKER=docker
 .PHONY: static
 static: build
 	@echo "Static ${STATIC_IMAGE}"
-	${DOCKER} buildx build --load \
+	${DOCKER} build \
 		-t ${STATIC_IMAGE}:latest \
 		-t ${STATIC_IMAGE}:${VERSION} \
 		-f -  . < /opt/Dockerfile.js.static
