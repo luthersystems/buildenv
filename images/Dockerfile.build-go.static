@@ -1,9 +1,10 @@
-FROM alpine:3.21
+ARG ALPINE_VERSION=3.22
+FROM alpine:${ALPINE_VERSION}
 
 RUN echo "nobody:x:1:1:nobody:/:/bin/sh" >> /etc/passwd
 RUN echo "nobody:x:1:" >> /etc/group
 RUN chmod 1777 /tmp
-RUN apk --no-cache add libltdl tini ca-certificates
+RUN apk update && apk upgrade --no-cache && apk add --no-cache libltdl tini ca-certificates
 USER nobody
 WORKDIR /opt
 VOLUME ["/opt"]

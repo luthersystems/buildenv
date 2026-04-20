@@ -1,4 +1,4 @@
-ARG NODE_VERSION
+ARG NODE_VERSION=20.19.3
 FROM ubuntu:22.04 AS aws
 
 RUN apt-get update

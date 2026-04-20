@@ -1,5 +1,5 @@
-ARG GOLANG_VERSION
-ARG ALPINE_VERSION
+ARG GOLANG_VERSION=1.26.1
+ARG ALPINE_VERSION=3.22
 
 #
 # aws builder
@@ -41,6 +41,8 @@ ENV AZCLI_VER=$AZCLI_VER
 WORKDIR /az
 
 RUN set -ex; \
+  apk update; \
+  apk upgrade --no-cache; \
   apk add --no-cache \
   build-base libffi-dev openssl-dev cargo python3-dev py3-pip; \
   python3 -m venv ./venv; \
@@ -58,7 +60,12 @@ RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VER
 ARG GO_TESTSUM_VERSION
 RUN go install "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}"
 ARG GOLANGCI_LINT_VERSION
-RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s "v${GOLANGCI_LINT_VERSION}"
+RUN ARCH="$(apk --print-arch | sed 's/x86_64/amd64/; s/aarch64/arm64/')" && \
+    wget -nv -O /tmp/golangci-lint.tgz "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}.tar.gz" && \
+    tar -xzf /tmp/golangci-lint.tgz -C /tmp && \
+    mv "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}/golangci-lint" /go/bin/golangci-lint && \
+    chmod +x /go/bin/golangci-lint && \
+    rm -rf "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}" /tmp/golangci-lint.tgz
 
 #
 # Godynamic
@@ -75,6 +82,8 @@ ENV PATH=/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr
 WORKDIR /go
 
 RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
+  apk update && \
+  apk upgrade --no-cache && \
   apk add --no-cache ca-certificates tzdata libltdl rsync zip openssh git-lfs bash shadow gcc musl-dev make linux-headers curl tini gcompat jq python3-dev py3-pip groff docker-compose openrc
 
 # Install Docker CLI (static binary) - version 27.3.1 supports API 1.44+

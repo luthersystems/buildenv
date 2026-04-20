@@ -1,4 +1,4 @@
-ARG GOLANG_VERSION
+ARG GOLANG_VERSION=1.26.1
 FROM golang:$GOLANG_VERSION AS go-downloader
 
 ARG GO_BINDATA_VERSION
@@ -6,7 +6,12 @@ RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VER
 ARG GO_TESTSUM_VERSION
 RUN go install "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}"
 ARG GOLANGCI_LINT_VERSION
-RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s "v${GOLANGCI_LINT_VERSION}"
+RUN ARCH="$(dpkg --print-architecture)" && \
+    wget -nv -O /tmp/golangci-lint.tgz "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}.tar.gz" && \
+    tar -xzf /tmp/golangci-lint.tgz -C /tmp && \
+    mv "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}/golangci-lint" /go/bin/golangci-lint && \
+    chmod +x /go/bin/golangci-lint && \
+    rm -rf "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}" /tmp/golangci-lint.tgz
 
 FROM golang:$GOLANG_VERSION
 

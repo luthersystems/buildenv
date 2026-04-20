@@ -3,7 +3,7 @@ FROM openjdk:19-jdk-alpine3.16
 RUN echo "nobody:x:1:1:nobody:/:/bin/sh" >> /etc/passwd
 RUN echo "nobody:x:1:" >> /etc/group
 RUN chmod 1777 /tmp
-RUN apk --no-cache add libltdl tini tzdata ca-certificates
+RUN apk update && apk upgrade --no-cache && apk add --no-cache libltdl tini tzdata ca-certificates
 USER nobody
 WORKDIR /opt
 VOLUME ["/opt"]
