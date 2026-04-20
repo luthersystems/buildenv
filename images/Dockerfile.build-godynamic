@@ -1,5 +1,5 @@
-ARG GOLANG_VERSION
-ARG ALPINE_VERSION
+ARG GOLANG_VERSION=1.25.8
+ARG ALPINE_VERSION=3.22
 
 #
 # aws builder
@@ -41,6 +41,8 @@ ENV AZCLI_VER=$AZCLI_VER
 WORKDIR /az
 
 RUN set -ex; \
+  apk update; \
+  apk upgrade --no-cache; \
   apk add --no-cache \
   build-base libffi-dev openssl-dev cargo python3-dev py3-pip; \
   python3 -m venv ./venv; \
@@ -75,6 +77,8 @@ ENV PATH=/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr
 WORKDIR /go
 
 RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
+  apk update && \
+  apk upgrade --no-cache && \
   apk add --no-cache ca-certificates tzdata libltdl rsync zip openssh git-lfs bash shadow gcc musl-dev make linux-headers curl tini gcompat jq python3-dev py3-pip groff docker-compose openrc
 
 # Install Docker CLI (static binary) - version 27.3.1 supports API 1.44+
