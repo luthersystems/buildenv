@@ -1,5 +1,5 @@
 ARG NODE_VERSION=20.19.3
-FROM ubuntu:22.04 AS aws
+FROM ubuntu:24.04 AS aws
 
 RUN apt-get update
 RUN apt-get install --no-install-recommends -y gnupg curl ca-certificates
@@ -14,9 +14,11 @@ RUN curl -fsSL -o awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-linux-$(
 RUN curl -fsSL -o awscliv2.sig "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m)-${AWSCLI_VER}.zip.sig"
 RUN gpg --verify awscliv2.sig awscliv2.zip
 
-FROM node:${NODE_VERSION}-bullseye
+FROM node:${NODE_VERSION}-bookworm
 
-RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev rsync zip git-lfs tini ca-certificates curl apt-transport-https lsb-release gnupg python2 python2-dev groff && rm -rf /var/lib/apt/lists/*
+# python3 replaces the bullseye-era python2 install: Debian 12 (bookworm) no
+# longer ships a python2 package, and modern node-gyp (>=9) targets python3.
+RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev rsync zip git-lfs tini ca-certificates curl apt-transport-https lsb-release gnupg python3 python3-dev groff && rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
 
 # Install Docker CLI (static binary) - version 27.3.1 supports API 1.44+

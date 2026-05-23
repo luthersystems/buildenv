@@ -1,4 +1,4 @@
-FROM maven:3.8.5-openjdk-8
+FROM maven:3.9-eclipse-temurin-17
 
 RUN apt-get update && apt-get install --no-install-recommends -y make tini ca-certificates curl && rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
