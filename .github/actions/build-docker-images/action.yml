@@ -42,6 +42,22 @@ runs:
       with:
         platforms: linux/${{ inputs.arch }}
 
+    # Buildx's `type=gha` cache backend needs the ACTIONS_* runtime env vars
+    # (ACTIONS_RUNTIME_TOKEN plus either ACTIONS_CACHE_URL for cache v1 or
+    # ACTIONS_RESULTS_URL for cache v2), which GitHub does not export to
+    # shell steps by default. Re-export every ACTIONS_* variable via the
+    # first-party actions/github-script action so buildx can talk to
+    # whichever cache backend the runner is configured for.
+    - name: Expose GHA runtime to buildx (for type=gha cache backend)
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+      with:
+        script: |
+          for (const [k, v] of Object.entries(process.env)) {
+            if (k.startsWith('ACTIONS_') && v) core.exportVariable(k, v);
+          }
+
     - name: Build docker image for ${{ inputs.arch }}
       shell: bash
+      env:
+        BUILDX_CACHE_FLAGS: --cache-from type=gha,scope=${{ inputs.image }}-${{ inputs.arch }} --cache-to type=gha,mode=max,scope=${{ inputs.image }}-${{ inputs.arch }}
       run: cd images && make PLATFORMS=linux/${{ inputs.arch }} TAG_SUFFIX=-${{ inputs.arch }} GIT_TAG=${{ inputs.git_tag }} GIT_REVISION=${{ inputs.git_rev }} ${{ inputs.image }}

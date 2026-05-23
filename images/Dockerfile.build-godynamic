@@ -5,8 +5,9 @@ ARG ALPINE_VERSION=3.22
 # aws builder
 #
 
-# TODO: use newer alpine and python
-FROM python:3.8-alpine3.20 AS aws
+# python:3.11-alpine: awscli's make-exe script still imports `distutils`,
+# which Python 3.12 removed (PEP 632), so we stay on 3.11 (EOL Oct 2027).
+FROM python:3.11-alpine AS aws
 
 RUN set -ex; \
   apk add --no-cache \

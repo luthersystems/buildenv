@@ -1,2 +1,3 @@
-FROM luthersystems/nginx-frontend:v0.0.88
+ARG NGINX_FRONTEND_VERSION=latest
+FROM luthersystems/nginx-frontend:${NGINX_FRONTEND_VERSION}
 COPY build /html

@@ -11,6 +11,9 @@ ALL_IMAGES=${IMAGES} ${MULTI_STAGE_IMAGES}
 TAG_SUFFIX=
 DOCKER_BUILDX_OPTS=$(if $(GIT_TAG),--push,)
 PLATFORMS=linux/amd64,linux/arm64
+# Extra flags appended to `docker buildx build`. CI sets this to wire up
+# GitHub Actions layer caching (--cache-from/--cache-to type=gha).
+BUILDX_CACHE_FLAGS ?=
 
 # do *NOT* delete intermediate artifacts!
 .SECONDARY:
@@ -42,7 +45,7 @@ $(call IMAGE_DUMMY,multi-luthersystems/%): Dockerfile.%.static %.mk $(call IMAGE
 $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} ${CONFIG_MAKEFILE} $(call DUMMY_TARGET,deps,luthersystems/%)
 	@echo "Building image $*"
 	${DOCKER} buildx inspect --bootstrap
-	${DOCKER} buildx build ${DOCKER_BUILDX_OPTS} \
+	${DOCKER} buildx build ${DOCKER_BUILDX_OPTS} ${BUILDX_CACHE_FLAGS} \
 		--platform ${PLATFORMS} \
 		--progress plain \
 		--build-arg GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION} \
