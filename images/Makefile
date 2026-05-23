@@ -4,9 +4,17 @@ include ${COMMON_MAKEFILE}
 CONFIG_MAKEFILE=${PROJECT_DIR}/common.config.mk
 include ${CONFIG_MAKEFILE}
 
-IMAGES=luthersystems/build-go-alpine luthersystems/service-base-alpine luthersystems/build-api luthersystems/build-swaggercodegen luthersystems/nginx-frontend
-MULTI_STAGE_IMAGES=luthersystems/build-go luthersystems/build-godynamic luthersystems/build-java luthersystems/build-js
-ALL_IMAGES=${IMAGES} ${MULTI_STAGE_IMAGES}
+IMAGES= \
+	luthersystems/build-api \
+	luthersystems/build-go \
+	luthersystems/build-go-alpine \
+	luthersystems/build-godynamic \
+	luthersystems/build-java \
+	luthersystems/build-js \
+	luthersystems/build-swaggercodegen \
+	luthersystems/nginx-frontend \
+	luthersystems/service-base-alpine
+ALL_IMAGES=${IMAGES}
 
 TAG_SUFFIX=
 DOCKER_BUILDX_OPTS=$(if $(GIT_TAG),--push,)
@@ -19,7 +27,7 @@ BUILDX_CACHE_FLAGS ?=
 .SECONDARY:
 
 .PHONY:
-IMAGE_DUMMYS := $(foreach I,$(IMAGES),$(call IMAGE_DUMMY,$I)) $(foreach I,$(MULTI_STAGE_IMAGES),$(call IMAGE_DUMMY,multi-${I}))
+IMAGE_DUMMYS := $(foreach I,$(IMAGES),$(call IMAGE_DUMMY,$I))
 PUSH_DUMMYS := $(foreach I,$(ALL_IMAGES),$(call PUSH_DUMMY,$I))
 
 .PHONY: default
@@ -34,12 +42,6 @@ clean:
 	${RM} -rf _build
 
 %: $(call IMAGE_DUMMY,luthersystems/%)
-	@
-
-multi-%: $(call IMAGE_DUMMY,multi-luthersystems/%)
-	@
-
-$(call IMAGE_DUMMY,multi-luthersystems/%): Dockerfile.%.static %.mk $(call IMAGE_DUMMY,luthersystems/%)
 	@
 
 $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} ${CONFIG_MAKEFILE} $(call DUMMY_TARGET,deps,luthersystems/%)
@@ -75,10 +77,21 @@ $(call DUMMY_TARGET,deps,luthersystems/build-api): build-api.mk
 $(call DUMMY_TARGET,deps,luthersystems/build-swaggercodegen): build-swaggercodegen.mk
 	@
 
-$(call DUMMY_TARGET,deps,luthersystems/build-go):
+# The four builder images below COPY their corresponding Dockerfile.X.static
+# and build-X.mk into the image (consumed downstream by `make static`).
+# Declaring them as deps ensures the builder image rebuilds when either
+# input changes. Slated for removal once the embedded static-image flow
+# is retired (tracked in #3).
+$(call DUMMY_TARGET,deps,luthersystems/build-go): build-go.mk Dockerfile.build-go.static
 	@
 
-$(call DUMMY_TARGET,deps,luthersystems/build-go-alpine):
+$(call DUMMY_TARGET,deps,luthersystems/build-godynamic): build-godynamic.mk Dockerfile.build-godynamic.static
+	@
+
+$(call DUMMY_TARGET,deps,luthersystems/build-java): build-java.mk Dockerfile.build-java.static
+	@
+
+$(call DUMMY_TARGET,deps,luthersystems/build-js): build-js.mk Dockerfile.build-js.static
 	@
 
 $(call PUSH_DUMMY,luthersystems/%):

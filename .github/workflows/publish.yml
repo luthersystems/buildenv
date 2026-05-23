@@ -16,15 +16,15 @@ jobs:
           - amd64
           - arm64
         image:
-          - build-go-alpine
-          - service-base-alpine
-          - nginx-frontend
           - build-api
+          - build-go
+          - build-go-alpine
+          - build-godynamic
+          - build-java
+          - build-js
           - build-swaggercodegen
-          - multi-build-go
-          - multi-build-godynamic
-          - multi-build-java
-          - multi-build-js
+          - nginx-frontend
+          - service-base-alpine
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Build & push container
