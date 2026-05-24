@@ -77,23 +77,6 @@ $(call DUMMY_TARGET,deps,luthersystems/build-api): build-api.mk
 $(call DUMMY_TARGET,deps,luthersystems/build-swaggercodegen): build-swaggercodegen.mk
 	@
 
-# The four builder images below COPY their corresponding Dockerfile.X.static
-# and build-X.mk into the image (consumed downstream by `make static`).
-# Declaring them as deps ensures the builder image rebuilds when either
-# input changes. Slated for removal once the embedded static-image flow
-# is retired (tracked in #3).
-$(call DUMMY_TARGET,deps,luthersystems/build-go): build-go.mk Dockerfile.build-go.static
-	@
-
-$(call DUMMY_TARGET,deps,luthersystems/build-godynamic): build-godynamic.mk Dockerfile.build-godynamic.static
-	@
-
-$(call DUMMY_TARGET,deps,luthersystems/build-java): build-java.mk Dockerfile.build-java.static
-	@
-
-$(call DUMMY_TARGET,deps,luthersystems/build-js): build-js.mk Dockerfile.build-js.static
-	@
-
 $(call PUSH_DUMMY,luthersystems/%):
 	${DOCKER} buildx imagetools create \
 		--tag luthersystems/$*:latest \
