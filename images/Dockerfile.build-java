@@ -12,7 +12,4 @@ RUN ARCH=$(dpkg --print-architecture | sed 's/arm64/aarch64/; s/amd64/x86_64/') 
     rm -rf /tmp/docker && \
     docker --version
 
-ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.java.mk"]
-
-COPY build-java.mk /opt/Dockerfile.java.mk
-COPY Dockerfile.build-java.static /opt/Dockerfile.java.static
+ENTRYPOINT ["tini", "--"]

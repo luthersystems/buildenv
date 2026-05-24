@@ -100,9 +100,7 @@ RUN ARCH=$(apk --print-arch | sed 's/amd64/x86_64/') && \
     rm -rf /tmp/docker && \
     docker --version
 
-ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.godynamic.mk"]
-COPY build-godynamic.mk /opt/Dockerfile.godynamic.mk
-COPY Dockerfile.build-godynamic.static /opt/Dockerfile.godynamic.static
+ENTRYPOINT ["tini", "--"]
 
 # set up private repo access for go mod
 RUN git config --system url."git@github.com:luthersystems/license.git".insteadOf "https://github.com/luthersystems/license"; \

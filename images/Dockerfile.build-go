@@ -31,8 +31,6 @@ COPY --from=go-downloader /go/bin/go-bindata /go/bin/go-bindata
 COPY --from=go-downloader /go/bin/gotestsum /go/bin/gotestsum
 COPY --from=go-downloader /go/bin/golangci-lint /go/bin/golangci-lint
 
-COPY build-go.mk /opt/Dockerfile.go.mk
-COPY Dockerfile.build-go.static /opt/Dockerfile.go.static
 ENV GOCACHE=/tmp
 
 # set up private repo access for go mod
@@ -42,4 +40,4 @@ RUN git config --system url."git@github.com:luthersystems/license.git".insteadOf
   ssh-keyscan -t Ed25519 -H bitbucket.org | tee -a /etc/ssh/ssh_known_hosts; \
   ssh-keyscan -t Ed25519 -H github.com | tee -a /etc/ssh/ssh_known_hosts
 
-ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.go.mk"]
+ENTRYPOINT ["tini", "--"]

@@ -32,9 +32,7 @@ RUN ARCH=$(dpkg --print-architecture | sed 's/arm64/aarch64/; s/amd64/x86_64/') 
 
 RUN npm install -g npm
 
-COPY build-js.mk /opt/Dockerfile.js.mk
-COPY Dockerfile.build-js.static /opt/Dockerfile.js.static
-ENTRYPOINT ["tini", "--", "make", "-f", "/opt/Dockerfile.js.mk"]
+ENTRYPOINT ["tini", "--"]
 
 # extra functionality required by pipelines runs (CI)
 COPY --from=aws /tmp/awscliv2.zip /tmp/awscliv2.zip
