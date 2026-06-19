@@ -9,6 +9,7 @@ IMAGES= \
 	luthersystems/build-go \
 	luthersystems/build-go-alpine \
 	luthersystems/build-godynamic \
+	luthersystems/build-e2e \
 	luthersystems/build-java \
 	luthersystems/build-js \
 	luthersystems/build-swaggercodegen \
