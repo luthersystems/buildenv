@@ -39,8 +39,10 @@ ARG SUBSTRATE_VERSION=v2.225.2
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Base tooling + fonts needed by wkhtmltopdf for legible PDFs.
+# openssh-client: apps fetch private Go modules over git+ssh (GOPRIVATE +
+# `insteadOf git@…`), so `go mod download` needs an ssh binary present.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg git git-lfs make jq xz-utils \
+      ca-certificates curl gnupg git git-lfs openssh-client make jq xz-utils \
       fontconfig fonts-dejavu fonts-liberation \
  && rm -rf /var/lib/apt/lists/*
 
