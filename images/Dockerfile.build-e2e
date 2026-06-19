@@ -73,6 +73,14 @@ COPY --from=shirotester /opt/app        /usr/local/bin/shirotester
 COPY --from=martin      /ko-app/martin  /usr/local/bin/martin
 COPY --from=pdfserv     /ko-app/pdfserv /usr/local/bin/pdfserv
 
+# Use the EXACT font set from the pdfserv image (DejaVu, Liberation, Droid,
+# FreeFont, and the MS-core fonts incl. Arial). Acre templates render with
+# `font-family: Arial`; without these, wkhtmltopdf falls back to DejaVu and
+# produces visibly different, smaller PDFs than the production pdfserv service.
+# Copying the same files guarantees byte-comparable rendering.
+COPY --from=pdfserv     /usr/share/fonts /usr/share/fonts
+RUN fc-cache -f
+
 # Fail the build if the assembly is wrong. (substratehcp is a go-plugin binary
 # that expects a handshake, so we only check it's present/executable.)
 RUN set -eux; \
@@ -81,4 +89,5 @@ RUN set -eux; \
     martin --help >/dev/null; \
     pdfserv version; \
     wkhtmltopdf --version; \
-    test -x /usr/local/bin/substratehcp
+    test -x /usr/local/bin/substratehcp; \
+    test "$(fc-list | wc -l)" -gt 100   # fonts from pdfserv image present
