@@ -1,0 +1,82 @@
+# syntax=docker/dockerfile:1.7
+#
+# All-in-one "build & run the Luther platform without Docker" image, for CI
+# environments where Docker-in-Docker is unavailable (e.g. GitLab on Talos k8s).
+#
+# Ubuntu/glibc base (not Alpine) so the one genuinely-native dependency,
+# wkhtmltopdf, can be installed from its official patched-Qt .deb. Everything
+# else Luther ships is static Go (CGO_ENABLED=0 / -extldflags=-static), so it
+# runs on glibc regardless of how it was built — we just COPY the binaries out
+# of the already-published multi-arch images.
+#
+# Contents:
+#   - Go toolchain          -> build the app's Go services (pure Go, CGO=0)
+#   - Node 20 + newman      -> martin's runtime dependency
+#   - martin                -> postman/martin collection runner (the e2e driver)
+#   - shirotester           -> phylum unit tests
+#   - substratehcp          -> oracle in-memory (EMULATE_CC) chaincode plugin
+#   - pdfserv + wkhtmltopdf -> PDF rendering service for e2e
+#
+# This image builds nothing new — it assembles already-released artifacts.
+# Multi-arch: every fetch is templated on ${TARGETARCH} and every COPY --from
+# resolves the matching arch automatically under buildx.
+ARG SUBSTRATE_VERSION=v2.225.2
+ARG MARTIN_VERSION=v0.2.0
+ARG PDFSERV_VERSION=v0.2.0
+
+# Pin the source images as named stages. ARG expansion in `FROM image:${ARG}`
+# is reliable; ARG expansion in `COPY --from=image:${ARG}` stage-name position
+# is not (BuildKit quirk), so we alias here and COPY from the alias below.
+FROM luthersystems/shirotester:${SUBSTRATE_VERSION} AS shirotester
+FROM luthersystems/martin:${MARTIN_VERSION} AS martin
+FROM luthersystems/pdfserv:${PDFSERV_VERSION} AS pdfserv
+
+FROM ubuntu:22.04
+# jammy: matches the official wkhtmltox jammy .deb (amd64 + arm64 both exist).
+ARG TARGETARCH
+ARG GOLANG_VERSION=1.26.2
+ARG SUBSTRATE_VERSION=v2.225.2
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Base tooling + fonts needed by wkhtmltopdf for legible PDFs.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl gnupg git git-lfs make jq xz-utils \
+      fontconfig fonts-dejavu fonts-liberation \
+ && rm -rf /var/lib/apt/lists/*
+
+# Node 20 (newman 6 needs a modern Node; jammy's apt nodejs is too old) + newman.
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+ && apt-get install -y --no-install-recommends nodejs \
+ && npm i -g newman \
+ && rm -rf /var/lib/apt/lists/*
+
+# Go toolchain — used to build the app's Go services statically (apps have no cgo).
+RUN curl -fsSL "https://go.dev/dl/go${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz" | tar -C /usr/local -xz
+ENV PATH=/usr/local/go/bin:/go/bin:$PATH GOPATH=/go
+
+# wkhtmltopdf: official patched-Qt glibc .deb — the only native dependency,
+# clean multi-arch on Ubuntu.
+RUN curl -fsSL -o /tmp/wk.deb \
+      "https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-3/wkhtmltox_0.12.6.1-3.jammy_${TARGETARCH}.deb" \
+ && apt-get update && apt-get install -y --no-install-recommends /tmp/wk.deb \
+ && rm /tmp/wk.deb && rm -rf /var/lib/apt/lists/*
+
+# substratehcp: only published as a binary (its whole purpose) -> curl it.
+RUN curl -fsSL -o /usr/local/bin/substratehcp \
+      "https://download.luthersystemsapp.com/substratehcp/substratehcp-linux-${TARGETARCH}-${SUBSTRATE_VERSION}" \
+ && chmod +x /usr/local/bin/substratehcp
+
+# Static Go tools, lifted from their already-published multi-arch images.
+COPY --from=shirotester /opt/app        /usr/local/bin/shirotester
+COPY --from=martin      /ko-app/martin  /usr/local/bin/martin
+COPY --from=pdfserv     /ko-app/pdfserv /usr/local/bin/pdfserv
+
+# Fail the build if the assembly is wrong. (substratehcp is a go-plugin binary
+# that expects a handshake, so we only check it's present/executable.)
+RUN set -eux; \
+    go version; node --version; newman --version; \
+    shirotester --help >/dev/null; \
+    martin --help >/dev/null; \
+    pdfserv version; \
+    wkhtmltopdf --version; \
+    test -x /usr/local/bin/substratehcp
