@@ -1,4 +1,4 @@
-ARG GOLANG_VERSION=1.26.1
+ARG GOLANG_VERSION=1.26.2
 FROM golang:$GOLANG_VERSION AS go-downloader
 
 ARG GO_BINDATA_VERSION
@@ -6,22 +6,34 @@ RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VER
 ARG GO_TESTSUM_VERSION
 RUN go install "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}"
 ARG GOLANGCI_LINT_VERSION
-RUN ARCH="$(dpkg --print-architecture)" && \
-    wget -nv -O /tmp/golangci-lint.tgz "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}.tar.gz" && \
-    tar -xzf /tmp/golangci-lint.tgz -C /tmp && \
-    mv "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}/golangci-lint" /go/bin/golangci-lint && \
-    chmod +x /go/bin/golangci-lint && \
-    rm -rf "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}" /tmp/golangci-lint.tgz
+RUN go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}"
 
 ARG BUF_VERSION
-RUN go install "github.com/bufbuild/buf/cmd/buf@v${BUF_VERSION}"
+RUN mkdir /tmp/buf && cd /tmp/buf && \
+    go mod init _buf && \
+    go get "github.com/bufbuild/buf/cmd/buf@v${BUF_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
+    go build -o /go/bin/buf "github.com/bufbuild/buf/cmd/buf" && \
+    cd / && rm -rf /tmp/buf
 ARG GO_SWAGGER_VERSION
-RUN go install "github.com/go-swagger/go-swagger/cmd/swagger@v${GO_SWAGGER_VERSION}"
+RUN mkdir /tmp/swagger && cd /tmp/swagger && \
+    go mod init _swagger && \
+    go get "github.com/go-swagger/go-swagger/cmd/swagger@v${GO_SWAGGER_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
+    go build -o /go/bin/swagger "github.com/go-swagger/go-swagger/cmd/swagger" && \
+    cd / && rm -rf /tmp/swagger
+ARG GIT_LFS_VERSION
+RUN mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
+    go mod init _gitlfs && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
+    go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
+    cd / && rm -rf /tmp/gitlfs
 
 FROM golang:$GOLANG_VERSION
 
-RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev curl make rsync zip git-lfs jq tini ca-certificates protobuf-compiler && rm -rf /var/lib/apt/lists/*
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
+RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+      libltdl-dev curl make rsync zip jq tini ca-certificates protobuf-compiler tzdata && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=go-downloader /go/bin/go-bindata /go/bin/go-bindata
 COPY --from=go-downloader /go/bin/gotestsum /go/bin/gotestsum
@@ -29,6 +41,7 @@ COPY --from=go-downloader /go/bin/golangci-lint /go/bin/golangci-lint
 
 COPY --from=go-downloader /go/bin/buf /go/bin/buf
 COPY --from=go-downloader /go/bin/swagger /go/bin/swagger
+COPY --from=go-downloader /go/bin/git-lfs /go/bin/git-lfs
 
 COPY build-api.mk /opt/Dockerfile.api.mk
 ENTRYPOINT ["tini", "--", "sh", "-c", "make -f /opt/Dockerfile.api.mk -C $PWD build"]
