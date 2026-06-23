@@ -35,3 +35,44 @@ jobs:
           arch: ${{ matrix.arch }}
           image: ${{ matrix.image }}
           git_rev: $GITHUB_SHA
+
+  cve-scan:
+    name: CVE scan (${{ matrix.image }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - build-api
+          - build-go-alpine
+          - service-base-alpine
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+      - name: Configure DockerHub
+        uses: ./.github/actions/configure-dockerhub
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4
+      - name: Expose GHA runtime to buildx (for type=gha cache backend)
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            for (const [k, v] of Object.entries(process.env)) {
+              if (k.startsWith('ACTIONS_') && v) core.exportVariable(k, v);
+            }
+      - name: Build image for scan (amd64, loaded locally)
+        run: |
+          cd images && make \
+            PLATFORMS=linux/amd64 \
+            DOCKER_BUILDX_OPTS=--load \
+            BUILDX_CACHE_FLAGS="--cache-from type=gha,scope=${{ matrix.image }}-amd64" \
+            GIT_REVISION=${{ github.sha }} \
+            ${{ matrix.image }}
+      - name: Scan with Trivy (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: luthersystems/${{ matrix.image }}:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          severity: HIGH,CRITICAL
+          pkg-types: os,library
+          ignore-unfixed: true

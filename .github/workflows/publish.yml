@@ -48,3 +48,30 @@ jobs:
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4
       - name: Create and push manifest for multiarch
         run: cd images && make push-manifests GIT_TAG=$GITHUB_REF_NAME
+
+  cve-scan:
+    name: CVE scan published image (${{ matrix.image }})
+    runs-on: ubuntu-22.04
+    needs:
+      - push-manifests
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - build-api
+          - build-go-alpine
+          - service-base-alpine
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+      - name: Configure DockerHub
+        uses: ./.github/actions/configure-dockerhub
+      - name: Scan published image with Trivy (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: luthersystems/${{ matrix.image }}:${{ github.ref_name }}
+          format: table
+          exit-code: '1'
+          severity: HIGH,CRITICAL
+          pkg-types: os,library
+          ignore-unfixed: true
