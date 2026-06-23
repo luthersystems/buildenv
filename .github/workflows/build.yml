@@ -67,12 +67,13 @@ jobs:
             BUILDX_CACHE_FLAGS="--cache-from type=gha,scope=${{ matrix.image }}-amd64" \
             GIT_REVISION=${{ github.sha }} \
             ${{ matrix.image }}
-      - name: Scan with Trivy (fail on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+      - name: Scan with Docker Scout (fail on HIGH/CRITICAL)
+        uses: docker/scout-action@v1
         with:
-          image-ref: luthersystems/${{ matrix.image }}:${{ github.sha }}
-          format: table
-          exit-code: '1'
-          severity: HIGH,CRITICAL
-          pkg-types: os,library
+          command: cves
+          image: local://luthersystems/${{ matrix.image }}:${{ github.sha }}
+          only-severities: critical,high
           ignore-unfixed: true
+          exit-code: true
+          dockerhub-user: ${{ env.DOCKERHUB_USERNAME }}
+          dockerhub-password: ${{ env.DOCKERHUB_TOKEN }}

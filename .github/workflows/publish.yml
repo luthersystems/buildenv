@@ -66,12 +66,13 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
       - name: Configure DockerHub
         uses: ./.github/actions/configure-dockerhub
-      - name: Scan published image with Trivy (fail on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+      - name: Scan published image with Docker Scout (fail on HIGH/CRITICAL)
+        uses: docker/scout-action@v1
         with:
-          image-ref: luthersystems/${{ matrix.image }}:${{ github.ref_name }}
-          format: table
-          exit-code: '1'
-          severity: HIGH,CRITICAL
-          pkg-types: os,library
+          command: cves
+          image: luthersystems/${{ matrix.image }}:${{ github.ref_name }}
+          only-severities: critical,high
           ignore-unfixed: true
+          exit-code: true
+          dockerhub-user: ${{ env.DOCKERHUB_USERNAME }}
+          dockerhub-password: ${{ env.DOCKERHUB_TOKEN }}
