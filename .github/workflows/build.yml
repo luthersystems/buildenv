@@ -44,6 +44,7 @@ jobs:
       matrix:
         image:
           - build-api
+          - build-go
           - build-go-alpine
           - service-base-alpine
     steps:
@@ -53,7 +54,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4
       - name: Expose GHA runtime to buildx (for type=gha cache backend)
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8.0.0
         with:
           script: |
             for (const [k, v] of Object.entries(process.env)) {

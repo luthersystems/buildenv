@@ -1,5 +1,5 @@
-ARG GOLANG_VERSION=1.26.1
-ARG ALPINE_VERSION=3.22
+ARG GOLANG_VERSION=1.26.4
+ARG ALPINE_VERSION=3.23
 
 #
 # aws builder
@@ -23,11 +23,14 @@ RUN set -eux; \
   cd /aws; \
   python -m venv venv; \
   . venv/bin/activate; \
+  pip install --no-cache-dir --upgrade wheel==0.46.2; \
   ./scripts/installers/make-exe
 
 RUN set -ex; \
   unzip /aws/dist/awscli-exe.zip; \
   ./aws/install --bin-dir /aws-cli-bin; \
+  find /usr/local/aws-cli -path '*/site-packages/wheel' -prune -exec rm -rf {} +; \
+  find /usr/local/aws-cli -name 'wheel-*.dist-info' -prune -exec rm -rf {} +; \
   /aws-cli-bin/aws --version
 
 #
@@ -48,7 +51,7 @@ RUN set -ex; \
   build-base libffi-dev openssl-dev cargo python3-dev py3-pip; \
   python3 -m venv ./venv; \
   . ./venv/bin/activate; \
-  pip install --no-cache-dir azure-cli==${AZCLI_VER}
+  pip install --no-cache-dir azure-cli==${AZCLI_VER} wheel==0.46.2
 
 #
 # Go utils
@@ -61,12 +64,20 @@ RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VER
 ARG GO_TESTSUM_VERSION
 RUN go install "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}"
 ARG GOLANGCI_LINT_VERSION
-RUN ARCH="$(apk --print-arch | sed 's/x86_64/amd64/; s/aarch64/arm64/')" && \
-    wget -nv -O /tmp/golangci-lint.tgz "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}.tar.gz" && \
-    tar -xzf /tmp/golangci-lint.tgz -C /tmp && \
-    mv "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}/golangci-lint" /go/bin/golangci-lint && \
-    chmod +x /go/bin/golangci-lint && \
-    rm -rf "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}" /tmp/golangci-lint.tgz
+RUN go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}"
+ARG GIT_LFS_VERSION
+RUN apk add --no-cache gcc git musl-dev && \
+    mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
+    go mod init _gitlfs && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
+    go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
+    cd / && rm -rf /tmp/gitlfs
+ARG DOCKER_COMPOSE_VERSION
+RUN mkdir /tmp/compose && cd /tmp/compose && \
+    go mod init _compose && \
+    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" && \
+    go build -o /go/bin/docker-compose "github.com/docker/compose/v5/cmd" && \
+    cd / && rm -rf /tmp/compose
 
 #
 # Godynamic
@@ -85,20 +96,30 @@ WORKDIR /go
 RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
   apk update && \
   apk upgrade --no-cache && \
-  apk add --no-cache ca-certificates tzdata libltdl rsync zip openssh git-lfs bash shadow gcc musl-dev make linux-headers curl tini gcompat jq python3-dev py3-pip groff docker-compose openrc
+  apk add --no-cache ca-certificates tzdata libltdl rsync zip openssh git bash shadow gcc musl-dev make linux-headers curl tini gcompat jq python3-dev py3-pip groff openrc
 
-# Install Docker CLI (static binary) - version 27.3.1 supports API 1.44+
+# Install Docker CLI (static binary).
 # Alpine's docker package is old, so we install the static binary instead
 # Map Alpine arch names to Docker's static binary arch names:
 # - aarch64 -> aarch64 (Docker uses aarch64, not arm64)
 # - x86_64 -> x86_64
 # - amd64 -> x86_64 (fallback)
+ARG DOCKER_CLI_VERSION
 RUN ARCH=$(apk --print-arch | sed 's/amd64/x86_64/') && \
-    curl -fsSL https://download.docker.com/linux/static/stable/${ARCH}/docker-27.3.1.tgz | tar -xz -C /tmp && \
+    curl -fsSL "https://download.docker.com/linux/static/stable/${ARCH}/docker-${DOCKER_CLI_VERSION}.tgz" | tar -xz -C /tmp && \
     mv /tmp/docker/docker /usr/local/bin/docker && \
     chmod +x /usr/local/bin/docker && \
     rm -rf /tmp/docker && \
     docker --version
+
+RUN mkdir -p /usr/local/lib/docker/cli-plugins
+
+COPY --from=go-alpine-downloader /go/bin/docker-compose /usr/local/lib/docker/cli-plugins/docker-compose
+
+RUN chmod +x /usr/local/lib/docker/cli-plugins/docker-compose && \
+    ln -sf /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose && \
+    docker compose version && \
+    docker-compose version
 
 ENTRYPOINT ["tini", "--"]
 
@@ -113,6 +134,7 @@ COPY --from=go-alpine-downloader /usr/local/go/ /usr/local/go/
 COPY --from=go-alpine-downloader /go/bin/go-bindata /go/bin/go-bindata
 COPY --from=go-alpine-downloader /go/bin/gotestsum /go/bin/gotestsum
 COPY --from=go-alpine-downloader /go/bin/golangci-lint /go/bin/golangci-lint
+COPY --from=go-alpine-downloader /go/bin/git-lfs /go/bin/git-lfs
 COPY --from=aws /usr/local/aws-cli/ /usr/local/aws-cli/
 COPY --from=aws /aws-cli-bin/ /usr/local/bin/
 COPY --from=azcli /az /az

@@ -11,7 +11,7 @@
 #
 # Contents:
 #   - Go toolchain          -> build the app's Go services (pure Go, CGO=0)
-#   - Node 20 + newman      -> martin's runtime dependency
+#   - Node 24 + newman      -> martin's runtime dependency
 #   - martin                -> postman/martin collection runner (the e2e driver)
 #   - shirotester           -> phylum unit tests
 #   - substratehcp          -> oracle in-memory (EMULATE_CC) chaincode plugin
@@ -34,20 +34,23 @@ FROM luthersystems/pdfserv:${PDFSERV_VERSION} AS pdfserv
 FROM ubuntu:22.04
 # jammy: matches the official wkhtmltox jammy .deb (amd64 + arm64 both exist).
 ARG TARGETARCH
-ARG GOLANG_VERSION=1.26.2
+ARG GOLANG_VERSION=1.26.4
+ARG GIT_LFS_VERSION
 ARG SUBSTRATE_VERSION=v2.225.2
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Base tooling + fonts needed by wkhtmltopdf for legible PDFs.
 # openssh-client: apps fetch private Go modules over git+ssh (GOPRIVATE +
 # `insteadOf git@…`), so `go mod download` needs an ssh binary present.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg git git-lfs openssh-client make jq xz-utils \
+RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates curl gnupg git openssh-client make jq xz-utils \
       fontconfig fonts-dejavu fonts-liberation \
  && rm -rf /var/lib/apt/lists/*
 
-# Node 20 (newman 6 needs a modern Node; jammy's apt nodejs is too old) + newman.
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+# Node 24 (newman 6 needs a modern Node; jammy's apt nodejs is too old) + newman.
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && npm i -g newman \
  && rm -rf /var/lib/apt/lists/*
@@ -55,6 +58,12 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 # Go toolchain — used to build the app's Go services statically (apps have no cgo).
 RUN curl -fsSL "https://go.dev/dl/go${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz" | tar -C /usr/local -xz
 ENV PATH=/usr/local/go/bin:/go/bin:$PATH GOPATH=/go
+
+RUN mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
+    go mod init _gitlfs && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
+    go build -o /usr/local/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
+    cd / && rm -rf /tmp/gitlfs
 
 # wkhtmltopdf: official patched-Qt glibc .deb — the only native dependency,
 # clean multi-arch on Ubuntu.

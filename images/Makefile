@@ -60,6 +60,8 @@ $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} ${
 		--build-arg BUF_VERSION=${BUF_VERSION} \
 		--build-arg GO_SWAGGER_VERSION=${GO_SWAGGER_VERSION} \
 		--build-arg GIT_LFS_VERSION=${GIT_LFS_VERSION} \
+		--build-arg DOCKER_CLI_VERSION=${DOCKER_CLI_VERSION} \
+		--build-arg DOCKER_COMPOSE_VERSION=${DOCKER_COMPOSE_VERSION} \
 		--build-arg AZCLI_VER=${AZCLI_VER} \
 		--build-arg AWSCLI_VER=${AWSCLI_VER} \
 		-t luthersystems/$*:${VERSION}${TAG_SUFFIX} \
