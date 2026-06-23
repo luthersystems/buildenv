@@ -77,3 +77,78 @@ jobs:
           write-comment: false
           dockerhub-user: ${{ env.DOCKERHUB_USERNAME }}
           dockerhub-password: ${{ env.DOCKERHUB_TOKEN }}
+
+  # Gate the release on supply-chain attestations actually being present on the
+  # PUBLISHED multi-arch image. The Makefile attaches SBOM + provenance during
+  # the per-arch build, but `make push-manifests` (buildx imagetools create)
+  # re-assembles the index and is the step that can silently DROP the
+  # attestation manifests. This job is the automated replacement for inspecting
+  # the image by hand: it fails the release if any platform is missing either
+  # predicate, so a regression in the combine step can never ship unnoticed.
+  verify-attestations:
+    name: Verify attestations (${{ matrix.image }})
+    runs-on: ubuntu-22.04
+    needs:
+      - push-manifests
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - build-api
+          - build-go
+          - build-go-alpine
+          - build-godynamic
+          - build-e2e
+          - build-java
+          - build-js
+          - build-swaggercodegen
+          - nginx-frontend
+          - service-base-alpine
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - name: Configure DockerHub
+        uses: ./.github/actions/configure-dockerhub
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4
+      - name: Verify SBOM + provenance attestations on published image
+        env:
+          IMG: luthersystems/${{ matrix.image }}:${{ github.ref_name }}
+          REPO: luthersystems/${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          echo "Inspecting $IMG"
+          RAW=$(docker buildx imagetools inspect "$IMG" --raw)
+
+          # Count real platform images vs sibling attestation manifests. buildx
+          # emits one attestation manifest per platform, tagged in the index
+          # with annotation vnd.docker.reference.type=attestation-manifest.
+          PLATS=$(echo "$RAW" | jq '[.manifests[]
+            | select((.annotations["vnd.docker.reference.type"] // "") != "attestation-manifest")
+            | select((.platform.os // "") != "unknown")] | length')
+          ATTS=$(echo "$RAW" | jq '[.manifests[]
+            | select((.annotations["vnd.docker.reference.type"] // "") == "attestation-manifest")] | length')
+          echo "platform images=$PLATS  attestation manifests=$ATTS"
+
+          if [ "$ATTS" -lt 1 ] || [ "$ATTS" -ne "$PLATS" ]; then
+            echo "::error::$IMG is missing attestation manifests (platforms=$PLATS, attestations=$ATTS). 'buildx imagetools create' likely dropped them — check images/Makefile push-manifests."
+            echo "$RAW" | jq .
+            exit 1
+          fi
+
+          # For each attestation manifest, confirm BOTH predicate types are
+          # present (provenance + SBOM), not just one. Uses --raw so it does not
+          # depend on the runner's buildx supporting the .SBOM/.Provenance
+          # format fields.
+          MISSING=0
+          for DGST in $(echo "$RAW" | jq -r '.manifests[]
+              | select((.annotations["vnd.docker.reference.type"] // "") == "attestation-manifest")
+              | .digest'); do
+            AM=$(docker buildx imagetools inspect "${REPO}@${DGST}" --raw)
+            PTYPES=$(echo "$AM" | jq -r '.layers[].annotations["in-toto.io/predicate-type"] // empty')
+            echo "  $DGST predicate-types: $(echo "$PTYPES" | paste -sd, -)"
+            echo "$PTYPES" | grep -q 'slsa.dev/provenance' || { echo "::error::$IMG attestation $DGST missing provenance predicate"; MISSING=1; }
+            echo "$PTYPES" | grep -qE 'spdx.dev/Document|cyclonedx' || { echo "::error::$IMG attestation $DGST missing SBOM predicate"; MISSING=1; }
+          done
+          [ "$MISSING" -eq 0 ] || exit 1
+          echo "✅ $IMG carries SBOM + provenance for all $PLATS platform(s)"

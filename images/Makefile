@@ -24,6 +24,18 @@ PLATFORMS=linux/amd64,linux/arm64
 # GitHub Actions layer caching (--cache-from/--cache-to type=gha).
 BUILDX_CACHE_FLAGS ?=
 
+# Supply-chain attestations (SBOM + SLSA provenance, mode=max). These satisfy
+# Docker Scout's "supply chain attestation(s)" policy. Attestations only attach
+# to images exported to a registry; the local docker exporter (--load) rejects
+# them, so gate on GIT_TAG exactly like --push above (a local `make ... --load`
+# build stays attestation-free and keeps working). On the per-arch publish
+# build these attach to luthersystems/<img>:<ver>-<arch>; `make push-manifests`
+# (buildx imagetools create) carries the attestation manifests into the
+# combined multi-arch index. Verify post-publish with:
+#   docker buildx imagetools inspect luthersystems/<img>:<ver> --format '{{json .}}'
+# and confirm application/vnd.in-toto+json manifests exist per platform.
+DOCKER_ATTEST_OPTS=$(if $(GIT_TAG),--provenance=mode=max --sbom=true,)
+
 # do *NOT* delete intermediate artifacts!
 .SECONDARY:
 
@@ -48,7 +60,7 @@ clean:
 $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} ${CONFIG_MAKEFILE} $(call DUMMY_TARGET,deps,luthersystems/%)
 	@echo "Building image $*"
 	${DOCKER} buildx inspect --bootstrap
-	${DOCKER} buildx build ${DOCKER_BUILDX_OPTS} ${BUILDX_CACHE_FLAGS} \
+	${DOCKER} buildx build ${DOCKER_BUILDX_OPTS} ${DOCKER_ATTEST_OPTS} ${BUILDX_CACHE_FLAGS} \
 		--platform ${PLATFORMS} \
 		--progress plain \
 		--build-arg GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION} \
