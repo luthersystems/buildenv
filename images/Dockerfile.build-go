@@ -4,13 +4,29 @@ FROM golang:$GOLANG_VERSION AS go-downloader
 ARG GO_BINDATA_VERSION
 RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VERSION}"
 ARG GO_TESTSUM_VERSION
-RUN go install "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}"
+# Built from source (not `go install`) so we can pin patched golang.org/x/sys
+# (CVE-2026-39824); gotestsum otherwise bundles a vulnerable x/sys. Trade-off:
+# `gotestsum --version` reports "(devel)" — it has no version ldflag and derives
+# its version from the main module.
+RUN mkdir /tmp/gotestsum && cd /tmp/gotestsum && \
+    go mod init _gotestsum && \
+    go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/sys@v0.45.0 && \
+    go build -o /go/bin/gotestsum "gotest.tools/gotestsum" && \
+    cd / && rm -rf /tmp/gotestsum
 ARG GOLANGCI_LINT_VERSION
-RUN go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}"
+# Built from source (not `go install`) so we can pin patched golang.org/x/sys
+# (CVE-2026-39824); golangci-lint otherwise bundles x/sys 0.42.0. The ldflags
+# preserve `--version` (golangci-lint uses build-info only when main.date is empty).
+RUN mkdir /tmp/golangci && cd /tmp/golangci && \
+    go mod init _golangci && \
+    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/sys@v0.45.0 && \
+    go build -ldflags "-X main.version=${GOLANGCI_LINT_VERSION} -X main.commit=unknown -X main.date=unknown" \
+      -o /go/bin/golangci-lint "github.com/golangci/golangci-lint/v2/cmd/golangci-lint" && \
+    cd / && rm -rf /tmp/golangci
 ARG GIT_LFS_VERSION
 RUN mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 golang.org/x/sys@v0.45.0 && \
     go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
