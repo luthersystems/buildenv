@@ -1,4 +1,4 @@
-ARG GOLANG_VERSION=1.26.1
+ARG GOLANG_VERSION=1.26.4
 FROM golang:$GOLANG_VERSION AS go-downloader
 
 ARG GO_BINDATA_VERSION
@@ -6,22 +6,27 @@ RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VER
 ARG GO_TESTSUM_VERSION
 RUN go install "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}"
 ARG GOLANGCI_LINT_VERSION
-RUN ARCH="$(dpkg --print-architecture)" && \
-    wget -nv -O /tmp/golangci-lint.tgz "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}.tar.gz" && \
-    tar -xzf /tmp/golangci-lint.tgz -C /tmp && \
-    mv "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}/golangci-lint" /go/bin/golangci-lint && \
-    chmod +x /go/bin/golangci-lint && \
-    rm -rf "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}" /tmp/golangci-lint.tgz
+RUN go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}"
+ARG GIT_LFS_VERSION
+RUN mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
+    go mod init _gitlfs && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
+    go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
+    cd / && rm -rf /tmp/gitlfs
 
 FROM golang:$GOLANG_VERSION
 
-RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev curl make rsync zip git-lfs jq tini ca-certificates && rm -rf /var/lib/apt/lists/*
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
+RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+      libltdl-dev curl make rsync zip jq tini ca-certificates tzdata && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Docker CLI (static binary) - version 27.3.1 supports API 1.44+
+# Install Docker CLI (static binary).
 # This replaces the old docker.io package which had version 1.41
+ARG DOCKER_CLI_VERSION
 RUN ARCH=$(dpkg --print-architecture | sed 's/arm64/aarch64/; s/amd64/x86_64/') && \
-    curl -fsSL https://download.docker.com/linux/static/stable/${ARCH}/docker-27.3.1.tgz | tar -xz -C /tmp && \
+    curl -fsSL "https://download.docker.com/linux/static/stable/${ARCH}/docker-${DOCKER_CLI_VERSION}.tgz" | tar -xz -C /tmp && \
     mv /tmp/docker/docker /usr/local/bin/docker && \
     chmod +x /usr/local/bin/docker && \
     rm -rf /tmp/docker && \
@@ -30,6 +35,7 @@ RUN ARCH=$(dpkg --print-architecture | sed 's/arm64/aarch64/; s/amd64/x86_64/') 
 COPY --from=go-downloader /go/bin/go-bindata /go/bin/go-bindata
 COPY --from=go-downloader /go/bin/gotestsum /go/bin/gotestsum
 COPY --from=go-downloader /go/bin/golangci-lint /go/bin/golangci-lint
+COPY --from=go-downloader /go/bin/git-lfs /go/bin/git-lfs
 
 ENV GOCACHE=/tmp
 
