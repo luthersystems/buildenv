@@ -64,7 +64,6 @@ jobs:
           cd images && make \
             PLATFORMS=linux/amd64 \
             DOCKER_BUILDX_OPTS=--load \
-            BUILDX_CACHE_FLAGS="--cache-from type=gha,scope=${{ matrix.image }}-amd64" \
             GIT_REVISION=${{ github.sha }} \
             ${{ matrix.image }}
       - name: Scan with Docker Scout (fail on HIGH/CRITICAL)
