@@ -31,8 +31,14 @@ RUN apk update && apk upgrade --no-cache && apk add --no-cache \
   shadow \
   tini \
   zip \
-  jq \
   openssh
+
+# jq: the patched jq (>= 1.8.2-r0, fixes CVE-2026-32316 / CVE-2026-40164) is only
+# in alpine edge; 3.24 stable still ships the vulnerable 1.8.1-r0. Pull jq (only)
+# from edge via a tagged repo until the fix is backported to 3.24 stable, then
+# drop this. The @edge tag scopes edge to jq alone; everything else stays stable.
+RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
+  apk add --no-cache jq@edge
 
 COPY --from=go-alpine-downloader /go/bin/go-bindata /go/bin/go-bindata
 COPY --from=go-alpine-downloader /go/bin/gotestsum /go/bin/gotestsum
