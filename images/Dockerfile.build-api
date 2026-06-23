@@ -1,4 +1,4 @@
-ARG GOLANG_VERSION=1.26.2
+ARG GOLANG_VERSION=1.26.4
 FROM golang:$GOLANG_VERSION AS go-downloader
 
 ARG GO_BINDATA_VERSION
@@ -60,4 +60,15 @@ COPY --from=go-downloader /go/bin/swagger /go/bin/swagger
 COPY --from=go-downloader /go/bin/git-lfs /go/bin/git-lfs
 
 COPY build-api.mk /opt/Dockerfile.api.mk
+
+# Default to a non-root user (Docker Scout "no default non-root user" policy).
+# This image is consumed via `docker run`, and its workspace-mounting consumers
+# already pass `-u $(id -u):$(id -g)` (e.g. ui-core api/Makefile), which
+# overrides this default and still works — the tools in /go/bin are
+# world-executable. HOME points at a writable dir so any tooling that touches
+# $HOME works even when no `-u` is supplied. The official golang image ships
+# GOPATH (/go) mode 1777, so module/cache writes succeed for a non-root uid.
+RUN useradd --create-home --uid 1000 --user-group build
+ENV HOME=/home/build
+USER build
 ENTRYPOINT ["tini", "--", "sh", "-c", "make -f /opt/Dockerfile.api.mk -C $PWD build"]

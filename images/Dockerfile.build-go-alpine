@@ -69,4 +69,24 @@ RUN git config --system url."git@github.com:luthersystems/license.git".insteadOf
   ssh-keyscan -t Ed25519 -H github.com | tee -a /etc/ssh/ssh_known_hosts
 
 ENV GOCACHE=/tmp
+
+# Default to a non-root user (Docker Scout "no default non-root user" policy).
+# All privileged setup above (apk add, jq@edge, git config --system,
+# ssh-keyscan into /etc/ssh) runs as root before this line. The official
+# golang image ships GOPATH (/go) mode 1777 and GOCACHE=/tmp is 1777, so Go
+# module/build-cache writes succeed for a non-root uid. HOME points at a
+# writable dir for tooling that reads/writes $HOME.
+#
+# IMPORTANT — downstream coordination required: this image is also consumed as
+# a `FROM` base in downstream multi-stage builds (e.g. ui-core Dockerfile-go,
+# and any repo using the shared common.go.mk pattern). Those build stages
+# inherit this USER, so a consumer that needs root at build time — notably one
+# writing a BuildKit cache mount at /go/pkg/mod (`go mod download`) or running
+# `apk add` — MUST declare `USER root` at the top of its build stage (and/or
+# set uid=/gid= on its cache mounts). Land those downstream changes before
+# bumping the buildenv tag those repos pin, or their builds will fail on
+# permission-denied writing the root-owned cache mount.
+RUN addgroup -g 1000 build && adduser -D -u 1000 -G build -h /home/build build
+ENV HOME=/home/build
+USER build
 ENTRYPOINT ["tini", "--"]
