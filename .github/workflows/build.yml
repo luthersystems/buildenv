@@ -67,12 +67,16 @@ jobs:
             DOCKER_BUILDX_OPTS=--load \
             GIT_REVISION=${{ github.sha }} \
             ${{ matrix.image }}
-      # Record the FULL CVE picture (every severity, fixable AND unfixable) so we
-      # can track the total over time. These steps are non-blocking and run
-      # BEFORE the hard gate below, so the total is recorded even on runs where
-      # the gate fails on a fixable HIGH/CRITICAL.
+      # Record the FULL CVE picture (every severity, fixable AND unfixable) and
+      # publish it per run: a quickview breakdown to the job step summary plus a
+      # full SARIF artifact. These steps are non-blocking (continue-on-error, so a
+      # transient Scout/auth error never reds the job or skips the gate) and run
+      # BEFORE the hard gate, so totals are recorded even when the gate fails on a
+      # fixable HIGH/CRITICAL. NOTE: this records per run only; durable trend
+      # tracking would mean feeding the SARIF to the code-scanning Security tab.
       - name: Record total CVE breakdown (all severities, non-blocking)
-        uses: docker/scout-action@v1
+        uses: docker/scout-action@7520205ff60037fdc436b40b6a1d1e55a839ec2d  # v1.22.0
+        continue-on-error: true
         with:
           command: quickview
           image: local://luthersystems/${{ matrix.image }}:${{ github.sha }}
@@ -82,7 +86,8 @@ jobs:
           dockerhub-user: ${{ env.DOCKERHUB_USERNAME }}
           dockerhub-password: ${{ env.DOCKERHUB_TOKEN }}
       - name: Generate full CVE SARIF (all severities, non-blocking)
-        uses: docker/scout-action@v1
+        uses: docker/scout-action@7520205ff60037fdc436b40b6a1d1e55a839ec2d  # v1.22.0
+        continue-on-error: true
         with:
           command: cves
           image: local://luthersystems/${{ matrix.image }}:${{ github.sha }}
@@ -94,6 +99,7 @@ jobs:
           dockerhub-password: ${{ env.DOCKERHUB_TOKEN }}
       - name: Upload full CVE SARIF artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        continue-on-error: true
         with:
           name: scout-cves-${{ matrix.image }}
           path: scout-cves-${{ matrix.image }}.sarif
@@ -101,7 +107,7 @@ jobs:
 
       # Hard gate: fail the build on any FIXABLE HIGH/CRITICAL CVE.
       - name: Scan with Docker Scout (fail on fixable HIGH/CRITICAL)
-        uses: docker/scout-action@v1
+        uses: docker/scout-action@7520205ff60037fdc436b40b6a1d1e55a839ec2d  # v1.22.0
         with:
           command: cves
           image: local://luthersystems/${{ matrix.image }}:${{ github.sha }}
