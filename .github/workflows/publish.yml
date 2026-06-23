@@ -72,7 +72,8 @@ jobs:
           command: cves
           image: luthersystems/${{ matrix.image }}:${{ github.ref_name }}
           only-severities: critical,high
-          ignore-unfixed: true
+          only-fixed: true
           exit-code: true
+          write-comment: false
           dockerhub-user: ${{ env.DOCKERHUB_USERNAME }}
           dockerhub-password: ${{ env.DOCKERHUB_TOKEN }}
