@@ -51,7 +51,7 @@ both reading the list above via the `scout-config` job:
 
 | Tier | Workflow | What it gates |
 |---|---|---|
-| **PR** (every PR) | `build.yml` → `cve-scan` | the policies that are deterministic on a locally-built image: **fixable CRITICAL/HIGH CVEs** + **default non-root user**. Fails the PR on regression. |
+| **PR** (every PR) | `build.yml` → `cve-scan` + `non-root-audit` | **fixable CRITICAL/HIGH CVEs** on the required set, plus a **non-root-user audit across all 10 images** — hard-fails only if a required image regresses to root, and reports every other image's status (the 6 root builders are surfaced, not gated). |
 | **Release** (tag push) | `publish.yml` → `scout-policy` | the **true grade** on the pushed image: `docker scout policy --exit-code` (covers attestations, approved/up-to-date base images, high-profile CVEs, and licenses on top of the above). Fails the release if any policy is non-compliant. |
 
 `cve_net_extra` in the JSON (currently `build-go`) lists extra builder images

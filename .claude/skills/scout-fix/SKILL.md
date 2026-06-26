@@ -144,8 +144,11 @@ Rules learned the hard way (#77):
 
 The three required images are **already non-root**: `build-api` and
 `build-go-alpine` default to user `build` (uid 1000), `service-base-alpine` to
-`nobody` (#78). A routine CVE fix never touches this; the PR gate's non-root
-assertion just stops a regression. **Don't re-add what's already there.**
+`nobody` (#78). A routine CVE fix never touches this; the PR-time `non-root-audit`
+job statically checks **every** image's final-stage USER and hard-fails only if a
+*required* one regresses to root (the other images — 6 currently default to root
+— are reported, not gated, since making them non-root is a breaking change for
+their consumers). **Don't re-add what's already there.**
 
 You apply this pattern only when a **brand-new image joins the required set**.
 Then add a uid-1000 user **after all privileged setup** (`apk add`/`apt`, `git

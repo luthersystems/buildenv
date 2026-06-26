@@ -53,7 +53,7 @@ gated in CI three ways:
 
 | When | Workflow | Gate |
 |---|---|---|
-| every PR | `build.yml` → `cve-scan` | fixable CRITICAL/HIGH CVEs + default-non-root-user |
+| every PR | `build.yml` → `cve-scan` + `non-root-audit` | fixable CRITICAL/HIGH CVEs (required set); non-root audit across **all** images — hard-fails only if a required image regresses to root, reports the rest |
 | release (tag) | `publish.yml` → `scout-policy` | `docker scout policy --exit-code` (true grade) + attestations |
 | weekly cron | `scout-drift.yml` | re-scan published `:latest`; opens a `scout-drift` issue on drift |
 

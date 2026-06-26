@@ -126,27 +126,6 @@ jobs:
           path: scout-cves-${{ matrix.image }}.sarif
           if-no-files-found: warn
 
-      # Hard gate: Docker Scout "default non-root user" policy (health-score,
-      # 5 pts). Deterministic and locally checkable, so we enforce it at PR time
-      # rather than waiting for the release-time grade. Scoped to the required
-      # grade-A set (build-go gets the CVE net only). The image was loaded
-      # locally above as luthersystems/<image>:<sha>. Regression guard for the
-      # non-root default that landed in #78.
-      - name: Assert non-root default USER (Docker Scout policy)
-        if: contains(fromJSON(needs.scout-config.outputs.required), matrix.image)
-        run: |
-          set -euo pipefail
-          tag=luthersystems/${{ matrix.image }}:${{ github.sha }}
-          user=$(docker image inspect "$tag" --format '{{.Config.User}}')
-          echo "${{ matrix.image }} default USER='${user}'"
-          case "${user}" in
-            ""|root|0|0:0|root:root)
-              echo "::error::${{ matrix.image }} has no non-root default USER ('${user}'): violates Docker Scout 'default non-root user' policy. Add a non-root USER to images/Dockerfile.${{ matrix.image }} (see #78)."
-              exit 1
-              ;;
-          esac
-          echo "✅ ${{ matrix.image }} defaults to a non-root user"
-
       # Hard gate: fail the build on any FIXABLE HIGH/CRITICAL CVE.
       - name: Scan with Docker Scout (fail on fixable HIGH/CRITICAL)
         uses: docker/scout-action@7520205ff60037fdc436b40b6a1d1e55a839ec2d  # v1.22.0
@@ -159,3 +138,55 @@ jobs:
           write-comment: false
           dockerhub-user: ${{ env.DOCKERHUB_USERNAME }}
           dockerhub-password: ${{ env.DOCKERHUB_TOKEN }}
+
+  # Non-root default-USER audit across ALL images (Docker Scout "default non-root
+  # user" policy). Static — reads each Dockerfile's final-stage USER, so it needs
+  # no image build. HARD-FAILS only if a required grade-A image (from
+  # scout-required-images.json) regresses to root — that would drop its grade.
+  # Every other image is REPORTED, not gated: making a currently-root builder
+  # non-root is a #78-class breaking change for its `docker run`/`FROM` consumers,
+  # so it's surfaced as an inventory for deliberate future hardening, never
+  # slipped in here. The step summary lists the current root images.
+  non-root-audit:
+    name: Non-root user audit (all images)
+    needs:
+      - scout-config
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - name: Audit every image Dockerfile for a non-root default USER
+        env:
+          REQUIRED: ${{ needs.scout-config.outputs.required }}
+        run: |
+          set -euo pipefail
+          required=$(echo "$REQUIRED" | jq -r '.[]')
+          is_required() { for r in $required; do [ "$r" = "$1" ] && return 0; done; return 1; }
+          fail=0
+          {
+            echo "## Non-root default USER audit (all images)"
+            echo
+            echo "| Image | Final-stage USER | Status |"
+            echo "|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for f in images/Dockerfile.*; do
+            img=${f#images/Dockerfile.}
+            # final-stage USER: reset on each FROM, keep the last USER seen
+            user=$(awk '/^[[:space:]]*FROM /{su=""} /^[[:space:]]*USER /{su=$2} END{print su}' "$f")
+            case "$user" in
+              ""|root|0|0:0|root:root)
+                if is_required "$img"; then
+                  echo "| \`$img\` | _(root)_ | ❌ required image must be non-root |" >> "$GITHUB_STEP_SUMMARY"
+                  echo "::error file=images/Dockerfile.$img::$img is a required grade-A image but defaults to root — add a non-root USER (see #78)."
+                  fail=1
+                else
+                  echo "| \`$img\` | _(root)_ | ⚠️ root — not gated (see comment) |" >> "$GITHUB_STEP_SUMMARY"
+                  echo "::warning file=images/Dockerfile.$img::$img defaults to root. Not gated: making it non-root is a breaking change for its consumers. Tracked for deliberate hardening."
+                fi
+                ;;
+              *)
+                echo "| \`$img\` | \`$user\` | ✅ non-root |" >> "$GITHUB_STEP_SUMMARY"
+                ;;
+            esac
+          done
+          echo "::notice::Non-root audit complete; see the job summary for the full table."
+          [ "$fail" -eq 0 ] || { echo "A required grade-A image defaults to root — see errors above."; exit 1; }
