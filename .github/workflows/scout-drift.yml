@@ -1,0 +1,94 @@
+name: Scout drift watch
+
+# Layer 2 of keeping the required images at grade A (see README "Image security
+# policies"). The PR gate (build.yml) and release gate (publish.yml) only fire
+# on code changes — but a CVE disclosed today against an UNCHANGED pin drops the
+# grade with no commit to trigger a scan. This weekly cron re-evaluates the
+# real Docker Scout policy grade on the published `:latest` images and opens (or
+# refreshes) a tracking issue + reds the run when any required image falls below
+# grade A. It reads the same single source of truth,
+# .github/scout-required-images.json.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+
+jobs:
+  drift:
+    name: Docker Scout drift watch (published :latest)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - name: Configure DockerHub
+        uses: ./.github/actions/configure-dockerhub
+      - name: Install Docker Scout CLI
+        run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
+      - name: Evaluate Scout policy on each required :latest image
+        id: scan
+        env:
+          DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          drift=0
+          {
+            echo "## Docker Scout policy drift on published \`:latest\` images"
+            echo
+            echo "Re-evaluated by the weekly \`Scout drift watch\` workflow."
+            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+          } > summary.md
+          for img in $(jq -r '.required[]' .github/scout-required-images.json); do
+            echo "::group::scout policy luthersystems/${img}:latest"
+            if docker scout policy "luthersystems/${img}:latest" --org luthersystems --exit-code; then
+              echo "- ✅ \`${img}\` — grade A (all policies compliant)" >> summary.md
+            else
+              echo "- ❌ \`${img}\` — policy non-compliant (dropped below grade A)" >> summary.md
+              drift=1
+            fi
+            echo "::endgroup::"
+          done
+          echo "drift=${drift}" >> "$GITHUB_OUTPUT"
+          echo "----- summary -----"; cat summary.md
+      - name: Open or refresh the drift issue
+        if: steps.scan.outputs.drift == '1'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('summary.md', 'utf8');
+            const title = 'Docker Scout: published image(s) dropped below grade A';
+            const { owner, repo } = context.repo;
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'scout-drift', per_page: 100,
+            });
+            if (open.data.length) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: open.data[0].number, body,
+              });
+              core.info(`Refreshed existing issue #${open.data[0].number}`);
+            } else {
+              try {
+                await github.rest.issues.createLabel({
+                  owner, repo, name: 'scout-drift', color: 'b60205',
+                  description: 'A published image fell below Docker Scout grade A',
+                });
+              } catch (e) { /* label already exists */ }
+              const created = await github.rest.issues.create({
+                owner, repo, title, body, labels: ['scout-drift'],
+              });
+              core.info(`Opened issue #${created.data.number}`);
+            }
+      - name: Fail the run if drift detected
+        if: steps.scan.outputs.drift == '1'
+        run: |
+          echo "::error::One or more published images dropped below Docker Scout grade A — see the 'scout-drift' issue."
+          exit 1
