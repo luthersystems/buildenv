@@ -63,9 +63,13 @@ Verify with `/verify-scout` before opening a PR.
 
 ## Critical rules
 
-1. **Never push to `main`.** Branch, PR, human review. Releases are tagged by a
-   human (a base-image change can require coordinated downstream edits — see #78
-   and the non-root note in README).
+1. **Never push to `main`; never self-merge.** Branch, PR, human review. `main`
+   is protected: the strict-image gates are required checks and a human approving
+   review is required, so **automation (the upkeep agent) opens PRs but a human
+   merges them** — the bot runs as a GitHub App with no bypass. Releases are
+   tagged by a human (a base-image change can require coordinated downstream
+   edits — see #78). Required-checks list + apply command:
+   [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md).
 2. **Pin, don't float, security-driven dep bumps in from-source tool builds.**
    The `go get …@vX` transitive pins in the Dockerfiles exist to clear specific
    CVEs; keep them explicit and annotated. See `/scout-fix`.

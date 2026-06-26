@@ -64,6 +64,12 @@ CVE or a newly-added low-weight policy, scope `scout-policy` with
 `--only-policy <slug,...>` or temporarily set `continue-on-error: true` — see the
 comment on that job in `publish.yml`.
 
+For the strict-image gates to actually **block merges** — and to ensure
+automation can open PRs but never merge them — the checks must be marked required
+in `main`'s branch protection. The exact required-checks list, settings, and a
+one-shot apply command are in
+[docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md).
+
 ### Supply-chain attestations
 
 Every published image carries SBOM + SLSA provenance attestations. These are
