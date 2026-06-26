@@ -36,17 +36,38 @@ jobs:
           image: ${{ matrix.image }}
           git_rev: $GITHUB_SHA
 
+  # Single source of truth for which images must carry a clean Docker Scout
+  # bill of health lives in .github/scout-required-images.json. This job
+  # publishes it as outputs so both the PR gate (below) and the release gate
+  # (publish.yml) consume the same list — add a service THERE, not here.
+  scout-config:
+    name: Resolve Docker Scout image lists
+    runs-on: ubuntu-22.04
+    outputs:
+      required: ${{ steps.lists.outputs.required }}
+      cve: ${{ steps.lists.outputs.cve }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - name: Load Docker Scout image lists
+        id: lists
+        run: |
+          set -euo pipefail
+          f=.github/scout-required-images.json
+          jq -e . "$f" >/dev/null
+          echo "required=$(jq -c '.required' "$f")" >> "$GITHUB_OUTPUT"
+          echo "cve=$(jq -c '.required + .cve_net_extra' "$f")" >> "$GITHUB_OUTPUT"
+
   cve-scan:
     name: CVE scan (${{ matrix.image }})
+    needs:
+      - scout-config
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        image:
-          - build-api
-          - build-go
-          - build-go-alpine
-          - service-base-alpine
+        # Required grade-A images + the CVE-net-only builders, sourced from
+        # .github/scout-required-images.json via the scout-config job.
+        image: ${{ fromJSON(needs.scout-config.outputs.cve) }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
       - name: Configure DockerHub
@@ -104,6 +125,27 @@ jobs:
           name: scout-cves-${{ matrix.image }}
           path: scout-cves-${{ matrix.image }}.sarif
           if-no-files-found: warn
+
+      # Hard gate: Docker Scout "default non-root user" policy (health-score,
+      # 5 pts). Deterministic and locally checkable, so we enforce it at PR time
+      # rather than waiting for the release-time grade. Scoped to the required
+      # grade-A set (build-go gets the CVE net only). The image was loaded
+      # locally above as luthersystems/<image>:<sha>. Regression guard for the
+      # non-root default that landed in #78.
+      - name: Assert non-root default USER (Docker Scout policy)
+        if: contains(fromJSON(needs.scout-config.outputs.required), matrix.image)
+        run: |
+          set -euo pipefail
+          tag=luthersystems/${{ matrix.image }}:${{ github.sha }}
+          user=$(docker image inspect "$tag" --format '{{.Config.User}}')
+          echo "${{ matrix.image }} default USER='${user}'"
+          case "${user}" in
+            ""|root|0|0:0|root:root)
+              echo "::error::${{ matrix.image }} has no non-root default USER ('${user}'): violates Docker Scout 'default non-root user' policy. Add a non-root USER to images/Dockerfile.${{ matrix.image }} (see #78)."
+              exit 1
+              ;;
+          esac
+          echo "✅ ${{ matrix.image }} defaults to a non-root user"
 
       # Hard gate: fail the build on any FIXABLE HIGH/CRITICAL CVE.
       - name: Scan with Docker Scout (fail on fixable HIGH/CRITICAL)
