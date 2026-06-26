@@ -207,8 +207,11 @@ luthersystems/<img>:<ver> --raw` (expect per-platform in-toto manifests).
   non-root migration was the last one), not routine work. If clearing a finding
   seems to require it, stop and escalate to a human.
 - **Prefer the minimal bump that clears the finding.** Patch/minor bumps of a
-  base or tool are safe and are what regular maintenance should apply
-  automatically. A **major** bump (alpine/golang major, a tool's vN→vN+1, Node
-  major) can change behavior or CLI flags that downstream consumers depend on —
-  treat it as potentially breaking: take it only if a patch/minor doesn't clear
-  the finding, and flag it for human review instead of auto-merging.
+  base or tool are low-risk and are what regular maintenance normally applies
+  automatically — but watch a tool bump that changes *behavior* even without a
+  major (e.g. `golangci-lint` surfacing new lint in consumer CI); apply the
+  minimal version that clears the finding. A **major** bump (alpine/golang major,
+  a tool's vN→vN+1, Node major) can change behavior, CLI flags, or ABI that
+  downstream consumers depend on — treat it as potentially breaking: take it only
+  if no patch/minor clears the finding, and flag it for human review instead of
+  auto-merging.
