@@ -49,18 +49,33 @@ jobs:
       - name: Create and push manifest for multiarch
         run: cd images && make push-manifests GIT_TAG=$GITHUB_REF_NAME
 
+  # Single source of truth for the grade-A image set, shared with the PR gate
+  # in build.yml. Add a service in .github/scout-required-images.json, not here.
+  scout-config:
+    name: Resolve Docker Scout image lists
+    runs-on: ubuntu-22.04
+    outputs:
+      required: ${{ steps.lists.outputs.required }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - name: Load Docker Scout image lists
+        id: lists
+        run: |
+          set -euo pipefail
+          f=.github/scout-required-images.json
+          jq -e . "$f" >/dev/null
+          echo "required=$(jq -c '.required' "$f")" >> "$GITHUB_OUTPUT"
+
   cve-scan:
     name: CVE scan published image (${{ matrix.image }})
     runs-on: ubuntu-22.04
     needs:
       - push-manifests
+      - scout-config
     strategy:
       fail-fast: false
       matrix:
-        image:
-          - build-api
-          - build-go-alpine
-          - service-base-alpine
+        image: ${{ fromJSON(needs.scout-config.outputs.required) }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
@@ -77,6 +92,43 @@ jobs:
           write-comment: false
           dockerhub-user: ${{ env.DOCKERHUB_USERNAME }}
           dockerhub-password: ${{ env.DOCKERHUB_TOKEN }}
+
+  # Release-time TRUE grade-A gate. The Docker Scout health grade (A–F) and its
+  # supply-chain-attestation / approved+up-to-date base-image / high-profile-CVE
+  # / license policies are computed registry-side on the PUSHED image, so this is
+  # the only place the real "A A A" bill of health can be enforced (a PR's local
+  # --load image structurally can't carry attestations, so it can't grade A).
+  # `docker scout policy --exit-code` returns non-zero if ANY org policy is
+  # non-compliant on the published image. Escape hatch if an UNFIXABLE CVE or a
+  # newly-added low-weight policy ever blocks an otherwise-good release: scope
+  # with `--only-policy <slug,...>`, or temporarily add `continue-on-error: true`.
+  # Runs on the required grade-A set from .github/scout-required-images.json.
+  scout-policy:
+    name: Scout policy grade (${{ matrix.image }})
+    runs-on: ubuntu-22.04
+    needs:
+      - push-manifests
+      - scout-config
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.scout-config.outputs.required) }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - name: Configure DockerHub
+        uses: ./.github/actions/configure-dockerhub
+      - name: Install Docker Scout CLI
+        run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
+      - name: Evaluate Docker Scout policies on the published image
+        env:
+          DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          docker scout policy luthersystems/${{ matrix.image }}:${{ github.ref_name }} \
+            --org luthersystems \
+            --exit-code
 
   # Gate the release on supply-chain attestations actually being present on the
   # PUBLISHED multi-arch image. The Makefile attaches SBOM + provenance during
