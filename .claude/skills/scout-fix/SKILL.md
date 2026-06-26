@@ -40,8 +40,8 @@ findings; `cves` tells you CVE findings.
 | Fixable CVE in an **OS package** (apt/apk) | upgrade OS packages (escape hatch: pull one pkg from edge) | **A** |
 | CVE that only the **base image** carries | bump the central base version | **B** |
 | Fixable CVE in a **bundled Go tool** (golangci-lint, buf, swagger, git-lfs, gotestsum…) | from-source build + pin the patched transitive dep | **C** |
-| Policy: **default non-root user** | add a non-root `USER` (+ downstream check) | **D** |
-| Policy: **supply-chain attestations** | Makefile attestation opts (release-only) | **E** |
+| Policy: **default non-root user** | already satisfied; only when a NEW image joins the set | **D** |
+| Policy: **supply-chain attestations** | already wired in Makefile/CI; not a Dockerfile fix | **E** |
 
 ---
 
@@ -140,62 +140,47 @@ Rules learned the hard way (#77):
 
 ---
 
-## D — Policy: default non-root user
+## D — Policy: default non-root user (already satisfied — rarely a fix step)
 
-Scout's "default non-root user" policy (5 pts) wants a non-root default `USER`.
-Add a uid-1000 user **after all privileged setup**, point `HOME` at a writable
-dir, then `USER` it (#78).
+The three required images are **already non-root**: `build-api` and
+`build-go-alpine` default to user `build` (uid 1000), `service-base-alpine` to
+`nobody` (#78). A routine CVE fix never touches this; the PR gate's non-root
+assertion just stops a regression. **Don't re-add what's already there.**
 
-Debian (build-api):
-```dockerfile
-RUN useradd --create-home --uid 1000 --user-group build
-ENV HOME=/home/build
-USER build
-```
-Alpine (build-go-alpine):
-```dockerfile
-RUN addgroup -g 1000 build && adduser -D -u 1000 -G build -h /home/build build
-ENV HOME=/home/build
-USER build
-```
+You apply this pattern only when a **brand-new image joins the required set**.
+Then add a uid-1000 user **after all privileged setup** (`apk add`/`apt`, `git
+config --system`, `ssh-keyscan`, root-owned `COPY`s), give it a writable `HOME`,
+and `USER` it — Debian: `useradd --create-home --uid 1000 --user-group build`;
+Alpine: `addgroup -g 1000 build && adduser -D -u 1000 -G build -h /home/build
+build`. Go caches stay writable because `/go` is mode 1777 and `GOCACHE=/tmp`
+is 1777.
 
-Checks before you commit:
-- **Placement:** `USER` must come *after* every `apk add` / `apt`, `git config
-  --system`, `ssh-keyscan`, and `COPY` of root-owned files.
-- **Writability:** Go needs writable GOPATH/cache. The official golang image
-  ships `/go` mode 1777 and these images set `GOCACHE=/tmp` (1777), so non-root
-  module/build-cache writes work. Verify: run the image and write the caches.
-- **⚠️ Downstream `FROM`-base coordination (the #78 footgun).** `build-go-alpine`
-  is used as a `FROM` base in downstream multi-stage builds (ui-core
-  `Dockerfile-go`, anything on the shared `common.go.mk` pattern). Those build
-  stages **inherit this `USER`** and then fail writing the root-owned BuildKit
-  cache mount (`/go/pkg/mod`) or running `apk add`. Each consumer must add
-  `USER root` to its build stage first. **Land those downstream changes (and
-  document the requirement in README) BEFORE releasing a tag that carries this.**
-  The prod stage (`FROM service-base-alpine`) is unaffected — it stays `nobody`.
+⚠️ **The downstream coordination is a RELEASE precondition, not a CVE-fix step.**
+If the new image is a `FROM` base for downstream multi-stage builds (as
+`build-go-alpine` is for ui-core `Dockerfile-go` and anything on the shared
+`common.go.mk` pattern), each consumer's build stage **inherits the `USER`** and
+fails writing the root-owned `/go/pkg/mod` cache mount — so every consumer must
+add `USER root` to its build stage *before* it bumps `BUILDENV_TAG` to a release
+carrying the non-root default. This is owned by whoever cuts the release (see the
+README non-root section), not by your finding fix. The prod stage (`FROM
+service-base-alpine`) is unaffected — it stays `nobody`.
 
 ---
 
-## E — Policy: supply-chain attestations
+## E — Policy: supply-chain attestations (already wired — not a Dockerfile fix)
 
-SBOM + SLSA provenance attestations (15 pts) are produced by the Makefile and
-**only attach on push to a registry** — the local `--load` exporter rejects
-them. So this is a *release-time* property, not something you can satisfy on a PR
-build (#78). The wiring already exists:
+SBOM + SLSA provenance (15 pts) are **already produced** by the Makefile
+(`DOCKER_ATTEST_OPTS=$(if $(GIT_TAG),--provenance=mode=max --sbom=true,)`, gated
+on `GIT_TAG`) and only attach on push — the `--load` exporter rejects them. So
+you can't satisfy this on a PR build, and you **never** add
+`--sbom`/`--provenance` to a `--load` build (it breaks the local build). There's
+no Dockerfile edit here (#78).
 
-```makefile
-DOCKER_ATTEST_OPTS=$(if $(GIT_TAG),--provenance=mode=max --sbom=true,)
-```
-
-If attestations are missing on a published image, the bug is in the
-**`push-manifests`** step (buildx `imagetools create` can drop attestation
-manifests when recombining the multi-arch index), not in a Dockerfile. The
-`verify-attestations` job in `publish.yml` guards this. Verify by hand with:
-```bash
-docker buildx imagetools inspect luthersystems/<img>:<ver> --raw   # expect per-platform in-toto manifests
-```
-Do **not** try to add `--sbom`/`--provenance` to `--load` builds; that breaks the
-local build for everyone.
+If the attestations policy fails on a *published* image, it's a `push-manifests`
+regression (buildx `imagetools create` dropping attestation manifests), not a
+finding you fix in `images/` — the `verify-attestations` job in `publish.yml`
+already guards it. Inspect with `docker buildx imagetools inspect
+luthersystems/<img>:<ver> --raw` (expect per-platform in-toto manifests).
 
 ---
 
