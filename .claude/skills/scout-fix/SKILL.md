@@ -155,15 +155,10 @@ Alpine: `addgroup -g 1000 build && adduser -D -u 1000 -G build -h /home/build
 build`. Go caches stay writable because `/go` is mode 1777 and `GOCACHE=/tmp`
 is 1777.
 
-⚠️ **The downstream coordination is a RELEASE precondition, not a CVE-fix step.**
-If the new image is a `FROM` base for downstream multi-stage builds (as
-`build-go-alpine` is for ui-core `Dockerfile-go` and anything on the shared
-`common.go.mk` pattern), each consumer's build stage **inherits the `USER`** and
-fails writing the root-owned `/go/pkg/mod` cache mount — so every consumer must
-add `USER root` to its build stage *before* it bumps `BUILDENV_TAG` to a release
-carrying the non-root default. This is owned by whoever cuts the release (see the
-README non-root section), not by your finding fix. The prod stage (`FROM
-service-base-alpine`) is unaffected — it stays `nobody`.
+The non-root migration was a **one-time coordinated breaking change** — because
+`build-go-alpine` is a `FROM` base, consumers had to add `USER root` to their
+build stages first (#78) — and it is **complete**. Don't reintroduce that class
+of change in a routine fix; see "keep fixes non-breaking" in Guardrails.
 
 ---
 
@@ -204,7 +199,16 @@ luthersystems/<img>:<ver> --raw` (expect per-platform in-toto manifests).
   clean bump. Don't force one. Record it (the non-blocking SARIF/quickview steps
   already track totals) and, if it blocks a release policy, surface it to a human
   with the CVE id and why no fix exists — don't broaden `--only-policy` silently.
-- **A base-image major bump that breaks the build** (musl/glibc, tool incompat)
-  is a judgment call — fix forward if straightforward, else stop and ask.
-- **Touching `build-go-alpine`'s `USER` or base** ripples to downstream repos.
-  Confirm the downstream coordination (section D) is done before a release.
+- **Keep fixes non-breaking — this is the maintenance contract.** Regular Scout
+  upkeep is version bumps (A/B/C) that don't change a published image's runtime
+  contract. Do **not** alter a published image's default `USER`, `ENTRYPOINT`,
+  base distro/ABI, or anything a downstream `FROM`/`docker run` consumer relies
+  on as part of a fix — that's a coordinated breaking release (the one-time #78
+  non-root migration was the last one), not routine work. If clearing a finding
+  seems to require it, stop and escalate to a human.
+- **Prefer the minimal bump that clears the finding.** Patch/minor bumps of a
+  base or tool are safe and are what regular maintenance should apply
+  automatically. A **major** bump (alpine/golang major, a tool's vN→vN+1, Node
+  major) can change behavior or CLI flags that downstream consumers depend on —
+  treat it as potentially breaking: take it only if a patch/minor doesn't clear
+  the finding, and flag it for human review instead of auto-merging.

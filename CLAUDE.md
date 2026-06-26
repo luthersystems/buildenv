@@ -69,8 +69,12 @@ Verify with `/verify-scout` before opening a PR.
 2. **Pin, don't float, security-driven dep bumps in from-source tool builds.**
    The `go get …@vX` transitive pins in the Dockerfiles exist to clear specific
    CVEs; keep them explicit and annotated. See `/scout-fix`.
-3. **Respect the non-root downstream contract.** `build-go-alpine` is a `FROM`
-   base; changing its default `USER` can break consumers' build stages. See #78.
+3. **Keep published-image changes non-breaking.** Regular security upkeep is
+   version bumps that don't change an image's runtime contract. Changing a
+   published image's default `USER`, entrypoint, or base ABI can break downstream
+   `FROM`/`docker run` consumers — that's a coordinated breaking release (the #78
+   non-root migration was the last one), not routine maintenance. Prefer the
+   minimal patch/minor bump; escalate a major/contract-changing bump for review.
 4. **Pin GitHub Actions to SHAs** (Dependabot `actions` group keeps them current).
 
 ## Skills
