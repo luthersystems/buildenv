@@ -1,0 +1,65 @@
+name: Scout autofix
+
+# Layer 3 of the grade-A upkeep loop: turn a `Scout drift watch` failure into a
+# /scout-fix pull request, via the official Claude GitHub App (claude-code-action).
+# Branch protection on main means this can only PROPOSE — a human approves/merges
+# (docs/BRANCH_PROTECTION.md). Inert until the CLAUDE_CODE_OAUTH_TOKEN secret exists.
+#
+# Model auth today: a ~1-year Claude subscription token
+# (op://Reliable-Dev/CLAUDE_CODE_OAUTH_TOKEN -> repo secret CLAUDE_CODE_OAUTH_TOKEN).
+# Durable end state is Amazon Bedrock — see the swap block at the bottom and the
+# tracking issue.
+on:
+  workflow_run:
+    workflows: ["Scout drift watch"]
+    types: [completed]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write # lets claude-code-action mint the official Claude app token, so its PR triggers our required checks
+
+concurrency:
+  group: scout-autofix
+  cancel-in-progress: false
+
+jobs:
+  autofix:
+    name: Auto-fix Scout drift
+    # only when the weekly drift watch actually found a grade regression
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }} # so the skill's `docker scout` can authenticate
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0  (puts .claude/skills/scout-fix on disk)
+      - name: Run /scout-fix
+        uses: anthropics/claude-code-action@v1 # TODO: pin to a SHA (repo convention); the dependabot actions group will track it
+        with:
+          # Fast-bridge auth: 1-year Claude subscription token. If a future action
+          # version wants it as an env var instead, set CLAUDE_CODE_OAUTH_TOKEN in `env:`.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            /scout-fix
+            The weekly "Scout drift watch" workflow failed — read the open `scout-drift`
+            issue to see which strict grade-A image(s) dropped below grade A. Apply the
+            minimal NON-BREAKING fix per the skill, self-check with /verify-scout, and
+            open a PR. Do NOT merge — a human reviews. If the only findings are
+            unfixable CVEs, comment that on the scout-drift issue instead of opening a PR.
+          claude_args: |
+            --max-turns 30
+            --model claude-opus-4-8
+
+# ── Bedrock swap (durable billing — see tracking issue) ──────────────────────
+# 1. Delete the `claude_code_oauth_token:` line above and add to the action `with:`
+#       use_bedrock: "true"
+# 2. Add this step BEFORE the claude-code-action step:
+#       - uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}  # plt-or-<env>-luther-ci-buildenv-bedrock-role
+#           aws-region: us-west-2
+#    (`id-token: write` is already granted above.)
