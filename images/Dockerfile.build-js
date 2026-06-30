@@ -60,6 +60,8 @@ RUN apt-get update && apt-get install -y azure-cli=${AZCLI_VER}\*
 # downstream expecting root at runtime — consumers pass `-u` or add `USER root`.
 # npm global is in /usr/local (world-executable); HOME is writable for the npm/
 # node caches the default uid touches.
-RUN useradd --create-home --uid 1000 --user-group build
+# No --uid 1000: the node base already has a uid-1000 user (`node`); let useradd
+# auto-assign a free uid (still non-root).
+RUN useradd --create-home --user-group build
 ENV HOME=/home/build
 USER build

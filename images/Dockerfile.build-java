@@ -22,7 +22,9 @@ RUN ARCH=$(dpkg --print-architecture | sed 's/arm64/aarch64/; s/amd64/x86_64/') 
 # downstream that runs this image expecting root (e.g. writing to a root-owned
 # HOME/.m2) — consumers pass `-u` or add `USER root` to their stage; HOME is
 # writable so maven's ~/.m2 works for the default uid.
-RUN useradd --create-home --uid 1000 --user-group build
+# No --uid 1000: the eclipse-temurin/ubuntu-24.04 base already has a uid-1000
+# user (`ubuntu`); let useradd auto-assign a free uid (still non-root).
+RUN useradd --create-home --user-group build
 ENV HOME=/home/build
 USER build
 ENTRYPOINT ["tini", "--"]

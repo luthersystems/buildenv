@@ -16,7 +16,9 @@ COPY build-swaggercodegen.mk /opt/Dockerfile.swaggercodegen.mk
 # downstream expecting root at runtime — consumers pass `-u` or add `USER root`.
 # HOME is writable so maven's ~/.m2 works for the default uid; the swagger jar
 # and .mk are world-readable.
-RUN useradd --create-home --uid 1000 --user-group build
+# No --uid 1000: the eclipse-temurin/ubuntu-24.04 base already has a uid-1000
+# user (`ubuntu`); let useradd auto-assign a free uid (still non-root).
+RUN useradd --create-home --user-group build
 ENV HOME=/home/build
 USER build
 ENTRYPOINT ["tini", "--", "sh", "-c", "make -f /opt/Dockerfile.swaggercodegen.mk -C $PWD build"]
