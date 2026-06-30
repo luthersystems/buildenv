@@ -1,8 +1,7 @@
 {
-  "_comment": "Single source of truth for the Docker Scout 'clean bill of health' image set. Every image under `required` must earn a grade-A Docker Scout health score. CI enforces this in two places, both driven by this file (via the scout-config job): (1) PR time, .github/workflows/build.yml gates the policies that are deterministically checkable on a locally-built image -- fixable CRITICAL/HIGH CVEs and the default-non-root-user policy; (2) release time, .github/workflows/publish.yml runs `docker scout policy --exit-code` on the PUSHED image, which is the only place the true grade can be evaluated because supply-chain attestations (15 pts) only attach on push and base-image / high-profile-CVE / license policies are computed registry-side. `cve_net_extra` lists extra builder images that get the fixable CRITICAL/HIGH CVE net only, NOT the full grade-A bill of health. To require a new service, add it to `required` (and add the matching non-root USER + clean deps first). See README 'Image security policies'.",
+  "_comment": "Single source of truth for the Docker Scout 'clean bill of health' image set. Every image under `required` must earn a grade-A Docker Scout health score. CI enforces this in two places, both driven by this file (via the scout-config job): (1) PR time, .github/workflows/build.yml gates the policies that are deterministically checkable on a locally-built image -- fixable CRITICAL/HIGH CVEs and the default-non-root-user policy; (2) release time, .github/workflows/publish.yml runs `docker scout policy --exit-code` on the PUSHED image, which is the only place the true grade can be evaluated because supply-chain attestations (15 pts) only attach on push and base-image / high-profile-CVE / license policies are computed registry-side. `cve_net_extra` lists extra builder images that get the fixable CRITICAL/HIGH CVE net only, NOT the full grade-A bill of health. `exempt` lists images deliberately left OUT of the grade-A set with a documented reason (the non-root audit still reports them, but they are not hard-gated). To require a new service, add it to `required` (and add the matching non-root USER + clean deps first). See README 'Image security policies'.",
   "required": [
     "build-api",
-    "build-e2e",
     "build-go",
     "build-go-alpine",
     "build-godynamic",
@@ -12,5 +11,8 @@
     "nginx-frontend",
     "service-base-alpine"
   ],
-  "cve_net_extra": []
+  "cve_net_extra": [],
+  "exempt": {
+    "build-e2e": "Assembly image: COPYs third-party release artifacts (martin/shirotester/pdfserv Go binaries, newman's npm deps, wkhtmltopdf's patched-Qt .deb) that carry their own fixable CRITICAL/HIGH CVEs buildenv cannot patch without upstream rebuilds. Grade A is unreachable here regardless of base hygiene, so it keeps its root default rather than taking a breaking non-root flip for no payoff. Revisit (promote to `required` + restore non-root USER) if those bundled artifacts go clean."
+  }
 }
