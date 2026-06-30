@@ -47,6 +47,12 @@ jobs:
           # Fast-bridge auth: 1-year Claude subscription token. If a future action
           # version wants it as an env var instead, set CLAUDE_CODE_OAUTH_TOKEN in `env:`.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # BRANCH-TEST ONLY — providing a github_token makes the action skip the
+          # official-app OIDC exchange + its "workflow must match default branch"
+          # validation, so we can iterate on this workflow on a branch. STRIP this
+          # line before merging to main (prod uses the official app so the agent's
+          # PR triggers the required checks).
+          github_token: ${{ github.token }}
           prompt: |
             /scout-fix
             The weekly "Scout drift watch" workflow failed — read the open `scout-drift`
