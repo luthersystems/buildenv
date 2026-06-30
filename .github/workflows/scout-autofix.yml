@@ -31,12 +31,16 @@ jobs:
     # only when the weekly drift watch actually found a grade regression
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 60 # building build-api from source + scanning is heavy
     env:
       DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }} # so the skill's `docker scout` can authenticate
+      DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
+      DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0  (puts .claude/skills/scout-fix on disk)
+      - name: Configure DockerHub # log the runner's docker in so the agent's `docker scout` / pulls are authenticated
+        uses: ./.github/actions/configure-dockerhub
       - name: Run /scout-fix
         uses: anthropics/claude-code-action@v1 # TODO: pin to a SHA (repo convention); the dependabot actions group will track it
         with:
@@ -51,7 +55,8 @@ jobs:
             open a PR. Do NOT merge — a human reviews. If the only findings are
             unfixable CVEs, comment that on the scout-drift issue instead of opening a PR.
           claude_args: |
-            --max-turns 30
+            --allowedTools Bash,Edit,Write,Read,Grep,Glob,MultiEdit
+            --max-turns 50
             --model claude-opus-4-8
 
 # ── Bedrock swap (durable billing — see tracking issue) ──────────────────────
