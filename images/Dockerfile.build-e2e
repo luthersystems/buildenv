@@ -100,3 +100,12 @@ RUN set -eux; \
     wkhtmltopdf --version; \
     test -x /usr/local/bin/substratehcp; \
     test "$(fc-list | wc -l)" -gt 100   # fonts from pdfserv image present
+
+# Default to a non-root user (Docker Scout "default non-root user" policy, #75).
+# Everything above runs as root; this only affects runtime. /go (GOPATH) is made
+# world-writable so a non-root uid can still run `go build` (this image's job),
+# and HOME is writable for tooling. BREAKING for downstream that expects root —
+# consumers pass `-u` or add `USER root` to their stage.
+RUN mkdir -p /go && chmod -R 1777 /go && useradd --create-home --uid 1000 --user-group build
+ENV HOME=/home/build
+USER build
