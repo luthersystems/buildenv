@@ -64,6 +64,24 @@ jobs:
             --allowedTools Bash,Edit,Write,Read,Grep,Glob,MultiEdit
             --max-turns 50
             --model claude-opus-4-8
+      # Capture the agent's full stream-json conversation log for troubleshooting.
+      # claude-code-action hides the transcript from the job log ("full output
+      # hidden for security") and writes it to
+      # $RUNNER_TEMP/claude-execution-output.json, which is otherwise wiped when
+      # the runner is reclaimed. always() so we capture even a failed/timed-out run.
+      # PRIVACY CAVEAT: buildenv is PUBLIC, so an Actions artifact is downloadable
+      # by anyone with repo read access, and the trace can contain secret-shaped
+      # strings the log-masker misses. BRANCH-TEST ONLY — for a one-off troubleshoot
+      # we download it out-of-band and delete it (retention-days: 1 as a backstop).
+      # Do NOT ship this to main as-is: a durable capture must route to PRIVATE storage.
+      - name: Capture agent trace (conversation log)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scout-autofix-trace-${{ github.run_id }}
+          path: ${{ runner.temp }}/claude-execution-output.json
+          retention-days: 1
+          if-no-files-found: warn
 
 # ── Bedrock swap (durable billing — see tracking issue) ──────────────────────
 # 1. Delete the `claude_code_oauth_token:` line above and add to the action `with:`
