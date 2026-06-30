@@ -18,7 +18,12 @@ FROM node:${NODE_VERSION}-bookworm
 
 # python3 replaces the bullseye-era python2 install: Debian 12 (bookworm) no
 # longer ships a python2 package, and modern node-gyp (>=9) targets python3.
-RUN apt-get update && apt-get install --no-install-recommends -y libltdl-dev rsync zip git-lfs tini ca-certificates curl apt-transport-https lsb-release gnupg python3 python3-dev groff && rm -rf /var/lib/apt/lists/*
+# apt-get upgrade clears fixable OS-package CVEs the node base carries (Docker
+# Scout severity-CVE policy); added when build-js joined the grade-A set (#75).
+RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    apt-get install --no-install-recommends -y libltdl-dev rsync zip git-lfs tini ca-certificates curl apt-transport-https lsb-release gnupg python3 python3-dev groff && \
+    rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
 
 # Install Docker CLI (static binary) - version 27.3.1 supports API 1.44+
@@ -49,3 +54,12 @@ ARG AZCLI_VER
 ENV AZCLI_VER=$AZCLI_VER
 
 RUN apt-get update && apt-get install -y azure-cli=${AZCLI_VER}\*
+
+# Default to a non-root user (Docker Scout "default non-root user" policy, #75).
+# All installs above run as root; this only affects runtime. BREAKING for any
+# downstream expecting root at runtime — consumers pass `-u` or add `USER root`.
+# npm global is in /usr/local (world-executable); HOME is writable for the npm/
+# node caches the default uid touches.
+RUN useradd --create-home --uid 1000 --user-group build
+ENV HOME=/home/build
+USER build
