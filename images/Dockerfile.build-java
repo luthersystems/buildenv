@@ -1,6 +1,11 @@
 FROM maven:3.9-eclipse-temurin-17
 
-RUN apt-get update && apt-get install --no-install-recommends -y make tini ca-certificates curl && rm -rf /var/lib/apt/lists/*
+# apt-get upgrade clears fixable OS-package CVEs the base image carries (Docker
+# Scout severity-CVE policy); added when build-java joined the grade-A set (#75).
+RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    apt-get install --no-install-recommends -y make tini ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
 
 # Install Docker CLI (static binary) - version 27.3.1 supports API 1.44+
@@ -12,4 +17,12 @@ RUN ARCH=$(dpkg --print-architecture | sed 's/arm64/aarch64/; s/amd64/x86_64/') 
     rm -rf /tmp/docker && \
     docker --version
 
+# Default to a non-root user (Docker Scout "default non-root user" policy, #75).
+# Build steps above run as root; this only affects runtime. BREAKING for any
+# downstream that runs this image expecting root (e.g. writing to a root-owned
+# HOME/.m2) — consumers pass `-u` or add `USER root` to their stage; HOME is
+# writable so maven's ~/.m2 works for the default uid.
+RUN useradd --create-home --uid 1000 --user-group build
+ENV HOME=/home/build
+USER build
 ENTRYPOINT ["tini", "--"]
