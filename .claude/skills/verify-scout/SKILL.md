@@ -22,7 +22,7 @@ for img in $(jq -r '.required[]' ../.github/scout-required-images.json); do
   ref="local://luthersystems/${img}:${sha}"
 
   # Gate 1 — fixable CRITICAL/HIGH CVEs (must be ZERO)
-  docker scout cves "$ref" --only-fixed --only-severities critical,high --exit-code \
+  docker scout cves "$ref" --only-fixed --only-severity critical,high --exit-code \
     || { echo "❌ $img: fixable CRITICAL/HIGH CVE(s)"; fail=1; }
 
   # Gate 2 — default non-root user (must be non-empty and not root/0)
@@ -39,7 +39,7 @@ done
 
 ## What "OK" looks like
 
-- **Gate 1:** `docker scout cves … --only-fixed --only-severities critical,high`
+- **Gate 1:** `docker scout cves … --only-fixed --only-severity critical,high`
   exits 0 with no rows for every required image.
 - **Gate 2:** every required image reports a non-root `USER` (`build`, uid `1000`,
   or `nobody` for service-base-alpine).

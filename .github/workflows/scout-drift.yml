@@ -60,11 +60,17 @@ jobs:
             else
               policy="❌ below grade A"; drift=1
             fi
-            # Fixable-severity probes: `docker scout cves --exit-code` exits non-zero
-            # when a matching CVE exists, so a non-zero exit here means "has one".
+            # Fixable-severity probes. `docker scout cves --exit-code` returns
+            # exactly 2 when matching CVEs are found and 0 when none; treat ONLY
+            # rc=2 as "present". Any other non-zero is an error (auth, network, bad
+            # flag) — warn, don't let it spoof the SLA severity. (Flag is
+            # --only-severity, singular; --only-severities errored and made every
+            # grade-A image look like it had a fixable C/H — caught on the branch.)
             crit="no"; high="no"
-            if ! docker scout cves "$ref" --only-fixed --only-severities critical --exit-code >/dev/null 2>&1; then crit="yes"; fi
-            if ! docker scout cves "$ref" --only-fixed --only-severities high     --exit-code >/dev/null 2>&1; then high="yes"; fi
+            docker scout cves "$ref" --only-fixed --only-severity critical --exit-code >/dev/null 2>&1; rc=$?
+            if [ "$rc" -eq 2 ]; then crit="yes"; elif [ "$rc" -ne 0 ]; then echo "::warning::scout cves critical probe errored (rc=$rc) for $ref"; fi
+            docker scout cves "$ref" --only-fixed --only-severity high --exit-code >/dev/null 2>&1; rc=$?
+            if [ "$rc" -eq 2 ]; then high="yes"; elif [ "$rc" -ne 0 ]; then echo "::warning::scout cves high probe errored (rc=$rc) for $ref"; fi
             if [ "$crit" = "yes" ]; then worst="critical"; fi
             if [ "$high" = "yes" ] && [ "$worst" != "critical" ]; then worst="high"; fi
             echo "- \`${img}\` — ${policy}; fixable Critical: ${crit}, fixable High: ${high}" >> summary.md

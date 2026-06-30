@@ -26,7 +26,7 @@ make PLATFORMS=linux/amd64 DOCKER_BUILDX_OPTS=--load "$img"
 ref="local://luthersystems/${img}:$(git rev-parse HEAD)"
 
 docker scout quickview  "$ref"            # C/H/M/L counts + which policies pass
-docker scout cves       "$ref" --only-fixed --only-severities critical,high   # the PR hard gate
+docker scout cves       "$ref" --only-fixed --only-severity critical,high   # the PR hard gate
 docker scout cves       "$ref" --details --only-fixed   # package + fixed-in version per CVE
 docker scout recommendations "$ref"       # base-image freshness suggestions
 ```
@@ -212,7 +212,7 @@ SLA. Cut it whenever a rebuild off the **current `main`** would produce an image
 **Decide with `docker scout compare`** — publish iff strictly better, skip if not:
 ```bash
 docker scout compare luthersystems/<img>:latest --to luthersystems/<img>:<prev-release> \
-  --only-fixed --only-severities critical,high       # what would change vs the last release
+  --only-fixed --only-severity critical,high       # what would change vs the last release
 docker scout recommendations "luthersystems/<img>:latest"   # cheap proxy: "Refresh base image / Tag pushed more recently"
 ```
 - **Strictly better** (clears ≥1 fixable CVE, or refreshes a stale base) → cut the release.
