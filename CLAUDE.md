@@ -45,16 +45,22 @@ drifts (CI builds use the central value regardless).
 
 ## Docker Scout grade-A bill of health
 
-Six images **must** stay at Docker Scout grade A: `build-api`, `build-go`,
-`build-go-alpine`, `build-java`, `nginx-frontend`, `service-base-alpine`. The
-other four (`build-e2e`, `build-godynamic`, `build-js`, `build-swaggercodegen`)
-are **exempt** — each fails only on third-party-bundled, upstream-frozen CVEs
-with no buildenv-side fix (e.g. azure-cli/compose already on their latest, the
-legacy `docker/docker` Go module frozen at 28.5.2, the swagger-codegen fat-JAR);
-their upstream remediations are tracked in
-[`docs/upstream-cve-backlog.md`](docs/upstream-cve-backlog.md), to be re-promoted
-once the bundled artifact goes clean. The required + exempt sets are the single
-source of truth in
+Seven images **must** stay at Docker Scout grade A: `build-api`, `build-go`,
+`build-go-alpine`, `build-godynamic`, `build-java`, `nginx-frontend`,
+`service-base-alpine`. The other three (`build-e2e`, `build-js`,
+`build-swaggercodegen`) are **exempt** — each fails only on third-party-bundled,
+upstream-frozen CVEs whose vulnerable code is actually in the image's execute
+path (azure-cli's vendored crypto, the swagger-codegen JAR's libs, build-e2e's
+bundled binaries), so there's no buildenv-side fix and a VEX `not_affected` would
+be false; tracked in
+[`docs/upstream-cve-backlog.md`](docs/upstream-cve-backlog.md), re-promoted once
+the bundled artifact goes clean. `build-godynamic` stays grade-A via an OpenVEX
+`not_affected` waiver ([`.github/vex/`](.github/vex/)) for one upstream-frozen
+moby finding (CVE-2026-34040 — a daemon AuthZ bug not reachable from the compose
+client it ships): the PR gate ([`scripts/scout-cve-gate.sh`](scripts/scout-cve-gate.sh))
+lists fixable C/H findings and drops VEX-waived ones, fail-closed (Scout's own
+`cves --exit-code` can't honor VEX — only `docker scout policy` does). The
+required + exempt sets are the single source of truth in
 [`.github/scout-required-images.json`](.github/scout-required-images.json), gated
 in CI three ways:
 
