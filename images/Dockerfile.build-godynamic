@@ -163,3 +163,13 @@ COPY --from=aws /aws-cli-bin/ /usr/local/bin/
 COPY --from=azcli /az /az
 
 ENV PATH="/az/venv/bin:$PATH"
+
+# Default to a non-root user (Docker Scout "default non-root user" policy, #75).
+# Everything above runs as root; this only affects runtime. GOPATH (/go) is mode
+# 777 and GOCACHE=/tmp, so a non-root uid can run go builds; HOME is writable;
+# the aws/az CLIs in /usr/local + /az are world-executable. BREAKING for any
+# downstream `FROM` consumer (it writes root-owned cache mounts) — that stage
+# must declare `USER root` (the build-go-alpine pattern).
+RUN addgroup -g 1000 build && adduser -D -u 1000 -G build -h /home/build build
+ENV HOME=/home/build
+USER build
