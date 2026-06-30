@@ -1,16 +1,21 @@
 name: Scout drift watch
 
 # Layer 2 of keeping the required images at grade A (see README "Image security
-# policies"). The PR gate (build.yml) and release gate (publish.yml) only fire
-# on code changes — but a CVE disclosed today against an UNCHANGED pin drops the
-# grade with no commit to trigger a scan. This weekly cron re-evaluates the
-# real Docker Scout policy grade on the published `:latest` images and opens (or
-# refreshes) a tracking issue + reds the run when any required image falls below
-# grade A. It reads the same single source of truth,
-# .github/scout-required-images.json.
+# policies"). The PR gate (build.yml) and release gate (publish.yml) only fire on
+# code changes — but a CVE disclosed today against an UNCHANGED pin drops the
+# grade with no commit to trigger a scan. This cron re-evaluates the real Docker
+# Scout policy grade on the published `:latest` images, opens/refreshes a tracking
+# issue + reds the run on drift, and auto-closes it on recovery.
+#
+# It also enforces the Allianz remediation SLA (.github/scout-sla.json): it
+# classifies the WORST fixable severity (Critical/High) behind the drift, labels
+# the issue, and ESCALATES (sla:at-risk / sla:breached + a comment) as the
+# 15-day (Critical) / 30-day (High) deadline approaches — so a fixable finding
+# that needs a human-reviewed PR can never silently blow the SLA. Runs DAILY (not
+# weekly) precisely so the clock is checked every day.
 on:
   schedule:
-    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+    - cron: "17 6 * * *" # daily 06:17 UTC
   workflow_dispatch: {}
 
 permissions:
@@ -31,7 +36,7 @@ jobs:
         uses: ./.github/actions/configure-dockerhub
       - name: Install Docker Scout CLI
         run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
-      - name: Evaluate Scout policy on each required :latest image
+      - name: Evaluate Scout policy + worst fixable severity on each required :latest image
         id: scan
         env:
           DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
@@ -39,61 +44,110 @@ jobs:
         run: |
           set -uo pipefail
           drift=0
+          worst="none" # severity ranking: none < high < critical
           {
             echo "## Docker Scout policy drift on published \`:latest\` images"
             echo
-            echo "Re-evaluated by the weekly \`Scout drift watch\` workflow."
+            echo "Re-evaluated by the daily \`Scout drift watch\` workflow."
             echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             echo
           } > summary.md
           for img in $(jq -r '.required[]' .github/scout-required-images.json); do
-            echo "::group::scout policy luthersystems/${img}:latest"
-            if docker scout policy "luthersystems/${img}:latest" --org luthersystems --exit-code; then
-              echo "- ✅ \`${img}\` — grade A (all policies compliant)" >> summary.md
+            ref="luthersystems/${img}:latest"
+            echo "::group::scout $ref"
+            if docker scout policy "$ref" --org luthersystems --exit-code; then
+              policy="✅ grade A"
             else
-              echo "- ❌ \`${img}\` — policy non-compliant (dropped below grade A)" >> summary.md
-              drift=1
+              policy="❌ below grade A"; drift=1
             fi
+            # Fixable-severity probes: `docker scout cves --exit-code` exits non-zero
+            # when a matching CVE exists, so a non-zero exit here means "has one".
+            crit="no"; high="no"
+            if ! docker scout cves "$ref" --only-fixed --only-severities critical --exit-code >/dev/null 2>&1; then crit="yes"; fi
+            if ! docker scout cves "$ref" --only-fixed --only-severities high     --exit-code >/dev/null 2>&1; then high="yes"; fi
+            if [ "$crit" = "yes" ]; then worst="critical"; fi
+            if [ "$high" = "yes" ] && [ "$worst" != "critical" ]; then worst="high"; fi
+            echo "- \`${img}\` — ${policy}; fixable Critical: ${crit}, fixable High: ${high}" >> summary.md
             echo "::endgroup::"
           done
           echo "drift=${drift}" >> "$GITHUB_OUTPUT"
+          echo "worst_severity=${worst}" >> "$GITHUB_OUTPUT"
           echo "----- summary -----"; cat summary.md
-      - name: Open or refresh the drift issue
+      - name: Open/refresh the drift issue + enforce the remediation SLA
         if: steps.scan.outputs.drift == '1'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        env:
+          WORST_SEVERITY: ${{ steps.scan.outputs.worst_severity }}
         with:
           script: |
             const fs = require('fs');
+            const sla = JSON.parse(fs.readFileSync('.github/scout-sla.json', 'utf8'));
+            const worst = process.env.WORST_SEVERITY; // 'critical' | 'high' | 'none'
             const body = fs.readFileSync('summary.md', 'utf8');
             const title = 'Docker Scout: published image(s) dropped below grade A';
             const { owner, repo } = context.repo;
+
+            const ensureLabel = async (name, color, description) => {
+              try { await github.rest.issues.createLabel({ owner, repo, name, color, description }); }
+              catch (e) { /* already exists */ }
+            };
+            await ensureLabel('scout-drift', 'b60205', 'A published image fell below Docker Scout grade A');
+            await ensureLabel('sla:critical', 'b60205', 'Fixable Critical CVE — 15-day remediation SLA');
+            await ensureLabel('sla:high', 'd93f0b', 'Fixable High CVE — 30-day remediation SLA');
+            await ensureLabel('sla:at-risk', 'fbca04', 'Remediation SLA deadline approaching');
+            await ensureLabel('sla:breached', '000000', 'Remediation SLA deadline passed');
+
+            // Open or refresh the single open scout-drift issue.
             const open = await github.rest.issues.listForRepo({
               owner, repo, state: 'open', labels: 'scout-drift', per_page: 100,
             });
+            let issue;
             if (open.data.length) {
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: open.data[0].number, body,
-              });
-              core.info(`Refreshed existing issue #${open.data[0].number}`);
+              issue = open.data[0];
+              await github.rest.issues.createComment({ owner, repo, issue_number: issue.number, body });
+              core.info(`Refreshed existing issue #${issue.number}`);
             } else {
-              try {
-                await github.rest.issues.createLabel({
-                  owner, repo, name: 'scout-drift', color: 'b60205',
-                  description: 'A published image fell below Docker Scout grade A',
-                });
-              } catch (e) { /* label already exists */ }
-              const created = await github.rest.issues.create({
-                owner, repo, title, body, labels: ['scout-drift'],
-              });
-              core.info(`Opened issue #${created.data.number}`);
+              issue = (await github.rest.issues.create({ owner, repo, title, body, labels: ['scout-drift'] })).data;
+              core.info(`Opened issue #${issue.number}`);
+            }
+
+            const labelsNow = new Set((issue.labels || []).map(l => (typeof l === 'string' ? l : l.name)));
+
+            // No fixable Critical/High behind the drift (e.g. a stale-base-digest
+            // policy only): no CVE SLA clock — the autonomous republish handles it.
+            if (worst !== 'critical' && worst !== 'high') {
+              core.info(`Worst fixable severity = ${worst}; no CVE SLA clock.`);
+              return;
+            }
+
+            const sevLabel = worst === 'critical' ? 'sla:critical' : 'sla:high';
+            if (!labelsNow.has(sevLabel)) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: [sevLabel] });
+            }
+
+            const deadlineDays = worst === 'critical' ? sla.critical_days : sla.high_days;
+            const buffer = sla.escalate_buffer_days;
+            const ageDays = (Date.now() - new Date(issue.created_at).getTime()) / 86400000;
+            const remaining = deadlineDays - ageDays;
+            const age = Math.floor(ageDays);
+
+            if (ageDays >= deadlineDays && !labelsNow.has('sla:breached')) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: ['sla:breached'] });
+              await github.rest.issues.createComment({ owner, repo, issue_number: issue.number,
+                body: `🚨 **SLA BREACHED** — this fixable **${worst}** finding has been open ${age} days, past the ${deadlineDays}-day remediation deadline (.github/scout-sla.json). Remediate and ship a release now.` });
+              core.setFailed(`SLA breached on #${issue.number} (${worst}, ${age}d > ${deadlineDays}d)`);
+            } else if (remaining <= buffer && !labelsNow.has('sla:at-risk') && !labelsNow.has('sla:breached')) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: ['sla:at-risk'] });
+              await github.rest.issues.createComment({ owner, repo, issue_number: issue.number,
+                body: `⏰ **SLA at risk** — fixable **${worst}** finding open ${age} days; **${Math.ceil(remaining)} day(s) left** of the ${deadlineDays}-day deadline. Approve/merge the fix PR (or cut the release) to stay compliant.` });
+              core.warning(`SLA at risk on #${issue.number} (${worst}, ${Math.ceil(remaining)}d left)`);
+            } else {
+              core.info(`SLA ok on #${issue.number} (${worst}, ${age}d of ${deadlineDays}d)`);
             }
       - name: Close the drift issue on recovery
         # When a scan comes back fully clean, auto-close any open scout-drift
         # issue so the loop self-resets: drift opens it (above), recovery closes
-        # it here. Before this, the watch only ever *opened* issues — a fixed
-        # image left the issue lingering open (e.g. #80 after the v0.1.6
-        # republish). `drift == '0'` means every required image is back at grade
-        # A, so close all open scout-drift issues.
+        # it here. `drift == '0'` means every required image is back at grade A.
         if: steps.scan.outputs.drift == '0'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         with:
