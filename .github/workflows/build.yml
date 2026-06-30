@@ -126,27 +126,7 @@ jobs:
           path: scout-cves-${{ matrix.image }}.sarif
           if-no-files-found: warn
 
-      # Stage VEX exceptions for findings we've assessed as not_affected (see
-      # docs/upstream-cve-backlog.md). Docker Scout honors OpenVEX via
-      # --vex-location; the OpenVEX product PURL must match the scanned image, so
-      # substitute the build tag (the git SHA) into the committed templates. Each
-      # statement is product-scoped, so a doc only affects the image it names
-      # (e.g. build-godynamic's upstream-frozen docker/docker finding) -- other
-      # images' scans are untouched.
-      - name: Stage VEX exceptions
-        run: |
-          mkdir -p "${RUNNER_TEMP}/vex"
-          shopt -s nullglob
-          for f in .github/vex/*.openvex.json; do
-            sed "s/__IMAGE_VERSION__/${{ github.sha }}/g" "$f" \
-              > "${RUNNER_TEMP}/vex/$(basename "$f")"
-          done
-          echo "Staged VEX docs:"; ls -1 "${RUNNER_TEMP}/vex" || true
-
-      # Hard gate: fail the build on any FIXABLE HIGH/CRITICAL CVE. OpenVEX
-      # not_affected statements staged above are applied via vex-location and
-      # excluded from the gate (an auditable, standards-based assessment rather
-      # than a silent allowlist -- see docs/upstream-cve-backlog.md).
+      # Hard gate: fail the build on any FIXABLE HIGH/CRITICAL CVE.
       - name: Scan with Docker Scout (fail on fixable HIGH/CRITICAL)
         uses: docker/scout-action@7520205ff60037fdc436b40b6a1d1e55a839ec2d  # v1.22.0
         with:
@@ -154,7 +134,6 @@ jobs:
           image: local://luthersystems/${{ matrix.image }}:${{ github.sha }}
           only-severities: critical,high
           only-fixed: true
-          vex-location: ${{ runner.temp }}/vex
           exit-code: true
           write-comment: false
           dockerhub-user: ${{ env.DOCKERHUB_USERNAME }}
