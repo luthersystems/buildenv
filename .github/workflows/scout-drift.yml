@@ -87,6 +87,33 @@ jobs:
               });
               core.info(`Opened issue #${created.data.number}`);
             }
+      - name: Close the drift issue on recovery
+        # When a scan comes back fully clean, auto-close any open scout-drift
+        # issue so the loop self-resets: drift opens it (above), recovery closes
+        # it here. Before this, the watch only ever *opened* issues — a fixed
+        # image left the issue lingering open (e.g. #80 after the v0.1.6
+        # republish). `drift == '0'` means every required image is back at grade
+        # A, so close all open scout-drift issues.
+        if: steps.scan.outputs.drift == '0'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'scout-drift', per_page: 100,
+            });
+            if (!open.data.length) { core.info('No open scout-drift issue to close.'); return; }
+            for (const issue of open.data) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issue.number,
+                body: `✅ All required images are back at Docker Scout grade A as of the latest \`Scout drift watch\` ([run](${runUrl})). Auto-closing.`,
+              });
+              await github.rest.issues.update({
+                owner, repo, issue_number: issue.number, state: 'closed', state_reason: 'completed',
+              });
+              core.info(`Closed recovered scout-drift issue #${issue.number}`);
+            }
       - name: Fail the run if drift detected
         if: steps.scan.outputs.drift == '1'
         run: |
