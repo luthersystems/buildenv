@@ -73,7 +73,7 @@ one-shot apply command are in
 ### Remediation SLA & continuous improvement
 
 We commit to remediating **fixable** CVEs on the required images within a fixed
-window (per the Allianz security request), tracked in
+window (per a customer security request), tracked in
 [`.github/scout-required-images.json`](.github/scout-required-images.json)'s sibling
 [`.github/scout-sla.json`](.github/scout-sla.json):
 

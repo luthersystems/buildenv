@@ -1,6 +1,6 @@
 ---
 name: scout-fix
-description: "Resolve a Docker Scout finding (a CVE or a failed policy) on a build image and restore its grade-A bill of health. Use when a CI Scout gate is red, the weekly scout-drift issue fires, or a customer (e.g. Allianz) reports a Scout policy finding. Captures how #71/#72, #74, #76, #77, #78 were fixed. Examples: 'fix the fixable HIGH CVE in build-go-alpine', 'service-base-alpine dropped below grade A', 'clear the x/sys CVE in the go tools'."
+description: "Resolve a Docker Scout finding (a CVE or a failed policy) on a build image and restore its grade-A bill of health. Use when a CI Scout gate is red, the weekly scout-drift issue fires, or a customer reports a Scout policy finding. Captures how #71/#72, #74, #76, #77, #78 were fixed. Examples: 'fix the fixable HIGH CVE in build-go-alpine', 'service-base-alpine dropped below grade A', 'clear the x/sys CVE in the go tools'."
 ---
 
 # Fix a Docker Scout finding on a build image
@@ -37,7 +37,7 @@ you policy findings; `cves` tells you CVE findings. **Sections are NOT mutually
 exclusive:** F (republish a strictly-better rebuild) can and should run *alongside*
 a PR from A–C — ship the posture gain now, land the deeper fix on review.
 
-**Remediation SLA — [.github/scout-sla.json](../../../.github/scout-sla.json), per Allianz:**
+**Remediation SLA — [.github/scout-sla.json](../../../.github/scout-sla.json), per the customer:**
 a **fixable Critical** must reach a *published* fix within **15 days**, a **fixable
 High** within **30 days**, counted from when the `scout-drift` issue opened (its
 `sla:critical`/`sla:high` and `sla:at-risk`/`sla:breached` labels track the clock,
