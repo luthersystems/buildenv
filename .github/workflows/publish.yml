@@ -157,6 +157,39 @@ jobs:
         uses: ./.github/actions/configure-dockerhub
       - name: Install Docker Scout CLI
         run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
+      # Attach any OpenVEX not_affected statement for this image as an image
+      # attestation BEFORE policy evaluation. `docker scout policy` has no
+      # --vex-location flag (unlike the PR-time `cves` gate), so the only way it
+      # honors a VEX waiver is server-side via an attestation on the pushed image.
+      # Best-effort (continue-on-error): if the attach can't run (registry
+      # referrer / containerd-store limits) the policy step still runs and an
+      # unwaived finding trips it -- report-only for automation's interim releases
+      # (release-meta), and for a human release the escape hatch above
+      # (--only-policy / temporary continue-on-error) or a Scout dashboard
+      # exception applies. Validated at the next release. See
+      # docs/upstream-cve-backlog.md.
+      - name: Attach OpenVEX attestations (if any) for ${{ matrix.image }}
+        continue-on-error: true
+        env:
+          DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+          IMAGE: ${{ matrix.image }}
+          REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          found=0
+          for f in ".github/vex/${IMAGE}.openvex.json" ".github/vex/${IMAGE}-"*.openvex.json; do
+            [ -e "$f" ] || continue
+            found=1
+            echo "Attaching OpenVEX $f to luthersystems/${IMAGE}:${REF}"
+            docker scout attestation add \
+              --file "$f" \
+              --predicate-type https://openvex.dev/ns/v0.2.0 \
+              --referrer \
+              "luthersystems/${IMAGE}:${REF}"
+          done
+          [ "$found" = 0 ] && echo "No OpenVEX docs for ${IMAGE}; nothing to attach."
       - name: Evaluate Docker Scout policies on the published image
         env:
           DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}

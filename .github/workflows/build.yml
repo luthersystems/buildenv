@@ -126,18 +126,23 @@ jobs:
           path: scout-cves-${{ matrix.image }}.sarif
           if-no-files-found: warn
 
-      # Hard gate: fail the build on any FIXABLE HIGH/CRITICAL CVE.
-      - name: Scan with Docker Scout (fail on fixable HIGH/CRITICAL)
-        uses: docker/scout-action@7520205ff60037fdc436b40b6a1d1e55a839ec2d  # v1.22.0
-        with:
-          command: cves
-          image: local://luthersystems/${{ matrix.image }}:${{ github.sha }}
-          only-severities: critical,high
-          only-fixed: true
-          exit-code: true
-          write-comment: false
-          dockerhub-user: ${{ env.DOCKERHUB_USERNAME }}
-          dockerhub-password: ${{ env.DOCKERHUB_TOKEN }}
+      # Hard gate: fail on any FIXABLE HIGH/CRITICAL CVE that is NOT waived by an
+      # OpenVEX `not_affected` statement under .github/vex/. We run the gate
+      # ourselves (scripts/scout-cve-gate.sh) rather than scout-action's
+      # exit-code because `docker scout cves` only *annotates* VEX status, it does
+      # not *suppress* it from the exit code (suppression is a `docker scout
+      # policy` feature -- the release gate). The gate lists fixable C/H findings
+      # and applies our OpenVEX docs as the waiver source, fail-closed. The docs
+      # stay standard/portable (Grype/Trivy/`scout policy` honor them natively).
+      # Auth: the "Configure DockerHub" step above already `docker login`s, so the
+      # scout CLI is authenticated. See docs/upstream-cve-backlog.md.
+      - name: Install Docker Scout CLI
+        run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
+      - name: Scan with Docker Scout (fail on UNWAIVED fixable HIGH/CRITICAL)
+        env:
+          IMAGE: ${{ matrix.image }}
+          SHA: ${{ github.sha }}
+        run: bash scripts/scout-cve-gate.sh "local://luthersystems/${IMAGE}:${SHA}" "$IMAGE"
 
   # Non-root default-USER audit across ALL images (Docker Scout "default non-root
   # user" policy). Static — reads each Dockerfile's final-stage USER, so it needs

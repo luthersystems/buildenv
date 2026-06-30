@@ -56,8 +56,15 @@ runs:
             if (k.startsWith('ACTIONS_') && v) core.exportVariable(k, v);
           }
 
+    # `ignore-error=true` on --cache-to keeps a flaky GitHub Actions cache
+    # backend from failing the build: the `type=gha` exporter intermittently
+    # 404s ("BlobNotFound") when writing the cache blob, which previously failed
+    # an otherwise-successful build (every layer was already built/cached). The
+    # cache is a build-speed optimization, never a correctness input, so a failed
+    # export must not red the run. --cache-from has no such flag (a cache miss is
+    # already non-fatal).
     - name: Build docker image for ${{ inputs.arch }}
       shell: bash
       env:
-        BUILDX_CACHE_FLAGS: --cache-from type=gha,scope=${{ inputs.image }}-${{ inputs.arch }} --cache-to type=gha,mode=max,scope=${{ inputs.image }}-${{ inputs.arch }}
+        BUILDX_CACHE_FLAGS: --cache-from type=gha,scope=${{ inputs.image }}-${{ inputs.arch }} --cache-to type=gha,mode=max,ignore-error=true,scope=${{ inputs.image }}-${{ inputs.arch }}
       run: cd images && make PLATFORMS=linux/${{ inputs.arch }} TAG_SUFFIX=-${{ inputs.arch }} GIT_TAG=${{ inputs.git_tag }} GIT_REVISION=${{ inputs.git_rev }} ${{ inputs.image }}

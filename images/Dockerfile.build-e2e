@@ -100,3 +100,10 @@ RUN set -eux; \
     wkhtmltopdf --version; \
     test -x /usr/local/bin/substratehcp; \
     test "$(fc-list | wc -l)" -gt 100   # fonts from pdfserv image present
+
+# NOTE: build-e2e is intentionally NOT in the grade-A required set (see
+# .github/scout-required-images.json `exempt`). It's an assembly image that COPYs
+# third-party release artifacts (martin/shirotester/pdfserv Go binaries, newman's
+# npm deps, wkhtmltopdf) which carry their own fixable CVEs buildenv can't patch
+# without upstream rebuilds. So it keeps its root default (a non-root flip would
+# break consumers with no grade-A payoff). Revisit if those artifacts go clean.

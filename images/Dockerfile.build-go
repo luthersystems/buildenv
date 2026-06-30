@@ -62,4 +62,14 @@ RUN git config --system url."git@github.com:luthersystems/license.git".insteadOf
   ssh-keyscan -t Ed25519 -H bitbucket.org | tee -a /etc/ssh/ssh_known_hosts; \
   ssh-keyscan -t Ed25519 -H github.com | tee -a /etc/ssh/ssh_known_hosts
 
+# Default to a non-root user (Docker Scout "default non-root user" policy).
+# Like build-api, this image is consumed via `docker run`, and its
+# workspace-mounting consumers pass `-u $(id -u):$(id -g)`, which overrides this
+# default and keeps working — the tools in /go/bin are world-executable. /go is
+# mode 1777 in the golang image and GOCACHE=/tmp, so module/build-cache writes
+# succeed for a non-root uid; HOME is writable for tooling that touches $HOME.
+# Added when build-go joined the grade-A required set (#75).
+RUN useradd --create-home --uid 1000 --user-group build
+ENV HOME=/home/build
+USER build
 ENTRYPOINT ["tini", "--"]
