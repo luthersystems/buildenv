@@ -45,11 +45,18 @@ drifts (CI builds use the central value regardless).
 
 ## Docker Scout grade-A bill of health
 
-Three images **must** stay at Docker Scout grade A:
-`build-api`, `build-go-alpine`, `service-base-alpine`. The required set is the
-single source of truth in
-[`.github/scout-required-images.json`](.github/scout-required-images.json) and is
-gated in CI three ways:
+Six images **must** stay at Docker Scout grade A: `build-api`, `build-go`,
+`build-go-alpine`, `build-java`, `nginx-frontend`, `service-base-alpine`. The
+other four (`build-e2e`, `build-godynamic`, `build-js`, `build-swaggercodegen`)
+are **exempt** — each fails only on third-party-bundled, upstream-frozen CVEs
+with no buildenv-side fix (e.g. azure-cli/compose already on their latest, the
+legacy `docker/docker` Go module frozen at 28.5.2, the swagger-codegen fat-JAR);
+their upstream remediations are tracked in
+[`docs/upstream-cve-backlog.md`](docs/upstream-cve-backlog.md), to be re-promoted
+once the bundled artifact goes clean. The required + exempt sets are the single
+source of truth in
+[`.github/scout-required-images.json`](.github/scout-required-images.json), gated
+in CI three ways:
 
 | When | Workflow | Gate |
 |---|---|---|
