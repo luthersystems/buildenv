@@ -22,9 +22,23 @@ FROM node:${NODE_VERSION}-bookworm
 # Scout severity-CVE policy); added when build-js joined the grade-A set (#75).
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
-    apt-get install --no-install-recommends -y libltdl-dev rsync zip git-lfs tini ca-certificates curl apt-transport-https lsb-release gnupg python3 python3-dev groff && \
+    apt-get install --no-install-recommends -y libltdl-dev rsync zip tini ca-certificates curl apt-transport-https lsb-release gnupg python3 python3-dev groff && \
     rm -rf /var/lib/apt/lists/*
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
+
+# git-lfs: install the official release binary (built by the git-lfs project on a
+# current Go toolchain) instead of Debian's apt package. Debian's git-lfs is built
+# with an EOL Go and drags in a cluster of fixable golang/stdlib CRITICAL/HIGH CVEs
+# (build-java ships no git-lfs and stayed clean, which is how this surfaced).
+# Version from common.config.mk (GIT_LFS_VERSION) via the Makefile build-arg.
+ARG GIT_LFS_VERSION
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -fsSL -o /tmp/git-lfs.tar.gz \
+      "https://github.com/git-lfs/git-lfs/releases/download/v${GIT_LFS_VERSION}/git-lfs-linux-${ARCH}-v${GIT_LFS_VERSION}.tar.gz" && \
+    tar -xzf /tmp/git-lfs.tar.gz -C /tmp && \
+    install /tmp/git-lfs-*/git-lfs /usr/local/bin/git-lfs && \
+    rm -rf /tmp/git-lfs* && \
+    git-lfs version
 
 # Install Docker CLI (static binary). The version comes from common.config.mk
 # (DOCKER_CLI_VERSION) via the Makefile build-arg -- do NOT hardcode it, or it
