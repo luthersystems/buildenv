@@ -52,7 +52,7 @@ both reading the list above via the `scout-config` job:
 | Tier | Workflow | What it gates |
 |---|---|---|
 | **PR** (every PR) | `build.yml` → `cve-scan` + `non-root-audit` | **fixable CRITICAL/HIGH CVEs** on the required set, plus a **non-root-user audit across all 10 images** — hard-fails only if a required image regresses to root, and reports every other image's status (the 6 root builders are surfaced, not gated). |
-| **Release** (tag push) | `publish.yml` → `scout-policy` | the **true grade** on the pushed image: `docker scout policy --exit-code` (covers attestations, approved/up-to-date base images, high-profile CVEs, and licenses on top of the above). Fails the release if any policy is non-compliant. |
+| **Release** (tag push) | `publish.yml` → `scout-policy` | the **true grade** on the pushed image: `docker scout policy --exit-code` (covers attestations, approved/up-to-date base images, high-profile CVEs, and licenses on top of the above). **Hard for human-cut releases**; **report-only for automation's interim patch releases** (the `release-meta` job detects a `claude[bot]` author — those ship strictly-better improvements while a deeper fix is still in review, enforced by the daily drift watch + SLA below). |
 
 `cve_net_extra` in the JSON (currently `build-go`) lists extra builder images
 that get the fixable CRITICAL/HIGH CVE net only — not the full grade-A gate.
@@ -69,6 +69,42 @@ automation can open PRs but never merge them — the checks must be marked requi
 in `main`'s branch protection. The exact required-checks list, settings, and a
 one-shot apply command are in
 [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md).
+
+### Remediation SLA & continuous improvement
+
+We commit to remediating **fixable** CVEs on the required images within a fixed
+window (per the Allianz security request), tracked in
+[`.github/scout-required-images.json`](.github/scout-required-images.json)'s sibling
+[`.github/scout-sla.json`](.github/scout-sla.json):
+
+| Severity (fixable) | Published-fix deadline |
+|---|---|
+| Critical | **15 days** |
+| High | **30 days** |
+| Unfixable (no upstream fix) | exempt — kept on the latest patches, limitation noted on the tracking issue |
+
+The deadline runs from first detection (when the `scout-drift` issue opens). The
+**daily** `scout-drift.yml` classifies the worst fixable severity behind any drift,
+labels the issue (`sla:critical` / `sla:high`), and **escalates** (`sla:at-risk`,
+then `sla:breached` + reds the run) as the deadline nears — so nothing silently
+blows the SLA.
+
+How the autonomous loop meets it (see the `/scout-fix` skill, section F):
+
+- **Rebuild-fixable** (stale base digest, newer OS packages) → the agent cuts a
+  **patch release immediately**, shipping the improvement the same day. This is
+  decoupled from any in-review PR: a strictly-better rebuild ships **even while a
+  deeper fix is still pending** (`docker scout compare` gates it to *strictly
+  better*; an identical rebuild is skipped, no version churn).
+- **Source-fixable** (needs a Dockerfile/dep change) → the agent opens a PR; a
+  human reviews/merges **within the SLA**, and the next daily cycle auto-ships it
+  as a patch release. The binding constraint is PR-review latency, not cadence.
+
+Because consumers pin `BUILDENV_TAG=vX.Y.Z` (nobody pins `:latest`), an interim
+release that improves posture but isn't yet grade A has no consumer blast radius —
+so we ship improvements continuously rather than holding them back for a pristine
+release. Grade A remains the steady state; the gate that actually ships is
+**non-regression** (strictly better than the last release).
 
 ### Supply-chain attestations
 

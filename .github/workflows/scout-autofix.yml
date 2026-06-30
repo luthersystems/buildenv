@@ -2,20 +2,23 @@ name: Scout autofix
 
 # Layer 3 of the grade-A upkeep loop: turn a `Scout drift watch` failure into a
 # remediation, via the official Claude GitHub App (claude-code-action). The agent
-# reads the open `scout-drift` issue, reproduces with `docker scout`, and per the
-# /scout-fix skill takes ONE of three paths:
-#   * source-fixable finding (fixable CVE / base bump) -> open a PR (human merges)
-#   * stale base-image digest only (#80 class)         -> cut the next PATCH release
-#     (scripts/next-patch-version.sh + `gh release create`) so publish.yml
-#     rebuilds/republishes at grade A. Patch-only; nobody pins :latest; the
-#     release scout-policy gate is the backstop.
-#   * only unfixable CVEs                              -> comment on the issue
+# reads the open `scout-drift` issue (incl. its sla:* deadline labels), reproduces
+# with `docker scout`, and per the /scout-fix skill:
+#   * ships a strictly-better rebuild NOW as a PATCH release (fresh base/OS, or a
+#     fix already merged but unpublished) — even while a deeper source fix is still
+#     in review; skips a rebuild that would change nothing.
+#   * opens a PR for any fix needing a NEW source change (human merges within the
+#     SLA; the next daily cycle then ships it as a patch release).
+#   * comments when the only findings are unfixable.
+# The Allianz remediation SLA (15d fixable Critical / 30d High) lives in
+# .github/scout-sla.json and is tracked + escalated by scout-drift.yml.
 #
-# Fences: branch protection means a PR can only be PROPOSED (a human merges); the
-# auto-release is constrained to a patch bump of a no-source-change refresh
-# (docs/BRANCH_PROTECTION.md, CLAUDE.md rule 1). Uses the official Claude App
-# (NOT a passed github_token) so the agent's PR and its `gh release create` both
-# trigger our required checks / publish.yml — the default GITHUB_TOKEN would not.
+# Fences: branch protection means a PR can only be PROPOSED (a human merges);
+# automation's releases are PATCH-only (scripts/next-patch-version.sh) and ride a
+# report-only grade gate, while human-cut releases stay hard grade-A (CLAUDE.md
+# rule 1, publish.yml `release-meta`). Uses the official Claude App (NOT a passed
+# github_token) so the agent's PR and its `gh release create` both trigger our
+# required checks / publish.yml — the default GITHUB_TOKEN would not.
 #
 # Model auth today: a ~1-year Claude subscription token
 # (op://Reliable-Dev/CLAUDE_CODE_OAUTH_TOKEN -> repo secret CLAUDE_CODE_OAUTH_TOKEN).
@@ -65,24 +68,31 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             /scout-fix
-            The weekly "Scout drift watch" workflow failed. Read the open `scout-drift`
-            issue to see which strict grade-A image(s) dropped below grade A, reproduce
-            with `docker scout` per the skill, and remediate per the decision table:
+            The daily "Scout drift watch" failed. Read the open `scout-drift` issue —
+            note any `sla:critical` / `sla:high` / `sla:at-risk` / `sla:breached`
+            labels: those carry the Allianz remediation deadline (.github/scout-sla.json
+            — 15 days for a fixable Critical, 30 for a High). Reproduce with
+            `docker scout` and remediate per the skill, in this priority order:
 
-            - Source-fixable finding (fixable CVE in a pinned dep / OS package, or a
-              base bump): apply the minimal NON-BREAKING fix, self-check with
-              /verify-scout, and open a PR. Do NOT merge — a human reviews.
-            - Stale base-image digest ONLY (skill section F — "No outdated base images"
-              is the sole failing policy, no fixable CRITICAL/HIGH CVEs, base already on
-              the latest patch): there is no source fix. Cut the next PATCH release with
-              `scripts/next-patch-version.sh` + `gh release create` so publish.yml
-              rebuilds and republishes at grade A. PATCH ONLY — never minor/major, never
-              hand-pick a tag. Then note the tag on the scout-drift issue. Do NOT open a
-              PR (there is no diff).
-            - Only unfixable CVEs: comment that on the scout-drift issue; open nothing.
+            1. If a REBUILD would be strictly better than the published image (fresh
+               base digest, newer OS packages, OR a fix already merged to main but not
+               yet published): cut the next PATCH release now —
+               `scripts/next-patch-version.sh` + `gh release create` — so publish.yml
+               ships the improvement. Do this EVEN IF a separate source fix is still
+               pending its PR; shipping the posture gain immediately is the point. PATCH
+               ONLY, never hand-pick a tag. Skip only if a rebuild would change nothing
+               (`docker scout compare` shows no improvement).
+            2. If a finding needs a NEW source change not yet in main (a fixable CVE
+               needing a Dockerfile/dep edit): apply the minimal NON-BREAKING fix,
+               self-check with /verify-scout, and open a PR. Do NOT merge — a human
+               reviews within the SLA. The next daily cycle ships it via a patch release
+               once merged.
+            3. If the only findings are UNFIXABLE (no upstream fix yet): comment that on
+               the scout-drift issue; open nothing, cut nothing.
 
-            Never weaken posture to go green. When unsure which path applies, escalate
-            on the issue instead of guessing.
+            Steps 1 and 2 are NOT mutually exclusive — ship the rebuild now AND open the
+            PR for the deeper fix. Never weaken posture to go green; when unsure,
+            escalate on the issue.
           claude_args: |
             --allowedTools Bash,Edit,Write,Read,Grep,Glob,MultiEdit
             --max-turns 50

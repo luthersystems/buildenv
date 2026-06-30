@@ -54,12 +54,23 @@ gated in CI three ways:
 | When | Workflow | Gate |
 |---|---|---|
 | every PR | `build.yml` → `cve-scan` + `non-root-audit` | fixable CRITICAL/HIGH CVEs (required set); non-root audit across **all** images — hard-fails only if a required image regresses to root, reports the rest |
-| release (tag) | `publish.yml` → `scout-policy` | `docker scout policy --exit-code` (true grade) + attestations |
-| weekly cron | `scout-drift.yml` | re-scan published `:latest`; opens a `scout-drift` issue on drift |
+| release (tag) | `publish.yml` → `scout-policy` | `docker scout policy --exit-code` (true grade) + attestations. **Hard for human-cut releases; report-only for automation's interim patch releases** (`release-meta` detects `claude[bot]`) |
+| daily cron | `scout-drift.yml` | re-scan published `:latest`; open/refresh a `scout-drift` issue on drift, auto-close on recovery, and **escalate the remediation SLA** |
+
+**Remediation SLA (Allianz — [`.github/scout-sla.json`](.github/scout-sla.json)):**
+fixable **Critical → published fix within 15 days**, fixable **High → 30 days**;
+unfixable CVEs are exempt ("where fixes are available") but kept on the latest
+patches. The daily drift watch labels the issue (`sla:critical`/`sla:high`) and
+escalates (`sla:at-risk`/`sla:breached` + comment, reds the run on breach) as the
+deadline nears. The autonomous loop ships rebuild-fixable improvements
+**immediately** as patch releases — even while a deeper fix is still in review —
+and auto-ships a merged source fix on the next daily cycle, so the binding
+constraint is human PR-review latency, not release cadence.
 
 **When a Scout finding (CVE or policy) needs fixing, follow the `/scout-fix`
-skill — it captures exactly how #71/#72, #74, #76, #77, #78 were resolved.**
-Verify with `/verify-scout` before opening a PR.
+skill — it captures exactly how #71/#72, #74, #76, #77, #78 were resolved, plus
+the strictly-better republish (section F) and the SLA.** Verify with
+`/verify-scout` before opening a PR.
 
 ## Critical rules
 
@@ -67,13 +78,15 @@ Verify with `/verify-scout` before opening a PR.
    is protected: the strict-image gates are required checks and a human approving
    review is required, so **automation (the upkeep agent) opens PRs but a human
    merges them** — the bot runs as a GitHub App with no bypass. **Releases:**
-   automation may **auto-cut a _patch_ release** for a no-source-change base-image
-   refresh (the `:latest` Scout-drift / #80 class) — `publish.yml`'s `scout-policy`
-   gate is the backstop, nobody pins `:latest` (consumers pin `BUILDENV_TAG=vX.Y.Z`),
-   and `scripts/next-patch-version.sh` keeps it patch-only. **Minor/major releases,
-   and any release carrying a source change or a coordinated downstream edit (e.g.
-   a base-image change like #78), stay human-cut.** Required-checks list + apply
-   command: [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md).
+   automation may **auto-cut _patch_ releases** that rebuild current `main` into a
+   strictly-better published image (a fresh base/OS refresh, or a fix already merged
+   via a reviewed PR) — `scripts/next-patch-version.sh` keeps it patch-only, nobody
+   pins `:latest` (consumers pin `BUILDENV_TAG=vX.Y.Z`), and these interim releases
+   ride a **report-only** grade gate (`publish.yml` `release-meta` detects
+   `claude[bot]`) with the daily drift watch + SLA escalation as the enforcement.
+   **Human-cut releases stay hard grade-A; minor/major, and any UNREVIEWED source
+   change, stay human.** Required-checks list + apply command:
+   [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md).
 2. **Pin, don't float, security-driven dep bumps in from-source tool builds.**
    The `go get …@vX` transitive pins in the Dockerfiles exist to clear specific
    CVEs; keep them explicit and annotated. See `/scout-fix`.

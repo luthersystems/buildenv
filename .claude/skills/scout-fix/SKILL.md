@@ -26,14 +26,25 @@ make PLATFORMS=linux/amd64 DOCKER_BUILDX_OPTS=--load "$img"
 ref="local://luthersystems/${img}:$(git rev-parse HEAD)"
 
 docker scout quickview  "$ref"            # C/H/M/L counts + which policies pass
-docker scout cves       "$ref" --only-fixed --only-severities critical,high   # the PR hard gate
+docker scout cves       "$ref" --only-fixed --only-severity critical,high   # the PR hard gate
 docker scout cves       "$ref" --details --only-fixed   # package + fixed-in version per CVE
 docker scout recommendations "$ref"       # base-image freshness suggestions
 ```
 
-Read the output and classify the finding into exactly one of the five rows
-below, then jump to that section. A `quickview` policy line tells you policy
-findings; `cves` tells you CVE findings.
+Read the output and classify the finding(s) — there may be more than one — into
+the rows below, then apply each matching section. A `quickview` policy line tells
+you policy findings; `cves` tells you CVE findings. **Sections are NOT mutually
+exclusive:** F (republish a strictly-better rebuild) can and should run *alongside*
+a PR from A–C — ship the posture gain now, land the deeper fix on review.
+
+**Remediation SLA — [.github/scout-sla.json](../../../.github/scout-sla.json), per Allianz:**
+a **fixable Critical** must reach a *published* fix within **15 days**, a **fixable
+High** within **30 days**, counted from when the `scout-drift` issue opened (its
+`sla:critical`/`sla:high` and `sla:at-risk`/`sla:breached` labels track the clock,
+set by `scout-drift.yml`). Unfixable CVEs are exempt ("where fixes are available")
+— keep rebuilding to the latest patches and say so on the issue. Practical upshot:
+**ship every rebuild improvement immediately (F), and never let a source-fix PR
+(A–C) sit past its deadline.**
 
 | Finding | Fix pattern | Section |
 |---|---|---|
@@ -42,7 +53,7 @@ findings; `cves` tells you CVE findings.
 | Fixable CVE in a **bundled Go tool** (golangci-lint, buf, swagger, git-lfs, gotestsum…) | from-source build + pin the patched transitive dep | **C** |
 | Policy: **default non-root user** | already satisfied; only when a NEW image joins the set | **D** |
 | Policy: **supply-chain attestations** | already wired in Makefile/CI; not a Dockerfile fix | **E** |
-| Policy: **outdated base image** (stale published digest, the #80 class) | nothing to edit — cut a PATCH release to rebuild/republish | **F** |
+| **A rebuild would be strictly better** (stale base digest, newer OS packages, or a fix already merged to main but unpublished) | cut a PATCH release to republish — even while an A–C PR is pending | **F** |
 
 ---
 
@@ -183,73 +194,76 @@ luthersystems/<img>:<ver> --raw` (expect per-platform in-toto manifests).
 
 ---
 
-## F — Policy: outdated base image (stale published digest — republish, don't edit)
+## F — Republish a strictly-better rebuild (the autonomous patch release)
 
-This is the **#80 class**, and the one finding whose remedy is a **rebuild, not a
-source edit**. The published image embeds a base-image **digest** that has since
-gone stale: Docker periodically **re-pushes a floating base tag** (e.g.
-`golang:1.26.4`) onto a freshly-patched OS, so the tag now resolves to a newer
-digest than the one baked into the published image. Scout's "No outdated base
-images" policy flags it. The Dockerfile already pins the base by floating tag, so
-**there is nothing to change in `images/`** — a fresh build resolves the new
-digest on its own.
+The one remedy that is a **rebuild, not a source edit** — and the workhorse of the
+SLA. Cut it whenever a rebuild off the **current `main`** would produce an image
+**strictly better** than what's published, in any of these cases:
 
-**Confirm it's really this class** (run against the published image, not a local
-build — the drift is in what's published):
+- **Stale base digest** (the original #80 class): Docker re-pushed a floating base
+  tag (e.g. `golang:1.26.4`) onto a freshly-patched OS, so the published image's
+  baked-in digest is older than the tag now resolves to.
+- **Newer OS packages**: the Dockerfile's `apt-get/apk upgrade` would pull patched
+  packages a rebuild hasn't shipped yet.
+- **A fix already merged to `main` but not yet published**: e.g. an A–C PR landed,
+  so `main` is fixed but the published `:latest` is stale. Shipping it is *just a
+  rebuild* — no new PR.
+
+**Decide with `docker scout compare`** — publish iff strictly better, skip if not:
 ```bash
-docker scout policy          "luthersystems/<img>:latest" --org luthersystems   # which policy failed?
-docker scout recommendations "luthersystems/<img>:latest"                       # expect "Refresh base image / Tag was pushed more recently"
-docker scout cves            "luthersystems/<img>:latest" --only-fixed --only-severities critical,high   # must be empty
+docker scout compare luthersystems/<img>:latest --to luthersystems/<img>:<prev-release> \
+  --only-fixed --only-severity critical,high       # what would change vs the last release
+docker scout recommendations "luthersystems/<img>:latest"   # cheap proxy: "Refresh base image / Tag pushed more recently"
 ```
-You are in section F **only if** the *sole* failing policy is "No outdated base
-images", AND there are no fixable C/H CVEs, AND `common.config.mk` is already on
-the latest base patch (so B doesn't apply). If a real fixable CVE or a version
-bump is *also* needed, that part takes the A/B/C → PR path; F is purely the
-"nothing to edit, just republish" remedy.
+- **Strictly better** (clears ≥1 fixable CVE, or refreshes a stale base) → cut the release.
+- **Identical** (a rebuild would change nothing) → **skip**: don't churn the version; comment why on the issue.
+- **Worse** → never publish; investigate the regression.
 
-**Remedy — cut the next PATCH release (automation is allowed here):**
-A plain rebuild off unchanged source picks up the fresh base digest, and the only
-way to rebuild + republish in this repo is the release pipeline. So cut the next
-**patch** tag and let `publish.yml` do the rest (build every image, push,
-attestations, refresh `:latest` **and** the new `:vX.Y.Z`, then re-run the true
-`scout-policy` grade gate):
+**Cut the next PATCH release** and let `publish.yml` do the rest (build all images,
+push, attestations, refresh `:latest` + the new `:vX.Y.Z`):
 ```bash
-next=$(scripts/next-patch-version.sh)     # ALWAYS a patch bump, e.g. v0.1.5 -> v0.1.6
+next=$(scripts/next-patch-version.sh)     # ALWAYS a patch bump, e.g. v0.1.6 -> v0.1.7
 gh release create "$next" --target main --title "$next" \
-  --notes "Automated base-image refresh: rebuild to pick up refreshed upstream base digests and restore Docker Scout grade A on the required images. No source changes."
+  --notes "Automated Docker Scout posture refresh: rebuild off current main to ship the latest base/OS patches and any merged fixes. Strictly improves the published image."
 ```
 
-Why this is safe to do **unattended**: it's a no-source-change rebuild; it's
-**patch-only** (minor/major imply a contract change and stay human — CLAUDE.md
-rule 1/3); nobody consumes `:latest` (consumers pin `BUILDENV_TAG=vX.Y.Z`), so the
-blast radius is nil; and `publish.yml`'s `scout-policy` gate is the backstop — if
-the rebuild doesn't reach grade A the release run reds and re-flags the issue.
+**Ship it even while an A–C PR is still pending.** If an image has BOTH a stale
+base (F) and a fixable CVE needing a source PR (A–C), do **both**: cut the F release
+now (posture improves immediately, the SLA clock keeps moving) AND open the A–C PR
+for the deeper fix. The interim release won't be grade A yet (the CVE remains) —
+that's expected and fine: it's authored by `claude[bot]`, so `publish.yml`'s
+`release-meta` makes the grade gates **report-only** for it (the daily drift watch +
+SLA escalation are the enforcement). A **human-cut** release still must be pristine
+grade A.
 
-**Always pick the version with `scripts/next-patch-version.sh`** — never hand-type
-a tag. It refuses anything but a clean patch increment, which is what keeps
-automation inside the patch-only lane. After cutting the release, **do not open a
-PR** (there is no diff): note on the `scout-drift` issue that you cut `<tag>` to
-republish, and let the release run close it out.
+Why this is safe unattended: **patch-only** (`scripts/next-patch-version.sh` refuses
+anything else — minor/major stay human, CLAUDE.md rule 1/3); nobody pins `:latest`
+(consumers pin `BUILDENV_TAG=vX.Y.Z`), so a not-yet-grade-A interim image has no
+consumer blast radius; and it's *strictly better* by construction (the compare
+gate). **Always pick the version with `scripts/next-patch-version.sh`** — never
+hand-type a tag. After cutting it, note the tag on the `scout-drift` issue; don't
+open a PR for the rebuild itself (there's no diff).
 
 ---
 
-## Step N — Verify, then PR (sections A–D) — or release (section F)
+## Step N — Verify, then PR (sections A–C) — or release (section F)
 
-**Section F (republish only)** has no diff to verify: you already confirmed the
-class, cut the patch release, and `publish.yml`'s gate is the check. Skip the rest
-of this step.
+**Section F (republish)** has no diff to verify: confirm strictly-better with
+`docker scout compare`, cut the patch release with `scripts/next-patch-version.sh`,
+note the tag on the issue. Done.
 
-**Sections A–D (a real source change):**
+**Sections A–C (a real source change):**
 
 1. Rebuild every image you touched and run **`/verify-scout`** — the grade-A
    images must show **0 fixable CRITICAL/HIGH** and a non-root `USER`.
 2. If you bumped `common.config.mk`, rebuild **every** image that consumes that
    ARG (a Go bump touches all Go images), not just the one that flagged.
-3. Open a PR. The `cve-scan` gate re-runs your check; the release `scout-policy`
-   gate enforces the true grade on the pushed image. A human merges. Cutting the
-   release that ships the fix stays human for a source change (it may warrant more
-   than a patch bump) — only the **section-F** no-source-change refresh is
-   auto-released, and only ever as a patch.
+3. Open a PR. The `cve-scan` gate re-runs your check; a human reviews and merges
+   **within the SLA** (15d Critical / 30d High — the issue's `sla:*` labels show
+   the clock). You do **not** also hand-cut the release: once the PR merges, the
+   next daily Scout drift cycle sees `main` is fixed but `:latest` is stale and
+   ships it as a section-F patch release automatically. (A human may still cut a
+   release sooner, or a larger-than-patch one, when the change warrants it.)
 
 ## Guardrails — when to stop and ask
 
@@ -258,13 +272,18 @@ of this step.
 - **Never satisfy a policy by weakening posture** (e.g. removing the non-root
   `USER`, disabling the gate, adding to an allowlist) to make CI green. Fix the
   finding.
-- **Auto-release stays in the patch lane (section F only).** The only release
-  automation may cut unattended is the section-F no-source-change base refresh,
-  and only via `scripts/next-patch-version.sh` (which emits a patch bump or
-  refuses). Never auto-cut a minor/major, never auto-cut a release that carries a
-  source change, and never hand-pick a tag to route around the script. Anything
-  that seems to need more than a patch republish is a human decision — stop and
-  escalate on the issue.
+- **Auto-release stays in the patch lane.** Automation may cut **patch** releases
+  (section F) that rebuild current `main` — a strictly-better refresh, possibly
+  including a fix already merged via a reviewed A–C PR — only via
+  `scripts/next-patch-version.sh` (which emits a patch bump or refuses). It must
+  **never** auto-cut a minor/major, never bundle an UNREVIEWED source change into a
+  release (those go through an A–C PR first), and never hand-pick a tag to route
+  around the script. Anything needing more than a patch republish of already-
+  reviewed state is a human decision — stop and escalate on the issue.
+- **An interim release that isn't yet grade A is fine — a *regression* is not.**
+  Section F may ship a not-yet-pristine image while an A–C fix is in review, but
+  only if `docker scout compare` shows it's strictly better than the last release.
+  Never publish a rebuild that *adds* a fixable C/H or drops the grade.
 - **Unfixable CVE (no `--only-fixed` hit, no upstream fix yet):** there's no
   clean bump. Don't force one. Record it (the non-blocking SARIF/quickview steps
   already track totals) and, if it blocks a release policy, surface it to a human
