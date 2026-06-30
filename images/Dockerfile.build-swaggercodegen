@@ -1,3 +1,5 @@
+FROM maven:3.9-eclipse-temurin-17
+
 # apt-get upgrade clears fixable OS-package CVEs the base image carries (Docker
 # Scout severity-CVE policy); added when build-swaggercodegen joined the grade-A
 # set (#75).
