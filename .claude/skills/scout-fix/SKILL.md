@@ -42,6 +42,7 @@ findings; `cves` tells you CVE findings.
 | Fixable CVE in a **bundled Go tool** (golangci-lint, buf, swagger, git-lfs, gotestsum…) | from-source build + pin the patched transitive dep | **C** |
 | Policy: **default non-root user** | already satisfied; only when a NEW image joins the set | **D** |
 | Policy: **supply-chain attestations** | already wired in Makefile/CI; not a Dockerfile fix | **E** |
+| Policy: **outdated base image** (stale published digest, the #80 class) | nothing to edit — cut a PATCH release to rebuild/republish | **F** |
 
 ---
 
@@ -182,14 +183,73 @@ luthersystems/<img>:<ver> --raw` (expect per-platform in-toto manifests).
 
 ---
 
-## Step N — Verify, then PR
+## F — Policy: outdated base image (stale published digest — republish, don't edit)
+
+This is the **#80 class**, and the one finding whose remedy is a **rebuild, not a
+source edit**. The published image embeds a base-image **digest** that has since
+gone stale: Docker periodically **re-pushes a floating base tag** (e.g.
+`golang:1.26.4`) onto a freshly-patched OS, so the tag now resolves to a newer
+digest than the one baked into the published image. Scout's "No outdated base
+images" policy flags it. The Dockerfile already pins the base by floating tag, so
+**there is nothing to change in `images/`** — a fresh build resolves the new
+digest on its own.
+
+**Confirm it's really this class** (run against the published image, not a local
+build — the drift is in what's published):
+```bash
+docker scout policy          "luthersystems/<img>:latest" --org luthersystems   # which policy failed?
+docker scout recommendations "luthersystems/<img>:latest"                       # expect "Refresh base image / Tag was pushed more recently"
+docker scout cves            "luthersystems/<img>:latest" --only-fixed --only-severities critical,high   # must be empty
+```
+You are in section F **only if** the *sole* failing policy is "No outdated base
+images", AND there are no fixable C/H CVEs, AND `common.config.mk` is already on
+the latest base patch (so B doesn't apply). If a real fixable CVE or a version
+bump is *also* needed, that part takes the A/B/C → PR path; F is purely the
+"nothing to edit, just republish" remedy.
+
+**Remedy — cut the next PATCH release (automation is allowed here):**
+A plain rebuild off unchanged source picks up the fresh base digest, and the only
+way to rebuild + republish in this repo is the release pipeline. So cut the next
+**patch** tag and let `publish.yml` do the rest (build every image, push,
+attestations, refresh `:latest` **and** the new `:vX.Y.Z`, then re-run the true
+`scout-policy` grade gate):
+```bash
+next=$(scripts/next-patch-version.sh)     # ALWAYS a patch bump, e.g. v0.1.5 -> v0.1.6
+gh release create "$next" --target main --title "$next" \
+  --notes "Automated base-image refresh: rebuild to pick up refreshed upstream base digests and restore Docker Scout grade A on the required images. No source changes."
+```
+
+Why this is safe to do **unattended**: it's a no-source-change rebuild; it's
+**patch-only** (minor/major imply a contract change and stay human — CLAUDE.md
+rule 1/3); nobody consumes `:latest` (consumers pin `BUILDENV_TAG=vX.Y.Z`), so the
+blast radius is nil; and `publish.yml`'s `scout-policy` gate is the backstop — if
+the rebuild doesn't reach grade A the release run reds and re-flags the issue.
+
+**Always pick the version with `scripts/next-patch-version.sh`** — never hand-type
+a tag. It refuses anything but a clean patch increment, which is what keeps
+automation inside the patch-only lane. After cutting the release, **do not open a
+PR** (there is no diff): note on the `scout-drift` issue that you cut `<tag>` to
+republish, and let the release run close it out.
+
+---
+
+## Step N — Verify, then PR (sections A–D) — or release (section F)
+
+**Section F (republish only)** has no diff to verify: you already confirmed the
+class, cut the patch release, and `publish.yml`'s gate is the check. Skip the rest
+of this step.
+
+**Sections A–D (a real source change):**
 
 1. Rebuild every image you touched and run **`/verify-scout`** — the grade-A
    images must show **0 fixable CRITICAL/HIGH** and a non-root `USER`.
 2. If you bumped `common.config.mk`, rebuild **every** image that consumes that
    ARG (a Go bump touches all Go images), not just the one that flagged.
 3. Open a PR. The `cve-scan` gate re-runs your check; the release `scout-policy`
-   gate enforces the true grade on the pushed image. A human cuts the tag.
+   gate enforces the true grade on the pushed image. A human merges. Cutting the
+   release that ships the fix stays human for a source change (it may warrant more
+   than a patch bump) — only the **section-F** no-source-change refresh is
+   auto-released, and only ever as a patch.
 
 ## Guardrails — when to stop and ask
 
@@ -198,6 +258,13 @@ luthersystems/<img>:<ver> --raw` (expect per-platform in-toto manifests).
 - **Never satisfy a policy by weakening posture** (e.g. removing the non-root
   `USER`, disabling the gate, adding to an allowlist) to make CI green. Fix the
   finding.
+- **Auto-release stays in the patch lane (section F only).** The only release
+  automation may cut unattended is the section-F no-source-change base refresh,
+  and only via `scripts/next-patch-version.sh` (which emits a patch bump or
+  refuses). Never auto-cut a minor/major, never auto-cut a release that carries a
+  source change, and never hand-pick a tag to route around the script. Anything
+  that seems to need more than a patch republish is a human decision — stop and
+  escalate on the issue.
 - **Unfixable CVE (no `--only-fixed` hit, no upstream fix yet):** there's no
   clean bump. Don't force one. Record it (the non-blocking SARIF/quickview steps
   already track totals) and, if it blocks a release policy, surface it to a human
