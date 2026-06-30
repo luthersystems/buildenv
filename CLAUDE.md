@@ -66,10 +66,14 @@ Verify with `/verify-scout` before opening a PR.
 1. **Never push to `main`; never self-merge.** Branch, PR, human review. `main`
    is protected: the strict-image gates are required checks and a human approving
    review is required, so **automation (the upkeep agent) opens PRs but a human
-   merges them** — the bot runs as a GitHub App with no bypass. Releases are
-   tagged by a human (a base-image change can require coordinated downstream
-   edits — see #78). Required-checks list + apply command:
-   [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md).
+   merges them** — the bot runs as a GitHub App with no bypass. **Releases:**
+   automation may **auto-cut a _patch_ release** for a no-source-change base-image
+   refresh (the `:latest` Scout-drift / #80 class) — `publish.yml`'s `scout-policy`
+   gate is the backstop, nobody pins `:latest` (consumers pin `BUILDENV_TAG=vX.Y.Z`),
+   and `scripts/next-patch-version.sh` keeps it patch-only. **Minor/major releases,
+   and any release carrying a source change or a coordinated downstream edit (e.g.
+   a base-image change like #78), stay human-cut.** Required-checks list + apply
+   command: [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md).
 2. **Pin, don't float, security-driven dep bumps in from-source tool builds.**
    The `go get …@vX` transitive pins in the Dockerfiles exist to clear specific
    CVEs; keep them explicit and annotated. See `/scout-fix`.

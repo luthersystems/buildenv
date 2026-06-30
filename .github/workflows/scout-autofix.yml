@@ -1,14 +1,25 @@
 name: Scout autofix
 
 # Layer 3 of the grade-A upkeep loop: turn a `Scout drift watch` failure into a
-# /scout-fix pull request, via the official Claude GitHub App (claude-code-action).
-# Branch protection on main means this can only PROPOSE — a human approves/merges
-# (docs/BRANCH_PROTECTION.md). Inert until the CLAUDE_CODE_OAUTH_TOKEN secret exists.
+# remediation, via the official Claude GitHub App (claude-code-action). The agent
+# reads the open `scout-drift` issue, reproduces with `docker scout`, and per the
+# /scout-fix skill takes ONE of three paths:
+#   * source-fixable finding (fixable CVE / base bump) -> open a PR (human merges)
+#   * stale base-image digest only (#80 class)         -> cut the next PATCH release
+#     (scripts/next-patch-version.sh + `gh release create`) so publish.yml
+#     rebuilds/republishes at grade A. Patch-only; nobody pins :latest; the
+#     release scout-policy gate is the backstop.
+#   * only unfixable CVEs                              -> comment on the issue
+#
+# Fences: branch protection means a PR can only be PROPOSED (a human merges); the
+# auto-release is constrained to a patch bump of a no-source-change refresh
+# (docs/BRANCH_PROTECTION.md, CLAUDE.md rule 1). Uses the official Claude App
+# (NOT a passed github_token) so the agent's PR and its `gh release create` both
+# trigger our required checks / publish.yml — the default GITHUB_TOKEN would not.
 #
 # Model auth today: a ~1-year Claude subscription token
 # (op://Reliable-Dev/CLAUDE_CODE_OAUTH_TOKEN -> repo secret CLAUDE_CODE_OAUTH_TOKEN).
-# Durable end state is Amazon Bedrock — see the swap block at the bottom and the
-# tracking issue.
+# Durable end state is Amazon Bedrock — see the swap block at the bottom and #82.
 on:
   workflow_run:
     workflows: ["Scout drift watch"]
@@ -16,10 +27,10 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write
+  contents: write # PR branch commits AND `gh release create` (the section-F patch release)
   pull-requests: write
   issues: write
-  id-token: write # lets claude-code-action mint the official Claude app token, so its PR triggers our required checks
+  id-token: write # lets claude-code-action mint the official Claude app token, so its PR / release triggers our required checks
 
 concurrency:
   group: scout-autofix
@@ -31,30 +42,70 @@ jobs:
     # only when the weekly drift watch actually found a grade regression
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 60 # rebuilding/scanning from source is heavy
     env:
       DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }} # so the skill's `docker scout` can authenticate
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }} # so the skill's `docker scout` authenticates
+      DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0  (puts .claude/skills/scout-fix on disk)
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0  (puts .claude/skills/scout-fix + scripts/ on disk)
+      - name: Configure DockerHub # log the runner's docker in so the agent's pulls / scout are authenticated
+        uses: ./.github/actions/configure-dockerhub
+      - name: Install Docker Scout CLI # pre-install so the agent doesn't spend a turn fetching it (observed in the validation trace)
+        run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
       - name: Run /scout-fix
         uses: anthropics/claude-code-action@v1 # TODO: pin to a SHA (repo convention); the dependabot actions group will track it
         with:
-          # Fast-bridge auth: 1-year Claude subscription token. If a future action
-          # version wants it as an env var instead, set CLAUDE_CODE_OAUTH_TOKEN in `env:`.
+          # Official-app auth (claude-code-action mints the app token via OIDC,
+          # using id-token: write above). Do NOT add a `github_token:` here — that
+          # makes the action skip the official-app exchange, and a default
+          # GITHUB_TOKEN does not trigger publish.yml / required checks, which the
+          # agent's release + PR depend on.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             /scout-fix
-            The weekly "Scout drift watch" workflow failed — read the open `scout-drift`
-            issue to see which strict grade-A image(s) dropped below grade A. Apply the
-            minimal NON-BREAKING fix per the skill, self-check with /verify-scout, and
-            open a PR. Do NOT merge — a human reviews. If the only findings are
-            unfixable CVEs, comment that on the scout-drift issue instead of opening a PR.
-          claude_args: |
-            --max-turns 30
-            --model claude-opus-4-8
+            The weekly "Scout drift watch" workflow failed. Read the open `scout-drift`
+            issue to see which strict grade-A image(s) dropped below grade A, reproduce
+            with `docker scout` per the skill, and remediate per the decision table:
 
-# ── Bedrock swap (durable billing — see tracking issue) ──────────────────────
+            - Source-fixable finding (fixable CVE in a pinned dep / OS package, or a
+              base bump): apply the minimal NON-BREAKING fix, self-check with
+              /verify-scout, and open a PR. Do NOT merge — a human reviews.
+            - Stale base-image digest ONLY (skill section F — "No outdated base images"
+              is the sole failing policy, no fixable CRITICAL/HIGH CVEs, base already on
+              the latest patch): there is no source fix. Cut the next PATCH release with
+              `scripts/next-patch-version.sh` + `gh release create` so publish.yml
+              rebuilds and republishes at grade A. PATCH ONLY — never minor/major, never
+              hand-pick a tag. Then note the tag on the scout-drift issue. Do NOT open a
+              PR (there is no diff).
+            - Only unfixable CVEs: comment that on the scout-drift issue; open nothing.
+
+            Never weaken posture to go green. When unsure which path applies, escalate
+            on the issue instead of guessing.
+          claude_args: |
+            --allowedTools Bash,Edit,Write,Read,Grep,Glob,MultiEdit
+            --max-turns 50
+            --model claude-opus-4-8
+      # Capture the agent's full stream-json conversation log for troubleshooting.
+      # claude-code-action hides the transcript from the job log ("full output
+      # hidden for security") and writes it to
+      # $RUNNER_TEMP/claude-execution-output.json, otherwise wiped on runner reclaim.
+      # always() so we capture even a failed/timed-out run. NOTE: this is a PUBLIC
+      # repo, so the artifact is repo-readable; the trace can contain secret-shaped
+      # strings the log-masker misses. Acceptable here (validated clean once, low
+      # value to an attacker), short retention as a backstop. If that ever stops
+      # being acceptable, route this to private storage instead of dropping it.
+      - name: Capture agent trace (conversation log)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scout-autofix-trace-${{ github.run_id }}
+          path: ${{ runner.temp }}/claude-execution-output.json
+          retention-days: 14
+          if-no-files-found: warn
+
+# ── Bedrock swap (durable billing — see tracking issue #82) ──────────────────
 # 1. Delete the `claude_code_oauth_token:` line above and add to the action `with:`
 #       use_bedrock: "true"
 # 2. Add this step BEFORE the claude-code-action step:
