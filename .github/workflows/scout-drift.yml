@@ -7,7 +7,7 @@ name: Scout drift watch
 # Scout policy grade on the published `:latest` images, opens/refreshes a tracking
 # issue + reds the run on drift, and auto-closes it on recovery.
 #
-# It also enforces the Allianz remediation SLA (.github/scout-sla.json): it
+# It also enforces the customer remediation SLA (.github/scout-sla.json): it
 # classifies the WORST fixable severity (Critical/High) behind the drift, labels
 # the issue, and ESCALATES (sla:at-risk / sla:breached + a comment) as the
 # 15-day (Critical) / 30-day (High) deadline approaches — so a fixable finding

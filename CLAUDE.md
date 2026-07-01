@@ -70,7 +70,7 @@ in CI three ways:
 | release (tag) | `publish.yml` → `scout-policy` | `docker scout policy --exit-code` (true grade) + attestations. **Hard for human-cut releases; report-only for automation's interim patch releases** (`release-meta` detects `claude[bot]`) |
 | daily cron | `scout-drift.yml` | re-scan published `:latest`; open/refresh a `scout-drift` issue on drift, auto-close on recovery, and **escalate the remediation SLA** |
 
-**Remediation SLA (Allianz — [`.github/scout-sla.json`](.github/scout-sla.json)):**
+**Remediation SLA (customer — [`.github/scout-sla.json`](.github/scout-sla.json)):**
 fixable **Critical → published fix within 15 days**, fixable **High → 30 days**;
 unfixable CVEs are exempt ("where fixes are available") but kept on the latest
 patches. The daily drift watch labels the issue (`sla:critical`/`sla:high`) and
@@ -118,5 +118,5 @@ start of a task and follow the matching skill exactly.
 
 | Skill | When to use |
 |---|---|
-| `/scout-fix` | A Docker Scout CVE or policy finding on a build image needs fixing (CI gate red, drift issue, or a customer/Allianz report) |
+| `/scout-fix` | A Docker Scout CVE or policy finding on a build image needs fixing (CI gate red, drift issue, or a customer report) |
 | `/verify-scout` | Before opening a PR that touches an image — confirm the grade-A images are still clean locally |

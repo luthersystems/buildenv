@@ -10,7 +10,7 @@ name: Scout autofix
 #   * opens a PR for any fix needing a NEW source change (human merges within the
 #     SLA; the next daily cycle then ships it as a patch release).
 #   * comments when the only findings are unfixable.
-# The Allianz remediation SLA (15d fixable Critical / 30d High) lives in
+# The customer remediation SLA (15d fixable Critical / 30d High) lives in
 # .github/scout-sla.json and is tracked + escalated by scout-drift.yml.
 #
 # Fences: branch protection means a PR can only be PROPOSED (a human merges);
@@ -70,7 +70,7 @@ jobs:
             /scout-fix
             The daily "Scout drift watch" failed. Read the open `scout-drift` issue —
             note any `sla:critical` / `sla:high` / `sla:at-risk` / `sla:breached`
-            labels: those carry the Allianz remediation deadline (.github/scout-sla.json
+            labels: those carry the customer remediation deadline (.github/scout-sla.json
             — 15 days for a fixable Critical, 30 for a High). Reproduce with
             `docker scout` and remediate per the skill, in this priority order:
 

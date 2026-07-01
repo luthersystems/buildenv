@@ -1,5 +1,5 @@
 {
-  "_comment": "Remediation SLA for FIXABLE Critical/High CVEs on the required grade-A images, per the Allianz security request (2026-06): fixable Critical within 15 days, fixable High within 30 days, measured from first detection (the scout-drift issue's creation) to a published fix. Unfixable CVEs are exempt ('where fixes are available') — the continuous rebuild keeps them on the latest patches and the drift issue is the communication. Consumed by scout-drift.yml (severity classification + deadline escalation); documented in README 'Image security policies' and CLAUDE.md.",
+  "_comment": "Remediation SLA for FIXABLE Critical/High CVEs on the required grade-A images, per a customer security request (2026-06): fixable Critical within 15 days, fixable High within 30 days, measured from first detection (the scout-drift issue's creation) to a published fix. Unfixable CVEs are exempt ('where fixes are available') — the continuous rebuild keeps them on the latest patches and the drift issue is the communication. Consumed by scout-drift.yml (severity classification + deadline escalation); documented in README 'Image security policies' and CLAUDE.md.",
   "critical_days": 15,
   "high_days": 30,
   "escalate_buffer_days": 7,
