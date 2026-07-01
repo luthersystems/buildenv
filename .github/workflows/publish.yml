@@ -115,17 +115,22 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
       - name: Configure DockerHub
         uses: ./.github/actions/configure-dockerhub
-      - name: Scan published image with Docker Scout (fail on HIGH/CRITICAL)
-        uses: docker/scout-action@v1
-        with:
-          command: cves
-          image: luthersystems/${{ matrix.image }}:${{ github.ref_name }}
-          only-severities: critical,high
-          only-fixed: true
-          exit-code: true
-          write-comment: false
-          dockerhub-user: ${{ env.DOCKERHUB_USERNAME }}
-          dockerhub-password: ${{ env.DOCKERHUB_TOKEN }}
+      - name: Install Docker Scout CLI
+        run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
+      # VEX-aware release CVE gate -- mirrors the PR-time gate in build.yml.
+      # The previous raw `docker/scout-action cves --exit-code` could NOT honor
+      # OpenVEX, so once Scout analyzed the pushed image it re-flagged
+      # build-godynamic's waived CVE-2026-34040 at release time even though the
+      # PR gate passed it (run 28482425988, attempt 2). Reuse the same
+      # scripts/scout-cve-gate.sh so the release and PR gates agree: it lists
+      # fixable CRITICAL/HIGH findings and drops only those waived by an OpenVEX
+      # not_affected statement under .github/vex/ (fail-closed on any scan/parse
+      # error). Auth via the Configure DockerHub step above plus the Scout env.
+      - name: VEX-aware CVE gate on published image (${{ matrix.image }})
+        env:
+          DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: bash scripts/scout-cve-gate.sh "luthersystems/${{ matrix.image }}:${{ github.ref_name }}" "${{ matrix.image }}"
 
   # Release-time TRUE grade-A gate. The Docker Scout health grade (A–F) and its
   # supply-chain-attestation / approved+up-to-date base-image / high-profile-CVE
@@ -186,6 +191,7 @@ jobs:
             docker scout attestation add \
               --file "$f" \
               --predicate-type https://openvex.dev/ns/v0.2.0 \
+              --org luthersystems \
               --referrer \
               "luthersystems/${IMAGE}:${REF}"
           done
@@ -195,10 +201,38 @@ jobs:
           DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
           DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          set -euo pipefail
-          docker scout policy luthersystems/${{ matrix.image }}:${{ github.ref_name }} \
-            --org luthersystems \
-            --exit-code
+          set -uo pipefail
+          ref="luthersystems/${{ matrix.image }}:${{ github.ref_name }}"
+          # Docker Scout analyzes a pushed image asynchronously, so right after
+          # push the policy evaluation for a freshly-pushed tag may not exist yet
+          # ("No policy evaluation results found"). That is a transient race, not
+          # a grade failure -- on run 28482425988 build-go PASSED on attempt 1 and
+          # hit this on attempt 2. Poll until results appear, then let --exit-code
+          # decide. A real policy violation exits non-zero WITHOUT the "no results"
+          # marker, so it still fails fast (never waits the full window).
+          deadline=$(( SECONDS + 900 ))   # give Scout up to ~15 min to analyze
+          attempt=0
+          while :; do
+            attempt=$(( attempt + 1 ))
+            rc=0
+            out="$(docker scout policy "$ref" --org luthersystems --exit-code 2>&1)" || rc=$?
+            printf '%s\n' "$out"
+            if [ "$rc" -eq 0 ]; then
+              echo "Policy PASS for $ref (attempt $attempt)."
+              exit 0
+            fi
+            if printf '%s' "$out" | grep -qiE 'no policy .*results'; then
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "::error::Scout policy results for $ref never became available (~15 min). Re-run this job."
+                exit 1
+              fi
+              echo "Policy results not ready for $ref (attempt $attempt); retrying in 30s..."
+              sleep 30
+              continue
+            fi
+            echo "::error::Docker Scout policy is non-compliant for $ref."
+            exit "$rc"
+          done
 
   # Gate the release on supply-chain attestations actually being present on the
   # PUBLISHED multi-arch image. The Makefile attaches SBOM + provenance during
