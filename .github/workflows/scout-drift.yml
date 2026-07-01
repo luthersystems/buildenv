@@ -45,6 +45,7 @@ jobs:
           set -uo pipefail
           drift=0
           worst="none" # severity ranking: none < high < critical
+          vex_dir=".github/vex"
           {
             echo "## Docker Scout policy drift on published \`:latest\` images"
             echo
@@ -55,22 +56,79 @@ jobs:
           for img in $(jq -r '.required[]' .github/scout-required-images.json); do
             ref="luthersystems/${img}:latest"
             echo "::group::scout $ref"
-            if docker scout policy "$ref" --org luthersystems --exit-code; then
-              policy="✅ grade A"
-            else
-              policy="❌ below grade A"; drift=1
+            # --- Grade (authoritative + VEX-honoring) ---
+            # Docker Scout analyzes a (re)published tag asynchronously, so a fresh
+            # :latest can transiently report "No policy evaluation results found" —
+            # a race, NOT a grade drop. Same failure #89 (92c0a31) fixed for the
+            # release gate in publish.yml; the daily watch was missed and treated
+            # the transient state as "below grade A", opening a false drift issue.
+            # Mirror the fix: poll `docker scout policy` until results appear (up to
+            # ~15 min), then let --exit-code decide. A real violation exits non-zero
+            # WITHOUT the "no results" marker, so it is recorded immediately (never
+            # waits the window). `docker scout policy` is the only Scout surface
+            # that honors OpenVEX (server-side, via the pushed attestation), so it
+            # is the authoritative grade; the raw `cves` probe below is VEX-blind.
+            deadline=$(( SECONDS + 900 ))
+            policy=""
+            while :; do
+              rc=0
+              out="$(docker scout policy "$ref" --org luthersystems --exit-code 2>&1)" || rc=$?
+              printf '%s\n' "$out"
+              if [ "$rc" -eq 0 ]; then
+                policy="✅ grade A"; break
+              fi
+              if printf '%s' "$out" | grep -qiE 'no policy .*results'; then
+                if [ "$SECONDS" -ge "$deadline" ]; then
+                  echo "::warning::Scout policy results for $ref never became available (~15 min) — flagging as drift so it stays visible; usually clears next run once Scout finishes analyzing."
+                  policy="⚠️ no policy results (Scout not ready)"; drift=1; break
+                fi
+                echo "Policy results not ready for $ref; retrying in 30s..."
+                sleep 30
+                continue
+              fi
+              policy="❌ below grade A"; drift=1; break
+            done
+
+            # --- Worst fixable severity for the SLA clock (VEX-aware, crash-safe) ---
+            # `docker scout cves --exit-code` returns exactly 2 when fixable
+            # findings exist, 0 when none. Two bugs the old code had, both fixed:
+            # (1) the runner uses `bash -e` and `set -uo pipefail` does NOT clear
+            # -e, so a bare `cves …; rc=$?` let the rc=2 abort the whole step
+            # mid-loop — that is what crashed the watch on build-godynamic (its
+            # VEX-waived CVE-2026-34040 makes cves exit 2) and stopped it opening
+            # an issue; guard with set +e/set -e. (2) raw `cves` cannot honor
+            # OpenVEX, so it would count that waived finding and spoof the SLA
+            # severity — subtract this image's not_affected waivers (same jq as
+            # scripts/scout-cve-gate.sh) before classifying.
+            waived=""
+            if compgen -G "${vex_dir}/"'*.json' >/dev/null 2>&1; then
+              waived="$(jq -r --arg key "$img" '
+                  .statements[]? | select(.status == "not_affected")
+                  | select([.products[]?."@id" // empty] | map(test("/" + $key + "(@|$)")) | any)
+                  | .vulnerability.name' "${vex_dir}"/*.json 2>/dev/null | sort -u || true)"
             fi
-            # Fixable-severity probes. `docker scout cves --exit-code` returns
-            # exactly 2 when matching CVEs are found and 0 when none; treat ONLY
-            # rc=2 as "present". Any other non-zero is an error (auth, network, bad
-            # flag) — warn, don't let it spoof the SLA severity. (Flag is
-            # --only-severity, singular; --only-severities errored and made every
-            # grade-A image look like it had a fixable C/H — caught on the branch.)
             crit="no"; high="no"
-            docker scout cves "$ref" --only-fixed --only-severity critical --exit-code >/dev/null 2>&1; rc=$?
-            if [ "$rc" -eq 2 ]; then crit="yes"; elif [ "$rc" -ne 0 ]; then echo "::warning::scout cves critical probe errored (rc=$rc) for $ref"; fi
-            docker scout cves "$ref" --only-fixed --only-severity high --exit-code >/dev/null 2>&1; rc=$?
-            if [ "$rc" -eq 2 ]; then high="yes"; elif [ "$rc" -ne 0 ]; then echo "::warning::scout cves high probe errored (rc=$rc) for $ref"; fi
+            for sev in critical high; do
+              set +e
+              out="$(docker scout cves "$ref" --only-fixed --only-severity "$sev" --exit-code 2>/dev/null)"; rc=$?
+              set -e
+              if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
+                echo "::warning::scout cves $sev probe errored (rc=$rc) for $ref"; continue
+              fi
+              [ "$rc" -eq 2 ] || continue   # rc=0 → nothing fixable at this severity
+              present="$(printf '%s' "$out" | grep -oE 'CVE-[0-9]{4}-[0-9]+|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}' | sort -u || true)"
+              # Fail-safe toward escalation: Scout says fixable findings exist but
+              # we parsed no IDs to match against VEX → count as present, never
+              # under-report the SLA severity.
+              if [ -z "$present" ]; then
+                if [ "$sev" = critical ]; then crit="yes"; else high="yes"; fi
+                continue
+              fi
+              unwaived="$(comm -23 <(printf '%s\n' "$present" | sed '/^$/d') <(printf '%s\n' "$waived" | sed '/^$/d') || true)"
+              if [ -n "$unwaived" ]; then
+                if [ "$sev" = critical ]; then crit="yes"; else high="yes"; fi
+              fi
+            done
             if [ "$crit" = "yes" ]; then worst="critical"; fi
             if [ "$high" = "yes" ] && [ "$worst" != "critical" ]; then worst="high"; fi
             echo "- \`${img}\` — ${policy}; fixable Critical: ${crit}, fixable High: ${high}" >> summary.md
