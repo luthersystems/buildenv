@@ -1,0 +1,103 @@
+name: Release (patch)
+
+# On-demand PATCH release, cut by the official Claude App (the SAME identity as
+# scout-autofix.yml). Reusing that App token is deliberate: the default
+# GITHUB_TOKEN cannot create a release that triggers publish.yml (GitHub
+# suppresses workflow->workflow events), whereas the App token does -- so this
+# needs no PAT. The agent:
+#   * computes the next PATCH version with scripts/next-patch-version.sh (the
+#     ONLY sanctioned bump -- patch-only, so automation can never land a
+#     minor/major; those imply a contract change and stay human-cut),
+#   * writes release notes from the changes since the previous release tag,
+#   * cuts the release with `gh release create`.
+# publish.yml then rebuilds + republishes the images. Because the release author
+# is claude[bot], publish.yml's `release-meta` marks it interim -> the grade gate
+# is REPORT-ONLY (the daily scout-drift.yml watch + the SLA are the enforcement;
+# see CLAUDE.md rule 1). Minor/major, and any deliberate grade-A-ENFORCED
+# release, stay human (hand-cut via the GitHub release UI -> hard gate).
+#
+# Model auth: the ~1-year Claude subscription token
+# (op://Reliable-Dev/CLAUDE_CODE_OAUTH_TOKEN -> repo secret CLAUDE_CODE_OAUTH_TOKEN),
+# same as scout-autofix.yml. Durable end state is Amazon Bedrock -- see the swap
+# block at the bottom of scout-autofix.yml and #82.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the computed version + notes but do NOT cut the release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # `gh release create` (creates the tag + release)
+  id-token: write # lets claude-code-action mint the official Claude App token, so the release triggers publish.yml + required checks
+
+concurrency:
+  group: release-patch
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Cut next patch release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # all tags + history, so next-patch-version.sh and the notes see prior releases
+      - name: Cut the release via Claude
+        uses: anthropics/claude-code-action@v1 # TODO: pin to a SHA (repo convention); the dependabot actions group will track it
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        with:
+          # Official-app auth (claude-code-action mints the app token via OIDC,
+          # using `id-token: write` above). Do NOT add a `github_token:` here -- a
+          # default GITHUB_TOKEN does not trigger publish.yml, which this release
+          # depends on.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Cut the next PATCH release of buildenv, with generated release notes.
+            Do exactly this and nothing else -- no source changes, no PRs, no
+            hand-picked tags.
+
+            1. Version: run `scripts/next-patch-version.sh`. It prints the next
+               patch tag (e.g. v0.1.8) and is the ONLY sanctioned way to choose
+               the version -- never invent or edit a tag. If it exits non-zero
+               (the latest tag is not a clean vMAJOR.MINOR.PATCH), STOP and do
+               NOT release; report why.
+            2. Notes: summarize what changed since the previous release. Read the
+               last tag (`gh release view --json tagName -q .tagName`), then
+               `git log <lasttag>..HEAD --oneline` and the merged PRs
+               (`gh pr list --state merged --base main --limit 50`). Write concise
+               plain-Markdown bullets focused on image / CI changes; omit noise.
+               State in the body that this is an automated patch rebuild whose
+               grade gate is report-only (daily drift watch + SLA enforce).
+            3. Ship: if the env var DRY_RUN is "true", PRINT the computed version
+               and the notes, then STOP -- create nothing. Otherwise run
+               `gh release create "<version>" --title "<version>" --notes "<notes>"`.
+               The tag push triggers publish.yml, which rebuilds + republishes the
+               images.
+
+            PATCH only -- minor/major stay human. Never push to a branch, never
+            open a PR, never edit source. If anything is ambiguous or the version
+            script refuses, STOP and explain rather than guessing.
+          claude_args: |
+            --allowedTools Bash,Read,Grep,Glob
+            --max-turns 30
+            --model claude-opus-4-8
+      # Capture the agent's full stream-json conversation for troubleshooting.
+      # claude-code-action hides the transcript from the job log and writes it to
+      # $RUNNER_TEMP/claude-execution-output.json (otherwise wiped on runner
+      # reclaim). always() so a failed/timed-out run is captured too. NOTE: this
+      # is a PUBLIC repo, so the artifact is repo-readable and can contain
+      # secret-shaped strings the log-masker misses -- acceptable here (low value
+      # to an attacker), short retention; route to private storage if that ever
+      # stops being acceptable. Mirrors scout-autofix.yml.
+      - name: Capture agent trace (conversation log)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-patch-trace-${{ github.run_id }}
+          path: ${{ runner.temp }}/claude-execution-output.json
+          retention-days: 14
+          if-no-files-found: warn
