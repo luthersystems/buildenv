@@ -80,6 +80,18 @@ deadline nears. The autonomous loop ships rebuild-fixable improvements
 and auto-ships a merged source fix on the next daily cycle, so the binding
 constraint is human PR-review latency, not release cadence.
 
+**Slack alerting (SLA lifecycle → #alert):** every SLA transition (drift
+detected, clock started, at-risk, breached + daily countdown, recovery,
+watch-errored) and every automation-authored review request (fix PR /
+needs-human issue / interim release) posts to the Slack #alert channel.
+Transport is `scripts/slack-alert.sh` (`SLACK_ALERT_WEBHOOK_URL` secret;
+everything **no-ops if unset**; delivery is best-effort and never fails a
+watch — the GitHub issue + labels stay the durable SLA record). Drift/SLA
+alerts are emitted inline by `scout-drift.yml` (its issue is created with the
+default `GITHUB_TOKEN`, whose events can't trigger workflows); Claude-App-
+authored events go through `slack-alerts.yml`. Verify wiring with
+`make slack-test`.
+
 **When a Scout finding (CVE or policy) needs fixing, follow the `/scout-fix`
 skill — it captures exactly how #71/#72, #74, #76, #77, #78 were resolved, plus
 the strictly-better republish (section F) and the SLA.** Verify with
@@ -110,6 +122,13 @@ the strictly-better republish (section F) and the SLA.** Verify with
    non-root migration was the last one), not routine maintenance. Prefer the
    minimal patch/minor bump; escalate a major/contract-changing bump for review.
 4. **Pin GitHub Actions to SHAs** (Dependabot `actions` group keeps them current).
+5. **Keep logic out of workflow YAML.** Non-trivial logic goes in `scripts/`
+   (`*.sh`, or `*.cjs` loaded by `actions/github-script` via
+   `require('./scripts/<name>.cjs')`) where it can be linted, unit-tested, and
+   run standalone; workflow steps stay thin shims. Operator-relevant scripts
+   also get a root `Makefile` target (e.g. `make slack-test`). Precedents:
+   `scripts/scout-cve-gate.sh`, `scripts/scout-drift-sla.cjs`,
+   `scripts/slack-alert.sh`.
 
 ## Skills
 
