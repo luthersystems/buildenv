@@ -137,103 +137,48 @@ jobs:
           echo "drift=${drift}" >> "$GITHUB_OUTPUT"
           echo "worst_severity=${worst}" >> "$GITHUB_OUTPUT"
           echo "----- summary -----"; cat summary.md
+      # Issue/SLA state machine + Slack #alert egress live in
+      # scripts/scout-drift-sla.cjs (logic stays out of workflow YAML). Slack
+      # alerts for the drift/SLA lifecycle are posted INLINE from this watch —
+      # not from an issues:-triggered workflow — because this issue is created
+      # with the default GITHUB_TOKEN, whose events do NOT trigger other
+      # workflows (GitHub's anti-recursion guard). Best-effort egress: no-op
+      # until SLACK_ALERT_WEBHOOK_URL is set; a Slack outage never fails the
+      # watch (the issue + labels remain the durable SLA record).
       - name: Open/refresh the drift issue + enforce the remediation SLA
         if: steps.scan.outputs.drift == '1'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         env:
           WORST_SEVERITY: ${{ steps.scan.outputs.worst_severity }}
+          SLACK_ALERT_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
         with:
           script: |
-            const fs = require('fs');
-            const sla = JSON.parse(fs.readFileSync('.github/scout-sla.json', 'utf8'));
-            const worst = process.env.WORST_SEVERITY; // 'critical' | 'high' | 'none'
-            const body = fs.readFileSync('summary.md', 'utf8');
-            const title = 'Docker Scout: published image(s) dropped below grade A';
-            const { owner, repo } = context.repo;
-
-            const ensureLabel = async (name, color, description) => {
-              try { await github.rest.issues.createLabel({ owner, repo, name, color, description }); }
-              catch (e) { /* already exists */ }
-            };
-            await ensureLabel('scout-drift', 'b60205', 'A published image fell below Docker Scout grade A');
-            await ensureLabel('sla:critical', 'b60205', 'Fixable Critical CVE — 15-day remediation SLA');
-            await ensureLabel('sla:high', 'd93f0b', 'Fixable High CVE — 30-day remediation SLA');
-            await ensureLabel('sla:at-risk', 'fbca04', 'Remediation SLA deadline approaching');
-            await ensureLabel('sla:breached', '000000', 'Remediation SLA deadline passed');
-
-            // Open or refresh the single open scout-drift issue.
-            const open = await github.rest.issues.listForRepo({
-              owner, repo, state: 'open', labels: 'scout-drift', per_page: 100,
-            });
-            let issue;
-            if (open.data.length) {
-              issue = open.data[0];
-              await github.rest.issues.createComment({ owner, repo, issue_number: issue.number, body });
-              core.info(`Refreshed existing issue #${issue.number}`);
-            } else {
-              issue = (await github.rest.issues.create({ owner, repo, title, body, labels: ['scout-drift'] })).data;
-              core.info(`Opened issue #${issue.number}`);
-            }
-
-            const labelsNow = new Set((issue.labels || []).map(l => (typeof l === 'string' ? l : l.name)));
-
-            // No fixable Critical/High behind the drift (e.g. a stale-base-digest
-            // policy only): no CVE SLA clock — the autonomous republish handles it.
-            if (worst !== 'critical' && worst !== 'high') {
-              core.info(`Worst fixable severity = ${worst}; no CVE SLA clock.`);
-              return;
-            }
-
-            const sevLabel = worst === 'critical' ? 'sla:critical' : 'sla:high';
-            if (!labelsNow.has(sevLabel)) {
-              await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: [sevLabel] });
-            }
-
-            const deadlineDays = worst === 'critical' ? sla.critical_days : sla.high_days;
-            const buffer = sla.escalate_buffer_days;
-            const ageDays = (Date.now() - new Date(issue.created_at).getTime()) / 86400000;
-            const remaining = deadlineDays - ageDays;
-            const age = Math.floor(ageDays);
-
-            if (ageDays >= deadlineDays && !labelsNow.has('sla:breached')) {
-              await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: ['sla:breached'] });
-              await github.rest.issues.createComment({ owner, repo, issue_number: issue.number,
-                body: `🚨 **SLA BREACHED** — this fixable **${worst}** finding has been open ${age} days, past the ${deadlineDays}-day remediation deadline (.github/scout-sla.json). Remediate and ship a release now.` });
-              core.setFailed(`SLA breached on #${issue.number} (${worst}, ${age}d > ${deadlineDays}d)`);
-            } else if (remaining <= buffer && !labelsNow.has('sla:at-risk') && !labelsNow.has('sla:breached')) {
-              await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: ['sla:at-risk'] });
-              await github.rest.issues.createComment({ owner, repo, issue_number: issue.number,
-                body: `⏰ **SLA at risk** — fixable **${worst}** finding open ${age} days; **${Math.ceil(remaining)} day(s) left** of the ${deadlineDays}-day deadline. Approve/merge the fix PR (or cut the release) to stay compliant.` });
-              core.warning(`SLA at risk on #${issue.number} (${worst}, ${Math.ceil(remaining)}d left)`);
-            } else {
-              core.info(`SLA ok on #${issue.number} (${worst}, ${age}d of ${deadlineDays}d)`);
-            }
+            const run = require('./scripts/scout-drift-sla.cjs');
+            await run({ github, context, core });
       - name: Close the drift issue on recovery
-        # When a scan comes back fully clean, auto-close any open scout-drift
-        # issue so the loop self-resets: drift opens it (above), recovery closes
-        # it here. `drift == '0'` means every required image is back at grade A.
+        # Fully clean scan (drift == '0') → auto-close any open scout-drift
+        # issue so the loop self-resets, and post the ✅ all-clear to Slack.
+        # Logic in scripts/scout-drift-recovery.cjs.
         if: steps.scan.outputs.drift == '0'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        env:
+          SLACK_ALERT_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
         with:
           script: |
-            const { owner, repo } = context.repo;
-            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
-            const open = await github.rest.issues.listForRepo({
-              owner, repo, state: 'open', labels: 'scout-drift', per_page: 100,
-            });
-            if (!open.data.length) { core.info('No open scout-drift issue to close.'); return; }
-            for (const issue of open.data) {
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: issue.number,
-                body: `✅ All required images are back at Docker Scout grade A as of the latest \`Scout drift watch\` ([run](${runUrl})). Auto-closing.`,
-              });
-              await github.rest.issues.update({
-                owner, repo, issue_number: issue.number, state: 'closed', state_reason: 'completed',
-              });
-              core.info(`Closed recovered scout-drift issue #${issue.number}`);
-            }
+            const run = require('./scripts/scout-drift-recovery.cjs');
+            await run({ github, context, core });
       - name: Fail the run if drift detected
         if: steps.scan.outputs.drift == '1'
         run: |
           echo "::error::One or more published images dropped below Docker Scout grade A — see the 'scout-drift' issue."
           exit 1
+      # Silence must never look green: if the watch ITSELF errored (scan crash,
+      # API failure — yesterday's #90 class), say so in Slack. Excludes the
+      # deliberate drift failure right above (drift == '1'), which already
+      # alerted with full context from the SLA step.
+      - name: Alert Slack if the watch itself errored
+        if: failure() && steps.scan.outputs.drift != '1'
+        env:
+          SLACK_ALERT_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
+        run: |
+          bash scripts/slack-alert.sh "⚠️ *Scout drift watch errored* — the watch itself broke (no drift verdict; silence is not green). <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
