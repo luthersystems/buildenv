@@ -1,0 +1,72 @@
+name: Slack alerts (SLA review path)
+
+# Deterministic Slack #alert egress for the SLA-lifecycle events that happen
+# OUTSIDE the drift watch: automation opening a fix PR (human review is the
+# SLA critical path), automation filing a needs-human issue (the #90 class),
+# and automation publishing an interim patch release.
+#
+# Split rationale: the drift/SLA-clock alerts are posted inline by
+# scout-drift.yml because its issue is created with the default GITHUB_TOKEN,
+# whose events do NOT trigger workflows (GitHub's anti-recursion guard) — an
+# event-driven alerter would silently miss them. THESE events are authored by
+# the Claude GitHub App token, which does trigger workflows, so a small
+# event-driven notifier is reliable here.
+#
+# All transport logic lives in scripts/slack-alert.sh (no-op until the
+# SLACK_ALERT_WEBHOOK_URL secret is set; never fails). This workflow only
+# selects event data into a message.
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+  issues:
+    types: [opened]
+  release:
+    types: [published]
+
+permissions:
+  contents: read # checkout only (for scripts/slack-alert.sh)
+
+jobs:
+  notify:
+    name: Notify #alert (automation events)
+    # Automation-authored events only — humans already know what they just did.
+    # Matches the Claude GitHub App ('claude' / 'claude[bot]').
+    if: startsWith(github.actor, 'claude')
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - name: Compose + send the alert
+        env:
+          SLACK_ALERT_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
+          # Event data flows via env (not inline interpolation into the shell
+          # body) so titles containing quotes/backticks can't inject; JSON
+          # escaping happens in slack-alert.sh via jq.
+          EVENT: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          REL_URL: ${{ github.event.release.html_url }}
+          REL_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -uo pipefail
+          case "$EVENT" in
+            pull_request)
+              if [ "${PR_DRAFT}" = "true" ]; then
+                echo "draft PR; alerting on ready_for_review instead"; exit 0
+              fi
+              text="🟡 *Fix PR awaiting your review* — <${PR_URL}|${PR_TITLE}> (by ${ACTOR}). Human review is the SLA critical path."
+              ;;
+            issues)
+              text="🟠 *Automation needs a human* — <${ISSUE_URL}|${ISSUE_TITLE}> (by ${ACTOR})."
+              ;;
+            release)
+              text="ℹ️ Automation published <${REL_URL}|${REL_TAG}> — interim patch release (report-only grade gate; the daily drift watch + SLA enforce)."
+              ;;
+            *)
+              echo "unhandled event: $EVENT"; exit 0
+              ;;
+          esac
+          bash scripts/slack-alert.sh "$text"
