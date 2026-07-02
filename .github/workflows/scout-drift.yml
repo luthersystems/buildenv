@@ -36,6 +36,20 @@ jobs:
         uses: ./.github/actions/configure-dockerhub
       - name: Install Docker Scout CLI
         run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
+      # Scout enrollment is config-drift-prone: build-go / build-java /
+      # nginx-frontend / build-godynamic were each found silently un-enrolled
+      # (July 2026), and an un-enrolled repo yields NO policy results — which
+      # the scan below then flags as ⚠️ drift. Reconcile it daily from
+      # scout-required-images.json (idempotent; alerts #alert when it had to
+      # fix something). Best-effort: an enablement API failure must not stop
+      # the scan — the scan's no-policy-results path still surfaces the
+      # symptom. Logic: scripts/scout-setup.sh (also `make scout-setup`).
+      - name: Self-heal Docker Scout repo enrollment
+        env:
+          DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+          SLACK_ALERT_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
+        run: bash scripts/scout-setup.sh || echo "::warning::scout-setup.sh failed; continuing to the scan"
       - name: Evaluate Scout policy + worst fixable severity on each required :latest image
         id: scan
         env:

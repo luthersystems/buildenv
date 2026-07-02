@@ -92,6 +92,16 @@ default `GITHUB_TOKEN`, whose events can't trigger workflows); Claude-App-
 authored events go through `slack-alerts.yml`. Verify wiring with
 `make slack-test`.
 
+**Scout enrollment is code-driven — never hand-toggle it in the Hub UI.**
+`scripts/scout-setup.sh` (`make scout-setup` / `make scout-check`) reconciles
+Docker Scout repo enablement with `scout-required-images.json`, and the daily
+drift watch runs it first as a self-heal (an un-enrolled repo yields NO policy
+results and silently falls out of the gates — the July 2026 failure class:
+build-go, build-java, nginx-frontend, build-godynamic were each found
+disabled). Org **policy configuration** (which policies gate, license lists,
+disabling a policy) has **no public API or CLI** — Docker Scout dashboard only
+(policy details page → Edit/Disable).
+
 **When a Scout finding (CVE or policy) needs fixing, follow the `/scout-fix`
 skill — it captures exactly how #71/#72, #74, #76, #77, #78 were resolved, plus
 the strictly-better republish (section F) and the SLA.** Verify with
