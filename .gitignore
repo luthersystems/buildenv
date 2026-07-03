@@ -2,3 +2,5 @@
 *.tar.gz
 *.zip
 .DS_Store
+.tmp/
+.firecrawl/
