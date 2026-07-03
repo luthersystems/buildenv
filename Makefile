@@ -3,7 +3,7 @@
 
 .PHONY: slack-test next-patch-version scout-setup scout-check
 
-# Send a test alert through scripts/slack-alert.sh to verify the Slack #alert
+# Send a test alert through scripts/slack-alert.sh to verify the Slack #alerts
 # webhook wiring end-to-end. No-op (prints a skip) if SLACK_ALERT_WEBHOOK_URL
 # is unset — set it from 1Password when testing locally; in CI it comes from
 # the repo secret of the same name.

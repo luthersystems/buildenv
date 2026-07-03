@@ -19,7 +19,7 @@
 //   - starts the SLA clock (sla:critical / sla:high label) when fixable C/H
 //     findings appear; escalates sla:at-risk → sla:breached per scout-sla.json
 //     (clock measured from issue creation; breach also fails the run)
-// New: posts Slack #alert messages at each lifecycle transition, plus a daily
+// New: posts Slack #alerts messages at each lifecycle transition, plus a daily
 // countdown while a clock is running. Slack alerts are posted INLINE from the
 // watch (not an issues:-triggered workflow) because this issue is created with
 // the default GITHUB_TOKEN, whose events do NOT trigger other workflows

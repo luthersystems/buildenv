@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# Post a one-line alert to the Slack #alert channel (incoming webhook).
+# Post a one-line alert to the Slack #alerts channel (incoming webhook).
 #
 # Usage:  slack-alert.sh "message text"      (or pipe the message on stdin)
 # Env:    SLACK_ALERT_WEBHOOK_URL — Slack incoming-webhook URL bound to the
-#         #alert channel. Unset ⇒ NO-OP (exit 0), so callers can wire alerting
+#         #alerts channel. Unset ⇒ NO-OP (exit 0), so callers can wire alerting
 #         before the webhook/secret exists and nothing breaks.
 #
 # The message supports Slack mrkdwn: <https://url|label>, *bold*, `code`,
