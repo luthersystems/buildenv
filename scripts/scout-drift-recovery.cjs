@@ -11,7 +11,7 @@
 //
 // Runs when the daily scan came back fully clean (drift == '0'): closes any
 // open `scout-drift` issue so the loop self-resets (drift opens it, recovery
-// closes it), and posts the ✅ all-clear to Slack #alert (best-effort via
+// closes it), and posts the ✅ all-clear to Slack #alerts (best-effort via
 // scripts/slack-alert.sh; no-op without SLACK_ALERT_WEBHOOK_URL).
 'use strict';
 

@@ -40,7 +40,7 @@ jobs:
       # nginx-frontend / build-godynamic were each found silently un-enrolled
       # (July 2026), and an un-enrolled repo yields NO policy results — which
       # the scan below then flags as ⚠️ drift. Reconcile it daily from
-      # scout-required-images.json (idempotent; alerts #alert when it had to
+      # scout-required-images.json (idempotent; alerts #alerts when it had to
       # fix something). Best-effort: an enablement API failure must not stop
       # the scan — the scan's no-policy-results path still surfaces the
       # symptom. Logic: scripts/scout-setup.sh (also `make scout-setup`).
@@ -151,7 +151,7 @@ jobs:
           echo "drift=${drift}" >> "$GITHUB_OUTPUT"
           echo "worst_severity=${worst}" >> "$GITHUB_OUTPUT"
           echo "----- summary -----"; cat summary.md
-      # Issue/SLA state machine + Slack #alert egress live in
+      # Issue/SLA state machine + Slack #alerts egress live in
       # scripts/scout-drift-sla.cjs (logic stays out of workflow YAML). Slack
       # alerts for the drift/SLA lifecycle are posted INLINE from this watch —
       # not from an issues:-triggered workflow — because this issue is created

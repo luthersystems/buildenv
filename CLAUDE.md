@@ -80,10 +80,10 @@ deadline nears. The autonomous loop ships rebuild-fixable improvements
 and auto-ships a merged source fix on the next daily cycle, so the binding
 constraint is human PR-review latency, not release cadence.
 
-**Slack alerting (SLA lifecycle → #alert):** every SLA transition (drift
+**Slack alerting (SLA lifecycle → #alerts):** every SLA transition (drift
 detected, clock started, at-risk, breached + daily countdown, recovery,
 watch-errored) and every automation-authored review request (fix PR /
-needs-human issue / interim release) posts to the Slack #alert channel.
+needs-human issue / interim release) posts to the Slack #alerts channel.
 Transport is `scripts/slack-alert.sh` (`SLACK_ALERT_WEBHOOK_URL` secret;
 everything **no-ops if unset**; delivery is best-effort and never fails a
 watch — the GitHub issue + labels stay the durable SLA record). Drift/SLA

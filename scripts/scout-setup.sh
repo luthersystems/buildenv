@@ -13,7 +13,7 @@
 #
 # Usage:
 #   scout-setup.sh            enroll the org + enable Scout on every image in
-#                             the JSON (idempotent). Alerts Slack #alert (via
+#                             the JSON (idempotent). Alerts Slack #alerts (via
 #                             scripts/slack-alert.sh, if present) when it had
 #                             to fix a repo that was found disabled.
 #   scout-setup.sh --check    report-only: list desired vs currently-enabled;
@@ -129,7 +129,7 @@ while IFS= read -r img; do
 done <<< "$targets"
 
 # Alert only on a *known* fix (state was readable and a desired repo was found
-# disabled) — that is enrollment drift worth telling #alert about.
+# disabled) — that is enrollment drift worth telling #alerts about.
 if [ "$parse_ok" -eq 1 ] && [ -n "$fixed" ] && [ -f scripts/slack-alert.sh ]; then
   pretty="$(printf "$fixed" | sed '/^$/d' | paste -sd', ' -)"
   bash scripts/slack-alert.sh "⚠️ *Scout enrollment drift* — repo(s) were disabled in Docker Scout and have been re-enabled automatically: ${pretty}. (Un-enrolled repos produce no policy results and silently fall out of the grade gates.)"

@@ -1,6 +1,6 @@
 name: Slack alerts (SLA review path)
 
-# Deterministic Slack #alert egress for the SLA-lifecycle events that happen
+# Deterministic Slack #alerts egress for the SLA-lifecycle events that happen
 # OUTSIDE the drift watch: automation opening a fix PR (human review is the
 # SLA critical path), automation filing a needs-human issue (the #90 class),
 # and automation publishing an interim patch release.
@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   notify:
-    name: Notify #alert (automation events)
+    name: Notify #alerts (automation events)
     # Automation-authored events only — humans already know what they just did.
     # Matches the Claude GitHub App ('claude' / 'claude[bot]').
     if: startsWith(github.actor, 'claude')
