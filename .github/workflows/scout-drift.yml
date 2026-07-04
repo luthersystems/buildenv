@@ -84,6 +84,7 @@ jobs:
             # is the authoritative grade; the raw `cves` probe below is VEX-blind.
             deadline=$(( SECONDS + 900 ))
             policy=""
+            policy_out=""
             while :; do
               rc=0
               out="$(docker scout policy "$ref" --org luthersystems --exit-code 2>&1)" || rc=$?
@@ -100,7 +101,9 @@ jobs:
                 sleep 30
                 continue
               fi
-              policy="❌ below grade A"; drift=1; break
+              # Real violation: defer the drift verdict until the VEX-aware
+              # severity probe below has run — see the #98 carve-out after it.
+              policy_out="$out"; break
             done
 
             # --- Worst fixable severity for the SLA clock (VEX-aware, crash-safe) ---
@@ -121,13 +124,13 @@ jobs:
                   | select([.products[]?."@id" // empty] | map(test("/" + $key + "(@|$)")) | any)
                   | .vulnerability.name' "${vex_dir}"/*.json 2>/dev/null | sort -u || true)"
             fi
-            crit="no"; high="no"
+            crit="no"; high="no"; probe_error=0
             for sev in critical high; do
               set +e
               out="$(docker scout cves "$ref" --only-fixed --only-severity "$sev" --exit-code 2>/dev/null)"; rc=$?
               set -e
               if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
-                echo "::warning::scout cves $sev probe errored (rc=$rc) for $ref"; continue
+                echo "::warning::scout cves $sev probe errored (rc=$rc) for $ref"; probe_error=1; continue
               fi
               [ "$rc" -eq 2 ] || continue   # rc=0 → nothing fixable at this severity
               present="$(printf '%s' "$out" | grep -oE 'CVE-[0-9]{4}-[0-9]+|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}' | sort -u || true)"
@@ -143,6 +146,29 @@ jobs:
                 if [ "$sev" = critical ]; then crit="yes"; else high="yes"; fi
               fi
             done
+            # --- TEMPORARY carve-out (#98): Docker evaluates the WRONG policy set ---
+            # Since 2026-07-02 the Scout engine applies Docker's DEFAULT policy set
+            # instead of this org's CONFIGURED set: a phantom "Copyleft licensed
+            # packages found" policy (org has AGPL-only; dashboard shows 0
+            # violations) and a fixable-CVE variant that ignores our attached
+            # OpenVEX. Classify a violation as known-mismatch (NOT drift) only when
+            # BOTH hold: (1) every failing policy row is one of those two phantoms,
+            # and (2) if the fixable-CVE row is present, our own fail-closed
+            # VEX-aware probe above CONTRADICTS it (crit=no AND high=no, with no
+            # probe errors). Any other failing row, any real fixable C/H, or an
+            # unparseable policy table stays hard drift. REMOVE when #98 closes.
+            if [ -z "$policy" ]; then
+              failing="$(printf '%s\n' "$policy_out" | grep -E '^[[:space:]]*!.*│' || true)"
+              unexpected="$(printf '%s\n' "$failing" | grep -vE 'Copyleft licensed packages found|Fixable critical or high vulnerabilities found' | sed '/^$/d' || true)"
+              cve_row="$(printf '%s\n' "$failing" | grep -E 'Fixable critical or high vulnerabilities found' || true)"
+              if [ -n "$failing" ] && [ -z "$unexpected" ] \
+                 && { [ -z "$cve_row" ] || { [ "$crit" = "no" ] && [ "$high" = "no" ] && [ "$probe_error" -eq 0 ]; }; }; then
+                policy="⚠️ known policy-set mismatch (#98) — org-configured policies pass"
+                echo "::warning::$ref failed only phantom default-set policies (see #98); not counted as drift"
+              else
+                policy="❌ below grade A"; drift=1
+              fi
+            fi
             if [ "$crit" = "yes" ]; then worst="critical"; fi
             if [ "$high" = "yes" ] && [ "$worst" != "critical" ]; then worst="high"; fi
             echo "- \`${img}\` — ${policy}; fixable Critical: ${crit}, fixable High: ${high}" >> summary.md

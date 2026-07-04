@@ -78,12 +78,16 @@ module.exports = async ({ github, context, core }) => {
   const labelsNow = new Set((issue.labels || []).map(l => (typeof l === 'string' ? l : l.name)));
 
   // No fixable Critical/High behind the drift (e.g. a stale-base-digest policy
-  // only): no CVE SLA clock — the autonomous republish handles it. Alert once
-  // when the issue opens; daily refreshes stay GitHub-only so a lingering
-  // no-clock condition (e.g. a Scout-side evaluation gap) doesn't ping daily.
+  // only): no CVE SLA clock — the autonomous republish handles it. Still alert
+  // EVERY red run, not just the first: a red watch with no Slack ping is
+  // invisible (learned 2026-07-04 — three days of copyleft-drift reds produced
+  // zero alerts because only isNew alerted). The daily cron bounds this to one
+  // message per day.
   if (worst !== 'critical' && worst !== 'high') {
     if (isNew) {
       slack(core, `🟠 *Docker Scout drift* — published buildenv image(s) flagged, but no fixable Critical/High (no SLA clock; the autonomous loop handles it). ${issueRef}`);
+    } else {
+      slack(core, `🟠 *Scout drift continues* — published buildenv image(s) still flagged; no fixable Critical/High (no SLA clock). ${issueRef}`);
     }
     core.info(`Worst fixable severity = ${worst}; no CVE SLA clock.`);
     return;
