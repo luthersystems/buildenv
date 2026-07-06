@@ -73,7 +73,7 @@ jobs:
       - name: Configure DockerHub
         uses: ./.github/actions/configure-dockerhub
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
       - name: Expose GHA runtime to buildx (for type=gha cache backend)
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         with:
@@ -96,7 +96,7 @@ jobs:
       # fixable HIGH/CRITICAL. NOTE: this records per run only; durable trend
       # tracking would mean feeding the SARIF to the code-scanning Security tab.
       - name: Record total CVE breakdown (all severities, non-blocking)
-        uses: docker/scout-action@7520205ff60037fdc436b40b6a1d1e55a839ec2d  # v1.22.0
+        uses: docker/scout-action@2688993af7bafd6ba8c6a74ec652442be91dd82b  # v1.23.1
         continue-on-error: true
         with:
           command: quickview
@@ -107,7 +107,7 @@ jobs:
           dockerhub-user: ${{ env.DOCKERHUB_USERNAME }}
           dockerhub-password: ${{ env.DOCKERHUB_TOKEN }}
       - name: Generate full CVE SARIF (all severities, non-blocking)
-        uses: docker/scout-action@7520205ff60037fdc436b40b6a1d1e55a839ec2d  # v1.22.0
+        uses: docker/scout-action@2688993af7bafd6ba8c6a74ec652442be91dd82b  # v1.23.1
         continue-on-error: true
         with:
           command: cves
