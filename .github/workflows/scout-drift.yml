@@ -117,6 +117,14 @@ jobs:
             # OpenVEX, so it would count that waived finding and spoof the SLA
             # severity — subtract this image's not_affected waivers (same jq as
             # scripts/scout-cve-gate.sh) before classifying.
+            # Transient API errors (any rc other than 0/2) get 3 attempts with
+            # 30s backoff: on 2026-07-07 the probe returned rc=1 on 6/7 images
+            # (Docker API hiccup, self-healed by the next run), and because the
+            # #98 carve-out below fail-closes on probe_error, the watch redded
+            # as "below grade A" and opened a false drift issue (#101) for
+            # images whose health hadn't changed. Retries absorb the hiccup;
+            # after exhausted retries the behavior is unchanged (probe_error=1,
+            # fail-closed).
             waived=""
             if compgen -G "${vex_dir}/"'*.json' >/dev/null 2>&1; then
               waived="$(jq -r --arg key "$img" '
@@ -126,11 +134,19 @@ jobs:
             fi
             crit="no"; high="no"; probe_error=0
             for sev in critical high; do
-              set +e
-              out="$(docker scout cves "$ref" --only-fixed --only-severity "$sev" --exit-code 2>/dev/null)"; rc=$?
-              set -e
+              rc=1
+              for attempt in 1 2 3; do
+                set +e
+                out="$(docker scout cves "$ref" --only-fixed --only-severity "$sev" --exit-code 2>/dev/null)"; rc=$?
+                set -e
+                if [ "$rc" -eq 0 ] || [ "$rc" -eq 2 ]; then break; fi
+                if [ "$attempt" -lt 3 ]; then
+                  echo "scout cves $sev probe attempt $attempt errored (rc=$rc) for $ref; retrying in 30s..."
+                  sleep 30
+                fi
+              done
               if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
-                echo "::warning::scout cves $sev probe errored (rc=$rc) for $ref"; probe_error=1; continue
+                echo "::warning::scout cves $sev probe errored (rc=$rc) for $ref after 3 attempts"; probe_error=1; continue
               fi
               [ "$rc" -eq 2 ] || continue   # rc=0 → nothing fixable at this severity
               present="$(printf '%s' "$out" | grep -oE 'CVE-[0-9]{4}-[0-9]+|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}' | sort -u || true)"
