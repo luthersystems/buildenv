@@ -89,9 +89,13 @@ RUN apk add --no-cache gcc git musl-dev && \
     go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 ARG DOCKER_COMPOSE_VERSION
+# Built from source so we can pin a patched google.golang.org/grpc
+# (GHSA-hrxh-6v49-42gf — uncaught exception, fixed in 1.82.1); compose v5.2.0
+# otherwise bundles the vulnerable grpc 1.81.1. Drop the pin once compose
+# requires grpc >= 1.82.1 transitively.
 RUN mkdir /tmp/compose && cd /tmp/compose && \
     go mod init _compose && \
-    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" && \
+    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v1.82.1 && \
     go build -o /go/bin/docker-compose "github.com/docker/compose/v5/cmd" && \
     cd / && rm -rf /tmp/compose
 
