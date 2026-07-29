@@ -28,7 +28,7 @@ jobs:
           - nginx-frontend
           - service-base-alpine
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Build container
         uses: ./.github/actions/build-docker-images
         with:
@@ -47,7 +47,7 @@ jobs:
       required: ${{ steps.lists.outputs.required }}
       cve: ${{ steps.lists.outputs.cve }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Load Docker Scout image lists
         id: lists
         run: |
@@ -69,7 +69,7 @@ jobs:
         # .github/scout-required-images.json via the scout-config job.
         image: ${{ fromJSON(needs.scout-config.outputs.cve) }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Configure DockerHub
         uses: ./.github/actions/configure-dockerhub
       - name: Set up Docker Buildx
@@ -158,7 +158,7 @@ jobs:
       - scout-config
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Audit every image Dockerfile for a non-root default USER
         env:
           REQUIRED: ${{ needs.scout-config.outputs.required }}

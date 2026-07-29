@@ -52,7 +52,7 @@ jobs:
       DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }} # so the skill's `docker scout` authenticates
       DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0  (puts .claude/skills/scout-fix + scripts/ on disk)
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0  (puts .claude/skills/scout-fix + scripts/ on disk)
       - name: Configure DockerHub # log the runner's docker in so the agent's pulls / scout are authenticated
         uses: ./.github/actions/configure-dockerhub
       - name: Install Docker Scout CLI # pre-install so the agent doesn't spend a turn fetching it (observed in the validation trace)
