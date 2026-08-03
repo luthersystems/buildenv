@@ -1,0 +1,60 @@
+name: Publish recovery
+
+# Layer 4 of the grade-A upkeep loop: make sure a release that was CUT actually
+# got PUBLISHED.
+#
+# scout-autofix cuts a patch release and comments "Remediated" — but nothing
+# checked that the publish.yml run the tag triggered succeeded. On 2026-07-31
+# the v0.1.12 publish failed on a transient `docker login` timeout, so `:latest`
+# served the vulnerable v0.1.11 for three days while the drift issue's last word
+# said the CVE was fixed (#107 / #109). A release that never published is worse
+# than no release: the durable SLA record lies.
+#
+# This watches every publish.yml run on a `v*` tag and, on failure, re-runs it
+# once (all publish failures observed so far have been transient registry /
+# module-proxy flake) — then, if the retry also fails, comments on the open
+# `scout-drift` issue and alerts Slack instead of retrying forever.
+#
+# Scope note: this covers ALL `v*` publishes, not just automation-cut ones. A
+# human-cut release is usually watched, so the retry is merely convenient there
+# — but keying off the release author would need an extra lookup and a fallback
+# for tags with no release, and the failure being guarded against is
+# infrastructure, which does not care who cut the tag.
+#
+# Logic lives in scripts/publish-recovery.cjs (CLAUDE.md rule 5); this file is a
+# shim. NOTE: `workflow_run` workflows always run from the DEFAULT BRANCH copy,
+# so edits here only take effect once merged to main.
+on:
+  workflow_run:
+    workflows: ["Build and Push"]
+    types: [completed]
+
+permissions:
+  actions: write # re-run the failed publish jobs
+  issues: write # comment the escalation on the open scout-drift issue
+  contents: read
+
+concurrency:
+  group: publish-recovery-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    name: Retry or escalate a failed publish
+    # Only failed publishes of a version tag. publish.yml is `on: push: tags: ['*']`,
+    # so head_branch carries the tag name (e.g. "v0.1.12").
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'failure' &&
+          startsWith(github.event.workflow_run.head_branch, 'v') }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Retry once, then escalate
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          SLACK_ALERT_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
+        with:
+          script: |
+            const run = require('./scripts/publish-recovery.cjs');
+            await run({ github, context, core });

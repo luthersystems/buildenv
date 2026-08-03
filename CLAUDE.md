@@ -62,13 +62,14 @@ lists fixable C/H findings and drops VEX-waived ones, fail-closed (Scout's own
 `cves --exit-code` can't honor VEX — only `docker scout policy` does). The
 required + exempt sets are the single source of truth in
 [`.github/scout-required-images.json`](.github/scout-required-images.json), gated
-in CI three ways:
+in CI four ways:
 
 | When | Workflow | Gate |
 |---|---|---|
 | every PR | `build.yml` → `cve-scan` + `non-root-audit` | fixable CRITICAL/HIGH CVEs (required set); non-root audit across **all** images — hard-fails only if a required image regresses to root, reports the rest |
 | release (tag) | `publish.yml` → `scout-policy` | `docker scout policy --exit-code` (true grade) + attestations. **Hard for human-cut releases; report-only for automation's interim patch releases** (`release-meta` detects `claude[bot]`) |
 | daily cron | `scout-drift.yml` | re-scan published `:latest`; open/refresh a `scout-drift` issue on drift, auto-close on recovery, and **escalate the remediation SLA** |
+| publish failed | `publish-recovery.yml` | a failed `v*` publish is **re-run once**, then escalated onto the open `scout-drift` issue + Slack. **Cutting a release is not remediating** — v0.1.12's publish died on a transient Docker Hub timeout and `:latest` served the vulnerable build for 3 days while the issue read "Remediated" (#107 → #109) |
 
 **Remediation SLA (customer — [`.github/scout-sla.json`](.github/scout-sla.json)):**
 fixable **Critical → published fix within 15 days**, fixable **High → 30 days**;
