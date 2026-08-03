@@ -114,6 +114,20 @@ jobs:
           path: ${{ runner.temp }}/claude-execution-output.json
           retention-days: 14
           if-no-files-found: warn
+      # Silence must never look green — the same principle as scout-drift.yml's
+      # "watch errored" alert, which this mirrors. Without it the REMEDIATION
+      # layer can be dead for days with no signal anywhere: on 2026-08-01..03
+      # this job died in <1 min on three consecutive days with a 429 "you've hit
+      # your weekly limit" (subscription-token `seven_day` cap), while an open
+      # sla:high drift issue sat with no fix in flight. Nobody found out until a
+      # human happened to look. See #109 (gap 2) and #82 (Bedrock swap).
+      # Runs last so the trace artifact above is captured first.
+      - name: Alert Slack if autofix itself errored
+        if: failure()
+        env:
+          SLACK_ALERT_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
+        run: |
+          bash scripts/slack-alert.sh "⚠️ *Scout autofix errored* — the remediation layer failed, so an open \`scout-drift\` issue may have NO fix in flight (its SLA clock keeps running). <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
 
 # ── Bedrock swap (durable billing — see tracking issue #82) ──────────────────
 # 1. Delete the `claude_code_oauth_token:` line above and add to the action `with:`
