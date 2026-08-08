@@ -2,8 +2,8 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://luthersystems.com/vex/buildenv/build-godynamic",
   "author": "Luther Systems (buildenv CI)",
-  "timestamp": "2026-08-06T00:00:00Z",
-  "version": 3,
+  "timestamp": "2026-08-08T00:00:00Z",
+  "version": 4,
   "statements": [
     {
       "vulnerability": {
@@ -14,7 +14,9 @@
         {
           "@id": "pkg:docker/luthersystems/build-godynamic",
           "subcomponents": [
-            { "@id": "pkg:golang/github.com/docker/docker" }
+            {
+              "@id": "pkg:golang/github.com/docker/docker"
+            }
           ]
         }
       ],
@@ -31,13 +33,15 @@
         {
           "@id": "pkg:docker/luthersystems/build-godynamic",
           "subcomponents": [
-            { "@id": "pkg:pypi/cryptography" }
+            {
+              "@id": "pkg:pypi/cryptography"
+            }
           ]
         }
       ],
       "status": "not_affected",
       "justification": "vulnerable_code_not_in_execute_path",
-      "impact_statement": "CVE-2026-69247 is exploitable only against a service that adaptively auto-decrypts attacker-supplied PKCS#7 / S-MIME EnvelopedData at high volume and reflects the outcome -- per the advisory, 'an S/MIME gateway or mail filter'. The vulnerable functions are cryptography's pkcs7_decrypt_der / pkcs7_decrypt_pem / pkcs7_decrypt_smime. build-godynamic bundles cryptography ONLY as a vendored, transitive dependency of two command-line tools: the aws-cli (v2.35.11, its make-exe bundle) and the azure-cli (v2.87.0, /az/venv). Both use cryptography for outbound client operations -- TLS, request signing, token/JWT and key handling -- against AWS/Azure APIs; neither exposes, imports, or invokes the PKCS#7 EnvelopedData decryption path, and the image runs no S/MIME decryption service or adaptive network oracle. The vulnerable code is therefore never reached in the image's execute path. No safe in-place fix lever exists: cryptography is pinned by the vendored CLIs, and force-upgrading it inside their bundled venvs risks breaking the CLIs at runtime (unverifiable in buildenv CI -- see docs/upstream-cve-backlog.md, build-js). Remediation is upstream-gated: drop this statement and bump AWSCLI_VER / AZCLI_VER once both CLIs vendor cryptography >= 50.0.0. NOTE FOR REVIEW: this waiver is scoped strictly to CVE-2026-69247 (the S/MIME EnvelopedData oracle) -- it does NOT waive general cryptography CVEs that az/aws exercise via ordinary crypto operations (those remain execute-path and are handled as exempt elsewhere, e.g. build-js)."
+      "impact_statement": "CVE-2026-69247 is exploitable only against a service that adaptively auto-decrypts attacker-supplied PKCS#7 / S-MIME EnvelopedData at high volume and reflects the outcome -- per the advisory, 'an S/MIME gateway or mail filter'. The vulnerable functions are cryptography's pkcs7_decrypt_der / pkcs7_decrypt_pem / pkcs7_decrypt_smime. build-godynamic bundles cryptography from exactly ONE source: the azure-cli (v2.87.0) virtualenv at /az/venv. (Earlier revisions of this document also named the aws-cli make-exe bundle as a second source. That was wrong: aws-cli 2.35.11 does not depend on cryptography at all -- it uses the native AWS Common Runtime, awscrt 0.32.2. Verified against every requirements file at that tag, which are fully pinned pip-compile --generate-hashes locks, so absence from the lock means absence from the bundle.) Both use cryptography for outbound client operations -- TLS, request signing, token/JWT and key handling -- against AWS/Azure APIs; neither exposes, imports, or invokes the PKCS#7 EnvelopedData decryption path, and the image runs no S/MIME decryption service or adaptive network oracle. The vulnerable code is therefore never reached in the image's execute path. No safe in-place fix lever exists: cryptography is pinned by the vendored CLIs, and force-upgrading it inside their bundled venvs risks breaking the CLIs at runtime (unverifiable in buildenv CI -- see docs/upstream-cve-backlog.md, build-js). REMEDIATION IS UPSTREAM-BLOCKED, and the blocker is precise: azure-cli-core hard-pins msal==1.36.0 (sys_platform != 'win32'), and msal 1.36.0 requires cryptography<49. msal 1.37.0 relaxes that to cryptography<51 -- which would admit 50.0.0 and clear ALL of 69247/69248/69249 at once -- but it is unreachable while azure-cli-core pins 1.36.0. Confirmed by resolution: azure-cli 2.87.0, 2.88.0 and 2.89.0 all resolve msal 1.36.0 -> cryptography 48.0.1, and an explicit `pip install azure-cli==2.87.0 \"cryptography>=50.0.0\"` fails with ResolutionImpossible. So bumping AZCLI_VER does NOT help. DROP TRIGGER: an azure-cli-core release that admits msal >= 1.37.0; then bump AZCLI_VER and delete all three cryptography statements together. Do not expect this soon -- msal 1.37.0 shipped 2026-05-29 and azure-cli-core 2.89.0 (released 2026-08-07) still pins 1.36.0. NOTE FOR REVIEW: this waiver is scoped strictly to CVE-2026-69247 (the S/MIME EnvelopedData oracle) -- it does NOT waive general cryptography CVEs that az/aws exercise via ordinary crypto operations (those remain execute-path and are handled as exempt elsewhere, e.g. build-js)."
     },
     {
       "vulnerability": {
@@ -48,13 +52,34 @@
         {
           "@id": "pkg:docker/luthersystems/build-godynamic",
           "subcomponents": [
-            { "@id": "pkg:pypi/cryptography" }
+            {
+              "@id": "pkg:pypi/cryptography"
+            }
           ]
         }
       ],
       "status": "not_affected",
       "justification": "vulnerable_code_not_in_execute_path",
-      "impact_statement": "CVE-2026-69249 is an availability-only (denial-of-service) algorithmic-complexity flaw in cryptography's X.509 PATH-VALIDATION API -- cryptography.x509.verification (the PolicyBuilder and Server/Client Verifier chain builders). It is triggered only when an application feeds attacker-controlled certificate chains (duplicated issuers, deep paths) into that verifier at volume; there is no confidentiality or integrity impact (CVSS VC:N/VI:N/VA:H). build-godynamic bundles cryptography ONLY as a vendored, transitive dependency of two command-line tools: the aws-cli (v2.35.11, its make-exe bundle) and the azure-cli (v2.87.0, /az/venv). Both use cryptography for OUTBOUND CLIENT operations against AWS/Azure APIs -- request signing, token/JWT and key handling -- while TLS peer-certificate verification goes through Python's ssl module (OpenSSL), NOT cryptography.x509.verification. Neither CLI constructs a cryptography path-validation Verifier over caller-supplied chains, and the image runs no service that adaptively validates attacker-supplied certificate chains, so the vulnerable path validator is never reached in the image's execute path. This waiver is scoped strictly to CVE-2026-69249 (the x509.verification path-builder DoS) -- a distinct, opt-in chain-validation feature the CLIs do not invoke -- and is consistent with, not a widening of, the CVE-2026-69247 note above: it does NOT waive general cryptography CVEs that az/aws exercise via ordinary crypto operations. No safe in-place fix lever exists: cryptography is pinned by the vendored CLIs and force-upgrading it inside their bundled venvs risks breaking the CLIs at runtime (unverifiable in buildenv CI -- see docs/upstream-cve-backlog.md, build-js). Remediation is upstream-gated: drop this statement and bump AWSCLI_VER / AZCLI_VER once both CLIs vendor cryptography >= 49.0.0 (>= 50.0.0 also clears CVE-2026-69247, letting both crypto waivers drop together). NOTE FOR REVIEW: please validate the reachability claim (e.g. grep the vendored aws/az sources for cryptography.x509.verification usage) before merging -- same review posture as CVE-2026-69247 (PR #112)."
+      "impact_statement": "CVE-2026-69249 is an availability-only (denial-of-service) algorithmic-complexity flaw in cryptography's X.509 PATH-VALIDATION API -- cryptography.x509.verification (the PolicyBuilder and Server/Client Verifier chain builders). It is triggered only when an application feeds attacker-controlled certificate chains (duplicated issuers, deep paths) into that verifier at volume; there is no confidentiality or integrity impact (CVSS VC:N/VI:N/VA:H). build-godynamic bundles cryptography from exactly ONE source: the azure-cli (v2.87.0) virtualenv at /az/venv. (Earlier revisions of this document also named the aws-cli make-exe bundle as a second source. That was wrong: aws-cli 2.35.11 does not depend on cryptography at all -- it uses the native AWS Common Runtime, awscrt 0.32.2. Verified against every requirements file at that tag, which are fully pinned pip-compile --generate-hashes locks, so absence from the lock means absence from the bundle.) Both use cryptography for OUTBOUND CLIENT operations against AWS/Azure APIs -- request signing, token/JWT and key handling -- while TLS peer-certificate verification goes through Python's ssl module (OpenSSL), NOT cryptography.x509.verification. Neither CLI constructs a cryptography path-validation Verifier over caller-supplied chains, and the image runs no service that adaptively validates attacker-supplied certificate chains, so the vulnerable path validator is never reached in the image's execute path. This waiver is scoped strictly to CVE-2026-69249 (the x509.verification path-builder DoS) -- a distinct, opt-in chain-validation feature the CLIs do not invoke -- and is consistent with, not a widening of, the CVE-2026-69247 note above: it does NOT waive general cryptography CVEs that az/aws exercise via ordinary crypto operations. No safe in-place fix lever exists: cryptography is pinned by the vendored CLIs and force-upgrading it inside their bundled venvs risks breaking the CLIs at runtime (unverifiable in buildenv CI -- see docs/upstream-cve-backlog.md, build-js). REMEDIATION IS UPSTREAM-BLOCKED, and the blocker is precise: azure-cli-core hard-pins msal==1.36.0 (sys_platform != 'win32'), and msal 1.36.0 requires cryptography<49. msal 1.37.0 relaxes that to cryptography<51 -- which would admit 50.0.0 and clear ALL of 69247/69248/69249 at once -- but it is unreachable while azure-cli-core pins 1.36.0. Confirmed by resolution: azure-cli 2.87.0, 2.88.0 and 2.89.0 all resolve msal 1.36.0 -> cryptography 48.0.1, and an explicit `pip install azure-cli==2.87.0 \"cryptography>=50.0.0\"` fails with ResolutionImpossible. So bumping AZCLI_VER does NOT help. DROP TRIGGER: an azure-cli-core release that admits msal >= 1.37.0; then bump AZCLI_VER and delete all three cryptography statements together. Do not expect this soon -- msal 1.37.0 shipped 2026-05-29 and azure-cli-core 2.89.0 (released 2026-08-07) still pins 1.36.0. NOTE FOR REVIEW: please validate the reachability claim (e.g. grep the vendored aws/az sources for cryptography.x509.verification usage) before merging -- same review posture as CVE-2026-69247 (PR #112)."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-69248",
+        "description": "pyca/cryptography X.509 verifier accepts wildcard DNS names that escape a permitted-subtree name constraint: if an intermediate constrained CA permits the DNS name foo.example.com and the leaf presents a wildcard SAN of *.example.com, cryptography's verifier accepts it, allowing escape from permittedSubtrees. Integrity impact -- CVSS 4.0 vector .../VC:L/VI:H/VA:N. Affects <49.0.0; fixed in cryptography 49.0.0."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-godynamic",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/cryptography"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "CVE-2026-69248 is a name-constraint bypass in the SAME cryptography X.509 path-validation API as CVE-2026-69249 -- cryptography.x509.verification (PolicyBuilder / Server- and ClientVerifier). Unlike 69249 it is an INTEGRITY issue rather than availability-only (CVSS VC:L/VI:H/VA:N): a leaf with a wildcard SAN can escape an intermediate CA's permittedSubtrees. The reachability analysis is identical to 69249 and holds for the same reason. build-godynamic bundles cryptography from exactly ONE source: the azure-cli (v2.87.0) virtualenv at /az/venv. (Earlier revisions of this document also named the aws-cli make-exe bundle as a second source. That was wrong: aws-cli 2.35.11 does not depend on cryptography at all -- it uses the native AWS Common Runtime, awscrt 0.32.2. Verified against every requirements file at that tag, which are fully pinned pip-compile --generate-hashes locks, so absence from the lock means absence from the bundle.) azure-cli uses cryptography for OUTBOUND CLIENT operations against Azure APIs -- request signing, token/JWT and key handling -- while TLS peer-certificate verification goes through Python's ssl module (OpenSSL), NOT cryptography.x509.verification. It never constructs a path-validation Verifier over caller-supplied chains, and the image runs no service that validates attacker-supplied certificate chains, so the vulnerable verifier is never reached in the image's execute path. RECORDED DELIBERATELY EVEN THOUGH IT DOES NOT CURRENTLY GATE: scripts/scout-cve-gate.sh fails only on fixable CRITICAL/HIGH, and this rates below that threshold, so it is invisible to CI today. It was found by auditing the full advisory set for cryptography 48.0.1 rather than by the gate, and is recorded here so the position is documented and the gate does not turn red without explanation if Scout ever re-rates it. REMEDIATION IS UPSTREAM-BLOCKED, and the blocker is precise: azure-cli-core hard-pins msal==1.36.0 (sys_platform != 'win32'), and msal 1.36.0 requires cryptography<49. msal 1.37.0 relaxes that to cryptography<51 -- which would admit 50.0.0 and clear ALL of 69247/69248/69249 at once -- but it is unreachable while azure-cli-core pins 1.36.0. Confirmed by resolution: azure-cli 2.87.0, 2.88.0 and 2.89.0 all resolve msal 1.36.0 -> cryptography 48.0.1, and an explicit `pip install azure-cli==2.87.0 \"cryptography>=50.0.0\"` fails with ResolutionImpossible. So bumping AZCLI_VER does NOT help. DROP TRIGGER: an azure-cli-core release that admits msal >= 1.37.0; then bump AZCLI_VER and delete all three cryptography statements together. Do not expect this soon -- msal 1.37.0 shipped 2026-05-29 and azure-cli-core 2.89.0 (released 2026-08-07) still pins 1.36.0."
     }
   ]
 }
