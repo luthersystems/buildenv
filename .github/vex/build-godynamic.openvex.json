@@ -2,8 +2,8 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://luthersystems.com/vex/buildenv/build-godynamic",
   "author": "Luther Systems (buildenv CI)",
-  "timestamp": "2026-08-04T00:00:00Z",
-  "version": 2,
+  "timestamp": "2026-08-06T00:00:00Z",
+  "version": 3,
   "statements": [
     {
       "vulnerability": {
@@ -38,6 +38,23 @@
       "status": "not_affected",
       "justification": "vulnerable_code_not_in_execute_path",
       "impact_statement": "CVE-2026-69247 is exploitable only against a service that adaptively auto-decrypts attacker-supplied PKCS#7 / S-MIME EnvelopedData at high volume and reflects the outcome -- per the advisory, 'an S/MIME gateway or mail filter'. The vulnerable functions are cryptography's pkcs7_decrypt_der / pkcs7_decrypt_pem / pkcs7_decrypt_smime. build-godynamic bundles cryptography ONLY as a vendored, transitive dependency of two command-line tools: the aws-cli (v2.35.11, its make-exe bundle) and the azure-cli (v2.87.0, /az/venv). Both use cryptography for outbound client operations -- TLS, request signing, token/JWT and key handling -- against AWS/Azure APIs; neither exposes, imports, or invokes the PKCS#7 EnvelopedData decryption path, and the image runs no S/MIME decryption service or adaptive network oracle. The vulnerable code is therefore never reached in the image's execute path. No safe in-place fix lever exists: cryptography is pinned by the vendored CLIs, and force-upgrading it inside their bundled venvs risks breaking the CLIs at runtime (unverifiable in buildenv CI -- see docs/upstream-cve-backlog.md, build-js). Remediation is upstream-gated: drop this statement and bump AWSCLI_VER / AZCLI_VER once both CLIs vendor cryptography >= 50.0.0. NOTE FOR REVIEW: this waiver is scoped strictly to CVE-2026-69247 (the S/MIME EnvelopedData oracle) -- it does NOT waive general cryptography CVEs that az/aws exercise via ordinary crypto operations (those remain execute-path and are handled as exempt elsewhere, e.g. build-js)."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-69249",
+        "description": "pyca/cryptography X.509 path validation (certificate-chain verification) algorithmic-complexity denial of service: crafted certificate chains with duplicated issuers and deep paths cause excessive resource consumption in the cryptography.x509.verification path validator (PolicyBuilder / ServerVerifier / ClientVerifier). Availability-only -- CVSS 4.0 base 8.7, vector .../VC:N/VI:N/VA:H (no confidentiality or integrity impact); per the advisory 'the correctness of validation is not affected ... only its availability'. Affects <49.0.0; fixed in cryptography 49.0.0."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-godynamic",
+          "subcomponents": [
+            { "@id": "pkg:pypi/cryptography" }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "CVE-2026-69249 is an availability-only (denial-of-service) algorithmic-complexity flaw in cryptography's X.509 PATH-VALIDATION API -- cryptography.x509.verification (the PolicyBuilder and Server/Client Verifier chain builders). It is triggered only when an application feeds attacker-controlled certificate chains (duplicated issuers, deep paths) into that verifier at volume; there is no confidentiality or integrity impact (CVSS VC:N/VI:N/VA:H). build-godynamic bundles cryptography ONLY as a vendored, transitive dependency of two command-line tools: the aws-cli (v2.35.11, its make-exe bundle) and the azure-cli (v2.87.0, /az/venv). Both use cryptography for OUTBOUND CLIENT operations against AWS/Azure APIs -- request signing, token/JWT and key handling -- while TLS peer-certificate verification goes through Python's ssl module (OpenSSL), NOT cryptography.x509.verification. Neither CLI constructs a cryptography path-validation Verifier over caller-supplied chains, and the image runs no service that adaptively validates attacker-supplied certificate chains, so the vulnerable path validator is never reached in the image's execute path. This waiver is scoped strictly to CVE-2026-69249 (the x509.verification path-builder DoS) -- a distinct, opt-in chain-validation feature the CLIs do not invoke -- and is consistent with, not a widening of, the CVE-2026-69247 note above: it does NOT waive general cryptography CVEs that az/aws exercise via ordinary crypto operations. No safe in-place fix lever exists: cryptography is pinned by the vendored CLIs and force-upgrading it inside their bundled venvs risks breaking the CLIs at runtime (unverifiable in buildenv CI -- see docs/upstream-cve-backlog.md, build-js). Remediation is upstream-gated: drop this statement and bump AWSCLI_VER / AZCLI_VER once both CLIs vendor cryptography >= 49.0.0 (>= 50.0.0 also clears CVE-2026-69247, letting both crypto waivers drop together). NOTE FOR REVIEW: please validate the reachability claim (e.g. grep the vendored aws/az sources for cryptography.x509.verification usage) before merging -- same review posture as CVE-2026-69247 (PR #112)."
     }
   ]
 }
