@@ -45,7 +45,10 @@ jobs:
     # only when the weekly drift watch actually found a grade regression
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 60 # rebuilding/scanning from source is heavy
+    # 60 was not enough headroom once the turn budget below was raised: at the
+    # measured ~28s/turn, 150 turns needs ~70min. Raising both together so the
+    # turn cap is actually reachable rather than trading one cap for the other.
+    timeout-minutes: 120 # rebuilding/scanning from source is heavy
     env:
       DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -95,7 +98,16 @@ jobs:
             escalate on the issue.
           claude_args: |
             --allowedTools Bash,Edit,Write,Read,Grep,Glob,MultiEdit
-            --max-turns 50
+            # Raised 50 -> 150 after five consecutive daily failures (2026-08-14
+            # through 08-18) on issue #115, every one of them
+            # "error_max_turns ... Reached maximum number of turns (50)" at
+            # exactly 51 turns. That drift hit FIVE images at once
+            # (build-api, build-go, build-go-alpine, build-godynamic,
+            # build-java); diagnosing each with docker scout does not fit in 50
+            # turns, so the remediation layer died daily while an sla:critical
+            # clock ran and nothing shipped. Runs cost ~$5 and 24min each to
+            # produce nothing.
+            --max-turns 150
             --model claude-opus-4-8
       # Capture the agent's full stream-json conversation log for troubleshooting.
       # claude-code-action hides the transcript from the job log ("full output
@@ -114,6 +126,18 @@ jobs:
           path: ${{ runner.temp }}/claude-execution-output.json
           retention-days: 14
           if-no-files-found: warn
+      # Slack is ephemeral and nobody re-reads it; the scout-drift issue is the
+      # durable SLA record. Until this step existed a dead autofix left NO trace
+      # there, which is exactly how 2026-08-14..18 went unnoticed for five days
+      # (five error_max_turns failures against an sla:critical issue, #115).
+      # Logic lives in scripts/ per CLAUDE.md rule 5; this stays a thin shim.
+      - name: Flag the failure on the scout-drift issue
+        if: failure()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const run = require('./scripts/scout-autofix-failure-comment.cjs');
+            await run({ github, context, core });
       # Silence must never look green — the same principle as scout-drift.yml's
       # "watch errored" alert, which this mirrors. Without it the REMEDIATION
       # layer can be dead for days with no signal anywhere: on 2026-08-01..03
