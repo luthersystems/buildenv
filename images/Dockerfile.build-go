@@ -35,6 +35,25 @@ RUN mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
+ARG DOCKER_CLI_VERSION
+# Built from source, not the download.docker.com static tarball: Docker builds
+# its published CLI with whatever Go release it happened to use (29.6.1 is
+# stamped go1.26.4, and even the current 29.7.2 only go1.26.5), so the six
+# stdlib CVEs fixed in Go 1.26.6 ride along in the prebuilt binary and no
+# DOCKER_CLI_VERSION bump can clear them -- CVE-2026-33818, -39821, -46600,
+# -56853, -56859 and -56862 (#115). Building here links the GOLANG_VERSION
+# stdlib instead, and picks up x/net 0.57.0 + x/text 0.41.0, so it needs no
+# extra golang.org/x pins. CGO_ENABLED=0 with osusergo,netgo keeps the binary
+# static (as the tarball was) and avoids a gcc/musl-dev dependency in the
+# Alpine variants; the ldflags preserve `docker --version`.
+RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
+    go mod init _dockercli && \
+    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" && \
+    CGO_ENABLED=0 go build -tags "grpcnotrace,osusergo,netgo" \
+      -ldflags "-X github.com/docker/cli/cli/version.Version=${DOCKER_CLI_VERSION} -X github.com/docker/cli/cli/version.GitCommit=unknown -X github.com/docker/cli/cli/version.BuildTime=unknown -X github.com/docker/cli/cli/version.PlatformName=Docker" \
+      -o /go/bin/docker "github.com/docker/cli/cmd/docker" && \
+    cd / && rm -rf /tmp/dockercli
+
 FROM golang:$GOLANG_VERSION
 
 RUN apt-get update && \
@@ -43,15 +62,10 @@ RUN apt-get update && \
       libltdl-dev curl make rsync zip jq tini ca-certificates tzdata && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Docker CLI (static binary).
-# This replaces the old docker.io package which had version 1.41
-ARG DOCKER_CLI_VERSION
-RUN ARCH=$(dpkg --print-architecture | sed 's/arm64/aarch64/; s/amd64/x86_64/') && \
-    curl -fsSL "https://download.docker.com/linux/static/stable/${ARCH}/docker-${DOCKER_CLI_VERSION}.tgz" | tar -xz -C /tmp && \
-    mv /tmp/docker/docker /usr/local/bin/docker && \
-    chmod +x /usr/local/bin/docker && \
-    rm -rf /tmp/docker && \
-    docker --version
+# Docker CLI, built from source in the go-downloader stage above --
+# the published static tarball carries an unpatched Go stdlib (#115).
+COPY --from=go-downloader /go/bin/docker /usr/local/bin/docker
+RUN docker --version
 
 COPY --from=go-downloader /go/bin/go-bindata /go/bin/go-bindata
 COPY --from=go-downloader /go/bin/gotestsum /go/bin/gotestsum
