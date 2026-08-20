@@ -32,6 +32,10 @@ FROM luthersystems/martin:${MARTIN_VERSION} AS martin
 FROM luthersystems/pdfserv:${PDFSERV_VERSION} AS pdfserv
 
 FROM ubuntu:22.04
+# go-retry wraps the module-fetching commands below so a transient
+# proxy.golang.org stream reset costs a few seconds instead of the whole
+# publish (rationale + the three failed v0.1.16 attempts: images/go-retry.sh).
+COPY go-retry.sh /usr/local/bin/go-retry
 # jammy: matches the official wkhtmltox jammy .deb (amd64 + arm64 both exist).
 ARG TARGETARCH
 ARG GOLANG_VERSION=1.26.4
@@ -61,8 +65,8 @@ ENV PATH=/usr/local/go/bin:/go/bin:$PATH GOPATH=/go
 
 RUN mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
-    go build -o /usr/local/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
+    go-retry go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
+    go-retry go build -o /usr/local/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
 # wkhtmltopdf: official patched-Qt glibc .deb — the only native dependency,
