@@ -2,13 +2,18 @@ ARG GOLANG_VERSION=1.26.6
 ARG ALPINE_VERSION=3.24
 
 FROM golang:${GOLANG_VERSION}-alpine${ALPINE_VERSION} AS go-alpine-downloader
-# go-retry wraps the module-fetching commands below so a transient
-# proxy.golang.org stream reset costs a few seconds instead of the whole
-# publish (rationale + the three failed v0.1.16 attempts: images/go-retry.sh).
-COPY go-retry.sh /usr/local/bin/go-retry
+# A transient stream reset from proxy.golang.org must cost a re-request, not
+# the whole publish (three v0.1.16 attempts died that way -- run 32405801237).
+# The | separator falls back to the next entry on ANY error -- including a
+# reset mid-download, verified empirically -- and Go does not dedupe the list,
+# so listing the same proxy three times is a native two-shot retry against
+# itself. No `direct` tail: VCS fallback would hit GitHub rate limits and can
+# only serve a strict subset of what the proxy serves. Builder stage only --
+# the final image's GOPROXY is downstream users' business, not ours.
+ENV GOPROXY="https://proxy.golang.org|https://proxy.golang.org|https://proxy.golang.org"
 
 ARG GO_BINDATA_VERSION
-RUN go-retry go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VERSION}"
+RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VERSION}"
 ARG GO_TESTSUM_VERSION
 # Built from source (not `go install`) so we can pin patched golang.org/x/sys
 # (CVE-2026-39824) and golang.org/x/mod (CVE-2026-56864 / CVE-2026-56865, pulled
@@ -17,8 +22,8 @@ ARG GO_TESTSUM_VERSION
 # and derives its version from the main module.
 RUN mkdir /tmp/gotestsum && cd /tmp/gotestsum && \
     go mod init _gotestsum && \
-    go-retry go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 && \
-    go-retry go build -o /go/bin/gotestsum "gotest.tools/gotestsum" && \
+    go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 && \
+    go build -o /go/bin/gotestsum "gotest.tools/gotestsum" && \
     cd / && rm -rf /tmp/gotestsum
 ARG GOLANGCI_LINT_VERSION
 # Built from source (not `go install`) so we can pin patched golang.org/x/sys
@@ -28,8 +33,8 @@ ARG GOLANGCI_LINT_VERSION
 # main.date is empty).
 RUN mkdir /tmp/golangci && cd /tmp/golangci && \
     go mod init _golangci && \
-    go-retry go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 && \
-    go-retry go build -ldflags "-X main.version=${GOLANGCI_LINT_VERSION} -X main.commit=unknown -X main.date=unknown" \
+    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 && \
+    go build -ldflags "-X main.version=${GOLANGCI_LINT_VERSION} -X main.commit=unknown -X main.date=unknown" \
       -o /go/bin/golangci-lint "github.com/golangci/golangci-lint/v2/cmd/golangci-lint" && \
     cd / && rm -rf /tmp/golangci
 ARG GIT_LFS_VERSION
@@ -38,8 +43,8 @@ ARG GIT_LFS_VERSION
 RUN apk add --no-cache gcc musl-dev && \
     mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go-retry go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.53.0 golang.org/x/net@v0.56.0 golang.org/x/sys@v0.47.0 && \
-    go-retry go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.53.0 golang.org/x/net@v0.56.0 golang.org/x/sys@v0.47.0 && \
+    go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
 FROM golang:${GOLANG_VERSION}-alpine${ALPINE_VERSION}

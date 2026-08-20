@@ -1,10 +1,15 @@
 ARG NODE_VERSION=20.19.3
 ARG GOLANG_VERSION=1.26.6
 FROM golang:$GOLANG_VERSION AS docker-cli-builder
-# go-retry wraps the module-fetching commands below so a transient
-# proxy.golang.org stream reset costs a few seconds instead of the whole
-# publish (rationale + the three failed v0.1.16 attempts: images/go-retry.sh).
-COPY go-retry.sh /usr/local/bin/go-retry
+# A transient stream reset from proxy.golang.org must cost a re-request, not
+# the whole publish (three v0.1.16 attempts died that way -- run 32405801237).
+# The | separator falls back to the next entry on ANY error -- including a
+# reset mid-download, verified empirically -- and Go does not dedupe the list,
+# so listing the same proxy three times is a native two-shot retry against
+# itself. No `direct` tail: VCS fallback would hit GitHub rate limits and can
+# only serve a strict subset of what the proxy serves. Builder stage only --
+# the final image's GOPROXY is downstream users' business, not ours.
+ENV GOPROXY="https://proxy.golang.org|https://proxy.golang.org|https://proxy.golang.org"
 ARG DOCKER_CLI_VERSION
 # Built from source, not the download.docker.com static tarball: Docker builds
 # its published CLI with whatever Go release it happened to use (29.6.1 is
@@ -18,8 +23,8 @@ ARG DOCKER_CLI_VERSION
 # Alpine variants; the ldflags preserve `docker --version`.
 RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
     go mod init _dockercli && \
-    go-retry go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" && \
-    CGO_ENABLED=0 go-retry go build -tags "grpcnotrace,osusergo,netgo" \
+    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" && \
+    CGO_ENABLED=0 go build -tags "grpcnotrace,osusergo,netgo" \
       -ldflags "-X github.com/docker/cli/cli/version.Version=${DOCKER_CLI_VERSION} -X github.com/docker/cli/cli/version.GitCommit=unknown -X github.com/docker/cli/cli/version.BuildTime=unknown -X github.com/docker/cli/cli/version.PlatformName=Docker" \
       -o /go/bin/docker "github.com/docker/cli/cmd/docker" && \
     cd / && rm -rf /tmp/dockercli

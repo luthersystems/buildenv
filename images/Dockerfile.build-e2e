@@ -32,10 +32,6 @@ FROM luthersystems/martin:${MARTIN_VERSION} AS martin
 FROM luthersystems/pdfserv:${PDFSERV_VERSION} AS pdfserv
 
 FROM ubuntu:22.04
-# go-retry wraps the module-fetching commands below so a transient
-# proxy.golang.org stream reset costs a few seconds instead of the whole
-# publish (rationale + the three failed v0.1.16 attempts: images/go-retry.sh).
-COPY go-retry.sh /usr/local/bin/go-retry
 # jammy: matches the official wkhtmltox jammy .deb (amd64 + arm64 both exist).
 ARG TARGETARCH
 ARG GOLANG_VERSION=1.26.4
@@ -63,10 +59,18 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
 RUN curl -fsSL "https://go.dev/dl/go${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz" | tar -C /usr/local -xz
 ENV PATH=/usr/local/go/bin:/go/bin:$PATH GOPATH=/go
 
-RUN mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
+# export (not ENV): build-e2e's go commands run in the FINAL stage, and a
+# stage-level ENV GOPROXY would ship to downstream consumers of the published
+# image, silently dropping their default `direct` fallback -- a runtime-contract
+# change. Scoping it to this RUN keeps the retry behaviour build-only. The
+# triple listing is a native two-shot retry: `|` falls back on ANY error
+# (including a mid-download stream reset -- the three failed v0.1.16 publish
+# attempts, run 32405801237) and Go does not dedupe the list.
+RUN export GOPROXY="https://proxy.golang.org|https://proxy.golang.org|https://proxy.golang.org" && \
+    mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go-retry go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
-    go-retry go build -o /usr/local/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
+    go build -o /usr/local/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
 # wkhtmltopdf: official patched-Qt glibc .deb — the only native dependency,
