@@ -50,6 +50,14 @@ jobs:
           DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
           SLACK_ALERT_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
         run: bash scripts/scout-setup.sh || echo "::warning::scout-setup.sh failed; continuing to the scan"
+      # The from-source Docker CLI build (#115) is a workaround for Docker
+      # publishing its CLI on an older Go than our GOLANG_VERSION. Its risk is
+      # becoming permanent by inertia, so the daily watch checks the exit
+      # condition and emits a ::notice:: once a published CLI catches up.
+      # Report-only: never fails the watch. Logic: scripts/
+      # docker-cli-source-build-check.sh (also `make docker-cli-check`).
+      - name: Check whether the from-source Docker CLI build can be retired
+        run: bash scripts/docker-cli-source-build-check.sh || echo "::warning::docker-cli-source-build-check.sh failed; continuing"
       - name: Evaluate Scout policy + worst fixable severity on each required :latest image
         id: scan
         env:

@@ -2,8 +2,8 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://luthersystems.com/vex/buildenv/build-godynamic",
   "author": "Luther Systems (buildenv CI)",
-  "timestamp": "2026-08-08T00:00:00Z",
-  "version": 4,
+  "timestamp": "2026-08-18T00:00:00Z",
+  "version": 5,
   "statements": [
     {
       "vulnerability": {
@@ -80,6 +80,63 @@
       "status": "not_affected",
       "justification": "vulnerable_code_not_in_execute_path",
       "impact_statement": "CVE-2026-69248 is a name-constraint bypass in the SAME cryptography X.509 path-validation API as CVE-2026-69249 -- cryptography.x509.verification (PolicyBuilder / Server- and ClientVerifier). Unlike 69249 it is an INTEGRITY issue rather than availability-only (CVSS VC:L/VI:H/VA:N): a leaf with a wildcard SAN can escape an intermediate CA's permittedSubtrees. The reachability analysis is identical to 69249 and holds for the same reason. build-godynamic bundles cryptography from exactly ONE source: the azure-cli (v2.87.0) virtualenv at /az/venv. (Earlier revisions of this document also named the aws-cli make-exe bundle as a second source. That was wrong: aws-cli 2.35.11 does not depend on cryptography at all -- it uses the native AWS Common Runtime, awscrt 0.32.2. Verified against every requirements file at that tag, which are fully pinned pip-compile --generate-hashes locks, so absence from the lock means absence from the bundle.) azure-cli uses cryptography for OUTBOUND CLIENT operations against Azure APIs -- request signing, token/JWT and key handling -- while TLS peer-certificate verification goes through Python's ssl module (OpenSSL), NOT cryptography.x509.verification. It never constructs a path-validation Verifier over caller-supplied chains, and the image runs no service that validates attacker-supplied certificate chains, so the vulnerable verifier is never reached in the image's execute path. RECORDED DELIBERATELY EVEN THOUGH IT DOES NOT CURRENTLY GATE: scripts/scout-cve-gate.sh fails only on fixable CRITICAL/HIGH, and this rates below that threshold, so it is invisible to CI today. It was found by auditing the full advisory set for cryptography 48.0.1 rather than by the gate, and is recorded here so the position is documented and the gate does not turn red without explanation if Scout ever re-rates it. REMEDIATION IS UPSTREAM-BLOCKED, and the blocker is precise: azure-cli-core hard-pins msal==1.36.0 (sys_platform != 'win32'), and msal 1.36.0 requires cryptography<49. msal 1.37.0 relaxes that to cryptography<51 -- which would admit 50.0.0 and clear ALL of 69247/69248/69249 at once -- but it is unreachable while azure-cli-core pins 1.36.0. Confirmed by resolution: azure-cli 2.87.0, 2.88.0 and 2.89.0 all resolve msal 1.36.0 -> cryptography 48.0.1, and an explicit `pip install azure-cli==2.87.0 \"cryptography>=50.0.0\"` fails with ResolutionImpossible. So bumping AZCLI_VER does NOT help. DROP TRIGGER: an azure-cli-core release that admits msal >= 1.37.0; then bump AZCLI_VER and delete all three cryptography statements together. Do not expect this soon -- msal 1.37.0 shipped 2026-05-29 and azure-cli-core 2.89.0 (released 2026-08-07) still pins 1.36.0."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2025-47273",
+        "description": "setuptools path traversal in PackageIndex.download (setuptools/package_index.py), the deprecated easy_install download path, leading to arbitrary file write. Affects <78.1.1; fixed in setuptools 78.1.1."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-godynamic",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/setuptools"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The vulnerable file is not in the image. CVE-2025-47273 lives in setuptools/package_index.py (PackageIndex.download). pip does NOT vendor that module: pip/_vendor/ contains pkg_resources -- a separate top-level package that ships in the setuptools distribution -- but there is no pip/_vendor/setuptools/ directory at all. Verified directly by creating a clean venv and listing pip/_vendor/: the entries are cachecontrol, certifi, chardet, colorama, distlib, distro, idna, msgpack, packaging, pkg_resources, platformdirs, pygments, pyparsing, pyproject_hooks, requests, resolvelib, rich, six, tenacity, tomli, truststore, typing_extensions, urllib3, webencodings -- setuptools is absent. The finding is therefore an artifact of pip's vendor.txt metadata being read into its SBOM, not of vulnerable code being present. This is an absence claim, not a reachability argument: there is no code path to reach because the file does not exist in the image. SOURCE: all three findings resolve to a single location in the image -- /az/venv/lib/python3.14/site-packages/pip/_vendor/bom.cdx.json, the SBOM pip ships describing its OWN vendored dependencies. They are not azure-cli dependencies and not top-level site-packages installs. NO UPSTREAM FIX EXISTS: pip pins its vendored set in pip/_vendor/vendor.txt, and every release from 26.0.1 through 26.2.1 (current at time of writing) still pins setuptools==70.3.0 and msgpack==1.1.2. Upgrading pip therefore does not clear these. Neither does upgrading azure-cli's own dependencies: a top-level `msgpack>=1.2.1` installs alongside, leaving pip/_vendor/msgpack untouched (azure-cli 2.87.0 does resolve cleanly against msgpack 1.2.1 -- verified -- but that is not the reported package). The only in-image lever would be deleting pip from /az/venv, which breaks `az extension add` (it shells out to pip) and is a runtime-contract change, not upkeep. DROP TRIGGER: a pip release that refreshes pip/_vendor/vendor.txt to setuptools>=78.1.1 and msgpack>=1.2.1; then rebuild and delete these statements. Tracked in docs/upstream-cve-backlog.md."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-57585",
+        "description": "msgpack out-of-bounds read / crash on Unpacker reuse after a caught error, potentially a denial of service. Affects <1.2.1; fixed in msgpack 1.2.1. Same defect as GHSA-6v7p-g79w-8964."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-godynamic",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/msgpack"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
+      "impact_statement": "Unlike the setuptools statement above, pip/_vendor/msgpack/ IS present in the image, so this is a reachability argument and is scoped narrowly. pip's sole use of vendored msgpack is inside pip/_vendor/cachecontrol, which serializes and deserializes pip's OWN local HTTP cache. The vulnerable path requires feeding crafted MessagePack bytes to an Unpacker that is reused after a caught error; in this image the only bytes reaching that Unpacker are cache entries pip itself wrote to its own cache directory. An adversary able to write that cache already has filesystem write access inside the container, at which point a msgpack DoS is not the marginal risk. The impact is availability-only (a crash of pip), with no confidentiality or integrity component, and pip runs only during image build and explicit `az extension add` invocations -- it is not a network-facing service in this image. buildenv does not run pip against untrusted registries or attacker-supplied caches. SOURCE: all three findings resolve to a single location in the image -- /az/venv/lib/python3.14/site-packages/pip/_vendor/bom.cdx.json, the SBOM pip ships describing its OWN vendored dependencies. They are not azure-cli dependencies and not top-level site-packages installs. NO UPSTREAM FIX EXISTS: pip pins its vendored set in pip/_vendor/vendor.txt, and every release from 26.0.1 through 26.2.1 (current at time of writing) still pins setuptools==70.3.0 and msgpack==1.1.2. Upgrading pip therefore does not clear these. Neither does upgrading azure-cli's own dependencies: a top-level `msgpack>=1.2.1` installs alongside, leaving pip/_vendor/msgpack untouched (azure-cli 2.87.0 does resolve cleanly against msgpack 1.2.1 -- verified -- but that is not the reported package). The only in-image lever would be deleting pip from /az/venv, which breaks `az extension add` (it shells out to pip) and is a runtime-contract change, not upkeep. DROP TRIGGER: a pip release that refreshes pip/_vendor/vendor.txt to setuptools>=78.1.1 and msgpack>=1.2.1; then rebuild and delete these statements. Tracked in docs/upstream-cve-backlog.md."
+    },
+    {
+      "vulnerability": {
+        "name": "GHSA-6v7p-g79w-8964",
+        "description": "GitHub advisory for the same msgpack defect as CVE-2026-57585: out-of-bounds read / crash on Unpacker reuse after a caught error. Affects <=1.2.0; fixed in msgpack 1.2.1. Scout reports this alongside the CVE, so both IDs need a statement."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-godynamic",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/msgpack"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
+      "impact_statement": "Duplicate identifier for CVE-2026-57585 -- Scout emits both IDs for the same underlying msgpack defect, and the gate matches on identifier, so both need a statement. The analysis and drop trigger are identical to the CVE-2026-57585 statement above: pip's vendored msgpack only ever deserializes pip's own local HTTP cache via cachecontrol, so the input is not adversary-controlled without pre-existing container filesystem write access. Remove this statement at the same time as CVE-2026-57585. SOURCE: all three findings resolve to a single location in the image -- /az/venv/lib/python3.14/site-packages/pip/_vendor/bom.cdx.json, the SBOM pip ships describing its OWN vendored dependencies. They are not azure-cli dependencies and not top-level site-packages installs. NO UPSTREAM FIX EXISTS: pip pins its vendored set in pip/_vendor/vendor.txt, and every release from 26.0.1 through 26.2.1 (current at time of writing) still pins setuptools==70.3.0 and msgpack==1.1.2. Upgrading pip therefore does not clear these. Neither does upgrading azure-cli's own dependencies: a top-level `msgpack>=1.2.1` installs alongside, leaving pip/_vendor/msgpack untouched (azure-cli 2.87.0 does resolve cleanly against msgpack 1.2.1 -- verified -- but that is not the reported package). The only in-image lever would be deleting pip from /az/venv, which breaks `az extension add` (it shells out to pip) and is a runtime-contract change, not upkeep. DROP TRIGGER: a pip release that refreshes pip/_vendor/vendor.txt to setuptools>=78.1.1 and msgpack>=1.2.1; then rebuild and delete these statements. Tracked in docs/upstream-cve-backlog.md."
     }
   ]
 }
