@@ -123,13 +123,16 @@ RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
     cd / && rm -rf /tmp/dockercli
 
 ARG DOCKER_COMPOSE_VERSION
-# Built from source so we can pin a patched google.golang.org/grpc
-# (GHSA-hrxh-6v49-42gf — uncaught exception, fixed in 1.82.1); compose v5.2.0
-# otherwise bundles the vulnerable grpc 1.81.1. Drop the pin once compose
-# requires grpc >= 1.82.1 transitively.
+# Built from source so we can pin patched transitive deps compose v5.2.0
+# otherwise bundles vulnerable: google.golang.org/grpc 1.81.1
+# (GHSA-hrxh-6v49-42gf — uncaught exception, fixed in 1.82.1) and
+# github.com/moby/go-archive 0.2.0 (CVE-2026-17106 — tar extraction can write
+# outside the destination via link following, fixed in 0.3.0; pinned to 0.3.3,
+# the version the docker CLI build above already selects). Drop each pin once
+# compose requires the fixed version transitively.
 RUN mkdir /tmp/compose && cd /tmp/compose && \
     go mod init _compose && \
-    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v1.82.1 && \
+    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v1.82.1 github.com/moby/go-archive@v0.3.3 && \
     go build -o /go/bin/docker-compose "github.com/docker/compose/v5/cmd" && \
     cd / && rm -rf /tmp/compose
 
