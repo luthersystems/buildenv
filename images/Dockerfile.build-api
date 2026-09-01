@@ -57,12 +57,14 @@ RUN mkdir /tmp/swagger && cd /tmp/swagger && \
     go build -o /go/bin/swagger "github.com/go-swagger/go-swagger/cmd/swagger" && \
     cd / && rm -rf /tmp/swagger
 ARG GIT_LFS_VERSION
-# git-lfs bundles a vulnerable golang.org/x/net; pin the patched x/net
-# (CVE-2026-46600, fixed in 0.56.0) plus the x/crypto/x/sys it coordinates with.
-# No x/mod here (git-lfs does not pull x/tools), so x/net stays at the 0.56.0 floor.
+# git-lfs bundles a vulnerable golang.org/x/net and x/crypto; pin the patched
+# x/net (CVE-2026-46600, fixed in 0.56.0) and x/crypto (CVE-2026-56854, fixed in
+# 0.55.0), plus the x/sys they coordinate with. No x/mod here (git-lfs does not
+# pull x/tools); x/crypto@0.55.0 requires x/net >= 0.57.0, so x/net is pinned to
+# that floor.
 RUN mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.53.0 golang.org/x/net@v0.56.0 golang.org/x/sys@v0.47.0 && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.55.0 golang.org/x/net@v0.57.0 golang.org/x/sys@v0.47.0 && \
     go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
