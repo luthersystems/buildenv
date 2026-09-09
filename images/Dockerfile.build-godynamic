@@ -114,12 +114,15 @@ ARG DOCKER_CLI_VERSION
 # DOCKER_CLI_VERSION bump can clear them -- CVE-2026-33818, -39821, -46600,
 # -56853, -56859 and -56862 (#115). Building here links the GOLANG_VERSION
 # stdlib instead, and picks up x/net 0.57.0 + x/text 0.41.0, so it needs no
-# extra golang.org/x pins. CGO_ENABLED=0 with osusergo,netgo keeps the binary
+# extra golang.org/x pins. docker/cli transitively pulls
+# google.golang.org/grpc 1.83.1, which is vulnerable to CVE-2026-84445 (xDS
+# array-index DoS, affects >=1.83.0 <1.83.2), so grpc is pinned to the patched
+# 1.83.2 here. CGO_ENABLED=0 with osusergo,netgo keeps the binary
 # static (as the tarball was) and avoids a gcc/musl-dev dependency in the
 # Alpine variants; the ldflags preserve `docker --version`.
 RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
     go mod init _dockercli && \
-    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" && \
+    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v1.83.2 && \
     CGO_ENABLED=0 go build -tags "grpcnotrace,osusergo,netgo" \
       -ldflags "-X github.com/docker/cli/cli/version.Version=${DOCKER_CLI_VERSION} -X github.com/docker/cli/cli/version.GitCommit=unknown -X github.com/docker/cli/cli/version.BuildTime=unknown -X github.com/docker/cli/cli/version.PlatformName=Docker" \
       -o /go/bin/docker "github.com/docker/cli/cmd/docker" && \
@@ -129,7 +132,9 @@ ARG DOCKER_COMPOSE_VERSION
 # Built from source so we can pin patched transitive deps compose v5.2.0
 # otherwise bundles vulnerable: google.golang.org/grpc 1.81.1
 # (GHSA-hrxh-6v49-42gf — uncaught exception, fixed in 1.82.1; plus CVE-2026-84304
-# — uncontrolled resource consumption, affects <=1.83.0, fixed in 1.83.1),
+# — uncontrolled resource consumption, affects <=1.83.0, fixed in 1.83.1; plus
+# CVE-2026-84445 — xDS array-index DoS, affects <1.82.2 and >=1.83.0 <1.83.2,
+# fixed in 1.83.2),
 # github.com/moby/go-archive 0.2.0 (CVE-2026-17106 — tar extraction can write
 # outside the destination via link following, fixed in 0.3.0; pinned to 0.3.3,
 # the version the docker CLI build above already selects), and
@@ -139,7 +144,7 @@ ARG DOCKER_COMPOSE_VERSION
 # once compose requires the fixed version transitively.
 RUN mkdir /tmp/compose && cd /tmp/compose && \
     go mod init _compose && \
-    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v1.83.1 github.com/moby/go-archive@v0.3.3 golang.org/x/crypto@v0.56.0 golang.org/x/net@v0.57.0 && \
+    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v1.83.2 github.com/moby/go-archive@v0.3.3 golang.org/x/crypto@v0.56.0 golang.org/x/net@v0.57.0 && \
     go build -o /go/bin/docker-compose "github.com/docker/compose/v5/cmd" && \
     cd / && rm -rf /tmp/compose
 
