@@ -139,12 +139,13 @@ ARG DOCKER_COMPOSE_VERSION
 # outside the destination via link following, fixed in 0.3.0; pinned to 0.3.3,
 # the version the docker CLI build above already selects), and
 # golang.org/x/crypto 0.53.0 (CVE-2026-56854 / CVE-2026-78662 / CVE-2026-56855,
-# fixed in 0.56.0). x/crypto@0.56.0 requires x/net >= 0.57.0, so x/net is pinned
-# to that floor (up from the 0.56.0 compose otherwise resolves). Drop each pin
-# once compose requires the fixed version transitively.
+# fixed in 0.56.0). grpc@1.83.2 requires x/net >= 0.58.0 (and x/crypto@0.56.0
+# requires x/net >= 0.57.0), so x/net is pinned to that higher floor (0.58.0) to
+# avoid a resolver downgrade conflict. Drop each pin once compose requires the
+# fixed version transitively.
 RUN mkdir /tmp/compose && cd /tmp/compose && \
     go mod init _compose && \
-    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v1.83.2 github.com/moby/go-archive@v0.3.3 golang.org/x/crypto@v0.56.0 golang.org/x/net@v0.57.0 && \
+    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v1.83.2 github.com/moby/go-archive@v0.3.3 golang.org/x/crypto@v0.56.0 golang.org/x/net@v0.58.0 && \
     go build -o /go/bin/docker-compose "github.com/docker/compose/v5/cmd" && \
     cd / && rm -rf /tmp/compose
 
