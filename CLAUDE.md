@@ -37,7 +37,9 @@ created via the GitHub release UI.
 ## Versions are centralized — change them in ONE place
 
 **All tool/base versions live in [`common.config.mk`](common.config.mk)** (Go,
-Alpine, golangci-lint, buf, go-swagger, git-lfs, aws/az CLI, node, …). The
+Alpine, golangci-lint, buf, go-swagger, git-lfs, aws/az CLI, node, …), **and so
+do the transitive Go pins** the from-source tool builds carry to clear CVEs
+(`X_CRYPTO_VERSION`, `X_NET_VERSION`, `GRPC_VERSION`, …). The
 Dockerfiles take them as `ARG`s; the Makefile passes the central value at build.
 Dockerfile `ARG <X>=<default>` lines are fallbacks only — when you bump a
 version, bump `common.config.mk`, and update the matching `ARG` default if it

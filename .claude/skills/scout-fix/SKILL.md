@@ -117,13 +117,22 @@ gotestsum, go-bindata) from Go modules. A released tool often bundles a
 or `quic-go`). The fix is to build the tool **from source in a throwaway module**
 and `go get` a **patched** version of the transitive dep before building.
 
+**The pinned versions live in `common.config.mk`** (`X_CRYPTO_VERSION`,
+`X_NET_VERSION`, `X_SYS_VERSION`, `X_MOD_VERSION`, `GRPC_VERSION`,
+`GO_ARCHIVE_VERSION`, `QUIC_GO_VERSION`) and reach the Dockerfiles as `ARG`s via
+`images/Makefile`. A bump of an already-pinned dep is therefore a **one-line
+change in `common.config.mk`**; only a *new* dep needs a Dockerfile edit (add the
+variable to `common.config.mk` + the `--build-arg` in `images/Makefile`, declare
+the `ARG` in each builder stage, reference it in the `go get`).
+
 Pattern (mirror the existing blocks in `Dockerfile.build-api` /
 `Dockerfile.build-go-alpine`):
 ```dockerfile
+ARG X_SYS_VERSION
 ARG GOLANGCI_LINT_VERSION
 RUN mkdir /tmp/golangci && cd /tmp/golangci && \
     go mod init _golangci && \
-    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/sys@v0.45.0 && \
+    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/sys@v${X_SYS_VERSION} && \
     go build -ldflags "-X main.version=${GOLANGCI_LINT_VERSION} -X main.commit=unknown -X main.date=unknown" \
       -o /go/bin/golangci-lint "github.com/golangci/golangci-lint/v2/cmd/golangci-lint" && \
     cd / && rm -rf /tmp/golangci
@@ -135,6 +144,8 @@ Rules learned the hard way (#77):
    can pin the transitive. `go install` gives you no control over transitive deps.
 2. **Pick the pin version to avoid a downgrade conflict.** Pin to the *highest*
    patched version any sibling dep already requires, not the bare "fixed-in".
+   The central variables are shared by every image, so the value must satisfy
+   the strictest floor across all of them.
    Example: pin `x/sys@v0.45.0` (not the 0.44.0 "fixed-in") because
    `x/crypto@v0.52.0` and `x/net@v0.55.0` already require 0.45.0 — pinning lower
    fails to build. After editing, the explicit pin is often defensive (the tool

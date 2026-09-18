@@ -9,6 +9,9 @@ FROM golang:$GOLANG_VERSION AS docker-cli-builder
 # only serve a strict subset of what the proxy serves. Builder stage only --
 # the final image's GOPROXY is downstream users' business, not ours.
 ENV GOPROXY="https://proxy.golang.org|https://proxy.golang.org|https://proxy.golang.org"
+# Transitive pins for the from-source docker/cli build below (central values in
+# common.config.mk; see /scout-fix section C).
+ARG GRPC_VERSION
 ARG DOCKER_CLI_VERSION
 # Built from source, not the download.docker.com static tarball: Docker builds
 # its published CLI with whatever Go release it happened to use (29.6.1 is
@@ -25,7 +28,7 @@ ARG DOCKER_CLI_VERSION
 # pinned to the patched 1.83.2. Drop the pin once docker/cli requires it.
 RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
     go mod init _dockercli && \
-    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v1.83.2 && \
+    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v${GRPC_VERSION} && \
     CGO_ENABLED=0 go build -tags "grpcnotrace,osusergo,netgo" \
       -ldflags "-X github.com/docker/cli/cli/version.Version=${DOCKER_CLI_VERSION} -X github.com/docker/cli/cli/version.GitCommit=unknown -X github.com/docker/cli/cli/version.BuildTime=unknown -X github.com/docker/cli/cli/version.PlatformName=Docker" \
       -o /go/bin/docker "github.com/docker/cli/cmd/docker" && \

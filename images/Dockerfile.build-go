@@ -12,6 +12,12 @@ ENV GOPROXY="https://proxy.golang.org|https://proxy.golang.org|https://proxy.gol
 
 ARG GO_BINDATA_VERSION
 RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VERSION}"
+# Transitive pins for the from-source tool builds below (central values in
+# common.config.mk; see /scout-fix section C).
+ARG X_CRYPTO_VERSION
+ARG X_NET_VERSION
+ARG X_SYS_VERSION
+ARG X_MOD_VERSION
 ARG GO_TESTSUM_VERSION
 # Built from source (not `go install`) so we can pin patched golang.org/x/sys
 # (CVE-2026-39824) and golang.org/x/mod (CVE-2026-56864 / CVE-2026-56865, pulled
@@ -20,7 +26,7 @@ ARG GO_TESTSUM_VERSION
 # and derives its version from the main module.
 RUN mkdir /tmp/gotestsum && cd /tmp/gotestsum && \
     go mod init _gotestsum && \
-    go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 && \
+    go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/mod@v${X_MOD_VERSION} golang.org/x/sys@v${X_SYS_VERSION} && \
     go build -o /go/bin/gotestsum "gotest.tools/gotestsum" && \
     cd / && rm -rf /tmp/gotestsum
 ARG GOLANGCI_LINT_VERSION
@@ -31,7 +37,7 @@ ARG GOLANGCI_LINT_VERSION
 # main.date is empty).
 RUN mkdir /tmp/golangci && cd /tmp/golangci && \
     go mod init _golangci && \
-    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 && \
+    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/mod@v${X_MOD_VERSION} golang.org/x/sys@v${X_SYS_VERSION} && \
     go build -ldflags "-X main.version=${GOLANGCI_LINT_VERSION} -X main.commit=unknown -X main.date=unknown" \
       -o /go/bin/golangci-lint "github.com/golangci/golangci-lint/v2/cmd/golangci-lint" && \
     cd / && rm -rf /tmp/golangci
@@ -39,14 +45,15 @@ ARG GIT_LFS_VERSION
 # git-lfs bundles a vulnerable golang.org/x/net and x/crypto; pin the patched
 # x/net (CVE-2026-46600, fixed in 0.56.0) and x/crypto (CVE-2026-56854 /
 # CVE-2026-78662 / CVE-2026-56855, fixed in 0.56.0), plus the x/sys they
-# coordinate with. x/crypto@0.56.0 requires
-# x/net >= 0.57.0, so x/net is pinned to that floor.
+# coordinate with. x/crypto@0.56.0 requires x/net >= 0.57.0, satisfied by
+# the shared X_NET_VERSION floor.
 RUN mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.56.0 golang.org/x/net@v0.57.0 golang.org/x/sys@v0.47.0 && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v${X_CRYPTO_VERSION} golang.org/x/net@v${X_NET_VERSION} golang.org/x/sys@v${X_SYS_VERSION} && \
     go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
+ARG GRPC_VERSION
 ARG DOCKER_CLI_VERSION
 # Built from source, not the download.docker.com static tarball: Docker builds
 # its published CLI with whatever Go release it happened to use (29.6.1 is
@@ -64,7 +71,7 @@ ARG DOCKER_CLI_VERSION
 # Drop the pin once docker/cli requires it.
 RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
     go mod init _dockercli && \
-    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v1.83.2 && \
+    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v${GRPC_VERSION} && \
     CGO_ENABLED=0 go build -tags "grpcnotrace,osusergo,netgo" \
       -ldflags "-X github.com/docker/cli/cli/version.Version=${DOCKER_CLI_VERSION} -X github.com/docker/cli/cli/version.GitCommit=unknown -X github.com/docker/cli/cli/version.BuildTime=unknown -X github.com/docker/cli/cli/version.PlatformName=Docker" \
       -o /go/bin/docker "github.com/docker/cli/cmd/docker" && \

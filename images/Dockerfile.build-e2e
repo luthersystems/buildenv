@@ -36,6 +36,9 @@ FROM ubuntu:22.04
 ARG TARGETARCH
 ARG GOLANG_VERSION=1.26.4
 ARG GIT_LFS_VERSION
+# Transitive pins for the git-lfs build below (central values in common.config.mk).
+ARG X_CRYPTO_VERSION
+ARG X_NET_VERSION
 ARG SUBSTRATE_VERSION=v2.225.2
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -69,7 +72,7 @@ ENV PATH=/usr/local/go/bin:/go/bin:$PATH GOPATH=/go
 RUN export GOPROXY="https://proxy.golang.org|https://proxy.golang.org|https://proxy.golang.org" && \
     mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v${X_CRYPTO_VERSION} golang.org/x/net@v${X_NET_VERSION} && \
     go build -o /usr/local/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 

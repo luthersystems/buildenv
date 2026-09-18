@@ -76,6 +76,13 @@ $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} ${
 		--build-arg DOCKER_COMPOSE_VERSION=${DOCKER_COMPOSE_VERSION} \
 		--build-arg AZCLI_VER=${AZCLI_VER} \
 		--build-arg AWSCLI_VER=${AWSCLI_VER} \
+		--build-arg X_CRYPTO_VERSION=${X_CRYPTO_VERSION} \
+		--build-arg X_NET_VERSION=${X_NET_VERSION} \
+		--build-arg X_SYS_VERSION=${X_SYS_VERSION} \
+		--build-arg X_MOD_VERSION=${X_MOD_VERSION} \
+		--build-arg GRPC_VERSION=${GRPC_VERSION} \
+		--build-arg GO_ARCHIVE_VERSION=${GO_ARCHIVE_VERSION} \
+		--build-arg QUIC_GO_VERSION=${QUIC_GO_VERSION} \
 		-t luthersystems/$*:${VERSION}${TAG_SUFFIX} \
 		-f $< .
 	${MKDIR_P} $(dir $@)
