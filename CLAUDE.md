@@ -30,9 +30,10 @@ cd images && make PLATFORMS=$(../scripts/local_platform.sh) DOCKER_BUILDX_OPTS=-
 cd images && make PLATFORMS=linux/amd64 DOCKER_BUILDX_OPTS=--load build-go-alpine
 ```
 
-There is no unit-test suite; correctness is "the image builds multi-arch and
-passes the Docker Scout gate." Releases happen on `v*` tag push (publish.yml) —
-created via the GitHub release UI.
+There is no image unit-test suite; correctness is "the image builds multi-arch
+and passes the Docker Scout gate." The automation logic in `scripts/*.cjs` has
+`node:test` unit tests (`make test-scripts`, CI job `script-tests`). Releases
+happen on `v*` tag push (publish.yml) — created via the GitHub release UI.
 
 ## Versions are centralized — change them in ONE place
 

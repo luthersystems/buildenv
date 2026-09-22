@@ -1,7 +1,7 @@
 # Root operator entry points — thin wrappers over scripts/ so repo logic is
 # callable from make (image builds stay in images/Makefile: `cd images && make …`).
 
-.PHONY: slack-test next-patch-version scout-setup scout-check docker-cli-check
+.PHONY: slack-test next-patch-version scout-setup scout-check docker-cli-check test-scripts
 
 # Send a test alert through scripts/slack-alert.sh to verify the Slack #alerts
 # webhook wiring end-to-end. No-op (prints a skip) if SLACK_ALERT_WEBHOOK_URL
@@ -29,3 +29,8 @@ scout-check:
 # source build exists (#115) and what to do when this says RETIREABLE.
 docker-cli-check:
 	bash scripts/docker-cli-source-build-check.sh
+
+# Unit tests for the automation logic in scripts/*.cjs (node:test, no deps;
+# needs Node >= 18). Also run in CI by build.yml's `script-tests` job.
+test-scripts:
+	node --test scripts/*.test.cjs
