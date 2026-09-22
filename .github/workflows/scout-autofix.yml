@@ -56,6 +56,20 @@ jobs:
       DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0  (puts .claude/skills/scout-fix + scripts/ on disk)
+        with:
+          # MUST stay false. checkout v7 persists the default GITHUB_TOKEN as an
+          # `http.https://github.com/.extraheader` in a separate credentials file
+          # wired in via `includeIf.gitdir`. claude-code-action only strips a
+          # plain `--local` extraheader ("No existing authentication headers to
+          # remove"), so the GITHUB_TOKEN header survived and took precedence
+          # over the app token it puts in the remote URL: every agent `git push`
+          # authenticated as github-actions[bot], not claude[bot]. Those pushes'
+          # `pull_request` runs then sat in `action_required` waiting for a
+          # maintainer, which stalled fix PR #127 for ~14 days (runs 34320888480,
+          # 34447929119, 34573686718 — actor github-actions[bot]; the PR's
+          # opening run 33847261645, actor claude[bot], ran immediately).
+          # Without persisted creds, git uses only the app token.
+          persist-credentials: false
       - name: Configure DockerHub # log the runner's docker in so the agent's pulls / scout are authenticated
         uses: ./.github/actions/configure-dockerhub
       - name: Install Docker Scout CLI # pre-install so the agent doesn't spend a turn fetching it (observed in the validation trace)
@@ -132,6 +146,7 @@ jobs:
       # (five error_max_turns failures against an sla:critical issue, #115).
       # Logic lives in scripts/ per CLAUDE.md rule 5; this stays a thin shim.
       - name: Flag the failure on the scout-drift issue
+        id: flag
         if: failure()
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
@@ -143,15 +158,21 @@ jobs:
       # layer can be dead for days with no signal anywhere: on 2026-08-01..03
       # this job died in <1 min on three consecutive days with a 429 "you've hit
       # your weekly limit" (subscription-token `seven_day` cap), while an open
-      # sla:high drift issue sat with no fix in flight. Nobody found out until a
+      # sla:high drift issue sat unremediated. Nobody found out until a
       # human happened to look. See #109 (gap 2) and #82 (Bedrock swap).
+      # The text (with the parsed cause, e.g. the 429 + reset time) comes from
+      # the flag step's `slack_text` output; the fallback covers that step
+      # itself failing. Passed via env, never interpolated into the script.
       # Runs last so the trace artifact above is captured first.
       - name: Alert Slack if autofix itself errored
         if: failure()
         env:
           SLACK_ALERT_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
+          SLACK_TEXT: ${{ steps.flag.outputs.slack_text }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          bash scripts/slack-alert.sh "⚠️ *Scout autofix errored* — the remediation layer failed, so an open \`scout-drift\` issue may have NO fix in flight (its SLA clock keeps running). <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+          fallback="❌ *Scout autofix FAILED* — cause unknown (the failure-comment step also failed). Today's remediation pass did NOT complete, so any new finding on the open \`scout-drift\` issue is unhandled while its SLA clock runs. Needs a human. <${RUN_URL}|View run>"
+          bash scripts/slack-alert.sh "${SLACK_TEXT:-$fallback}"
 
 # ── Bedrock swap (durable billing — see tracking issue #82) ──────────────────
 # 1. Delete the `claude_code_oauth_token:` line above and add to the action `with:`

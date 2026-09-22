@@ -36,6 +36,18 @@ jobs:
           image: ${{ matrix.image }}
           git_rev: $GITHUB_SHA
 
+  # Unit tests for the automation logic in scripts/*.cjs (CLAUDE.md rule 5:
+  # logic lives in scripts/ so it can be tested). Cheap; no image build.
+  script-tests:
+    name: scripts unit tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: make test-scripts
+        run: make test-scripts
+
   # Single source of truth for which images must carry a clean Docker Scout
   # bill of health lives in .github/scout-required-images.json. This job
   # publishes it as outputs so both the PR gate (below) and the release gate
