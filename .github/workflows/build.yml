@@ -4,8 +4,8 @@ on:
     branches:
       - main
 # Docker Hub login is OIDC only (no stored credential): jobs that log in
-# need `id-token: write`, and the Docker Home connection ID comes from the repo
-# variable DOCKERHUB_OIDC_CONNECTIONID. See CLAUDE.md, "Docker Hub login".
+# need `id-token: write`, and the Docker Home connection ID is the default
+# in the login actions (no repo variable). See CLAUDE.md, "Docker Hub login".
 
 jobs:
   build:
@@ -41,7 +41,6 @@ jobs:
           arch: ${{ matrix.arch }}
           image: ${{ matrix.image }}
           git_rev: $GITHUB_SHA
-          dockerhub-oidc-connection-id: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
 
   # Unit tests for the automation logic in scripts/*.cjs (CLAUDE.md rule 5:
   # logic lives in scripts/ so it can be tested). Cheap; no image build.
@@ -96,7 +95,6 @@ jobs:
       - name: Configure DockerHub (pull-only)
         uses: ./.github/actions/ci-dockerhub-login
         with:
-          connection-id: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
       - name: Expose GHA runtime to buildx (for type=gha cache backend)
@@ -121,7 +119,6 @@ jobs:
       - name: Refresh Docker Hub login (before Scout, required)
         uses: ./.github/actions/configure-dockerhub
         with:
-          connection-id: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
       # Record the FULL CVE picture (every severity, fixable AND unfixable) and
       # publish it per run: a quickview breakdown to the job step summary plus a
       # full SARIF artifact. These steps are non-blocking (continue-on-error, so a

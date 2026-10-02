@@ -12,7 +12,7 @@
 # https://identity.docker.com/oauth/token for a Docker Hub access token.
 #
 # Env:
-#   DOCKERHUB_OIDC_CONNECTIONID   Docker Home OIDC connection ID (required).
+#   DOCKERHUB_OIDC_CONNECTIONID   Docker Home OIDC connection ID (default: the shared connection).
 #   ACTIONS_ID_TOKEN_REQUEST_URL / ACTIONS_ID_TOKEN_REQUEST_TOKEN
 #                                 set by GitHub Actions when the job has
 #                                 `permissions: id-token: write` (required).
@@ -20,7 +20,7 @@
 #   DOCKERHUB_OIDC_EXPIREIN       token lifetime in seconds, 300-3600 (default 3600).
 set -euo pipefail
 
-: "${DOCKERHUB_OIDC_CONNECTIONID:?DOCKERHUB_OIDC_CONNECTIONID is empty (repo variable not set)}"
+: "${DOCKERHUB_OIDC_CONNECTIONID:=c5a3b4b1-e0dc-4f63-88f4-d71cc0442085}"
 : "${ACTIONS_ID_TOKEN_REQUEST_URL:?no id-token; the job needs 'permissions: id-token: write'}"
 : "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:?no id-token; the job needs 'permissions: id-token: write'}"
 user="${DOCKERHUB_OIDC_USERNAME:-luthersystems}"

@@ -15,9 +15,9 @@ inputs:
     default: ""
   dockerhub-oidc-connection-id:
     description: >-
-      Docker Home OIDC connection ID (the caller passes
-      vars.DOCKERHUB_OIDC_CONNECTIONID; a composite action cannot read vars).
-    default: ""
+      Docker Home OIDC connection ID (not a secret). Defaults to the shared
+      connection; override only to test another connection.
+    default: c5a3b4b1-e0dc-4f63-88f4-d71cc0442085
 
 runs:
   using: composite

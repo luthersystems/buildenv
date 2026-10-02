@@ -12,10 +12,11 @@ description: >-
 inputs:
   connection-id:
     description: >-
-      Docker Home OIDC connection ID (not a secret). Callers pass the repo
-      variable `vars.DOCKERHUB_OIDC_CONNECTIONID`.
+      Docker Home OIDC connection ID (not a secret; the single place it lives,
+      shared with luthersystems/substrate's connection). Override only to test
+      another connection.
     required: false
-    default: ""
+    default: c5a3b4b1-e0dc-4f63-88f4-d71cc0442085
   username:
     description: Docker organization OIDC authenticates as (not a user).
     required: false
@@ -34,7 +35,7 @@ runs:
         CONNECTION_ID: ${{ inputs.connection-id }}
       run: |
         if [ -z "$CONNECTION_ID" ]; then
-          echo "::warning title=Docker Hub login::repo variable DOCKERHUB_OIDC_CONNECTIONID is empty; pulls are anonymous and rate-limited"
+          echo "::warning title=Docker Hub login::connection-id input is empty; pulls are anonymous and rate-limited"
           echo "oidc=false" >>"$GITHUB_OUTPUT"
           exit 0
         fi

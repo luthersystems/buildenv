@@ -85,12 +85,14 @@ constraint is human PR-review latency, not release cadence.
 **Docker Hub login (OIDC only — no stored Docker Hub credential):** every CI
 login uses Docker Hub OIDC through `docker/login-action` (job needs
 `permissions: id-token: write`), as the org `luthersystems`, with the Docker
-Home OIDC connection ID in the repo variable `DOCKERHUB_OIDC_CONNECTIONID`
-(not a secret). Two actions, same pattern as luthersystems/substrate:
+Home OIDC connection ID `c5a3b4b1-e0dc-4f63-88f4-d71cc0442085` (not a secret;
+the same connection as substrate, with buildenv rulesets) set as the default
+of the login actions and `scripts/dockerhub-oidc-login.sh`. No repo variable
+or secret. Two actions, same pattern as luthersystems/substrate:
 
 | Action | Used for | When it cannot log in |
 |---|---|---|
-| `.github/actions/configure-dockerhub` | any push (publish.yml) and any Docker Scout command (Scout has no anonymous mode) | **fails the job** (empty variable, no id-token, 3 failed attempts) — a release never silently skips a push |
+| `.github/actions/configure-dockerhub` | any push (publish.yml) and any Docker Scout command (Scout has no anonymous mode) | **fails the job** (no id-token, 3 failed attempts) — a release never silently skips a push |
 | `.github/actions/ci-dockerhub-login` | PR image builds (pull public images only) | warns and pulls anonymously (fork PRs get no id-token) |
 
 **Token lifetime:** the OIDC Docker Hub token lives at most 3600 s with **no

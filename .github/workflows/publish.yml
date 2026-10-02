@@ -5,8 +5,8 @@ on:
       - "*"
 # Docker Hub login is OIDC only (no stored credential). Every job that logs in
 # needs `id-token: write` and uses .github/actions/configure-dockerhub, which
-# FAILS the job when it cannot log in (empty DOCKERHUB_OIDC_CONNECTIONID repo
-# variable, no id-token, or 3 failed attempts): a release never silently
+# FAILS the job when it cannot log in (no id-token, or 3 failed
+# attempts): a release never silently
 # skips a push or a Scout gate. The token lives 60 min with no refresh, so
 # each job logs in right before its Docker work and each Docker step stays at
 # `timeout-minutes: 60` or less. See CLAUDE.md, "Docker Hub login".
@@ -44,7 +44,6 @@ jobs:
           arch: ${{ matrix.arch }}
           image: ${{ matrix.image }}
           git_tag: $GITHUB_REF_NAME
-          dockerhub-oidc-connection-id: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
 
   push-manifests:
     runs-on: ubuntu-22.04
@@ -59,7 +58,6 @@ jobs:
       - name: Configure DockerHub
         uses: ./.github/actions/configure-dockerhub
         with:
-          connection-id: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
       - name: Create and push manifest for multiarch
@@ -136,7 +134,6 @@ jobs:
       - name: Configure DockerHub
         uses: ./.github/actions/configure-dockerhub
         with:
-          connection-id: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
       - name: Install Docker Scout CLI
         run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
       # VEX-aware release CVE gate -- mirrors the PR-time gate in build.yml.
@@ -187,7 +184,6 @@ jobs:
       - name: Configure DockerHub
         uses: ./.github/actions/configure-dockerhub
         with:
-          connection-id: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
       - name: Install Docker Scout CLI
         run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
       # Attach any OpenVEX not_affected statement for this image as an image
@@ -295,7 +291,6 @@ jobs:
       - name: Configure DockerHub
         uses: ./.github/actions/configure-dockerhub
         with:
-          connection-id: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
       - name: Verify SBOM + provenance attestations on published image
