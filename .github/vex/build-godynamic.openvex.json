@@ -2,8 +2,8 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://luthersystems.com/vex/buildenv/build-godynamic",
   "author": "Luther Systems (buildenv CI)",
-  "timestamp": "2026-08-18T00:00:00Z",
-  "version": 5,
+  "timestamp": "2026-10-02T00:00:00Z",
+  "version": 6,
   "statements": [
     {
       "vulnerability": {
@@ -137,6 +137,44 @@
       "status": "not_affected",
       "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
       "impact_statement": "Duplicate identifier for CVE-2026-57585 -- Scout emits both IDs for the same underlying msgpack defect, and the gate matches on identifier, so both need a statement. The analysis and drop trigger are identical to the CVE-2026-57585 statement above: pip's vendored msgpack only ever deserializes pip's own local HTTP cache via cachecontrol, so the input is not adversary-controlled without pre-existing container filesystem write access. Remove this statement at the same time as CVE-2026-57585. SOURCE: all three findings resolve to a single location in the image -- /az/venv/lib/python3.14/site-packages/pip/_vendor/bom.cdx.json, the SBOM pip ships describing its OWN vendored dependencies. They are not azure-cli dependencies and not top-level site-packages installs. NO UPSTREAM FIX EXISTS: pip pins its vendored set in pip/_vendor/vendor.txt, and every release from 26.0.1 through 26.2.1 (current at time of writing) still pins setuptools==70.3.0 and msgpack==1.1.2. Upgrading pip therefore does not clear these. Neither does upgrading azure-cli's own dependencies: a top-level `msgpack>=1.2.1` installs alongside, leaving pip/_vendor/msgpack untouched (azure-cli 2.87.0 does resolve cleanly against msgpack 1.2.1 -- verified -- but that is not the reported package). The only in-image lever would be deleting pip from /az/venv, which breaks `az extension add` (it shells out to pip) and is a runtime-contract change, not upkeep. DROP TRIGGER: a pip release that refreshes pip/_vendor/vendor.txt to setuptools>=78.1.1 and msgpack>=1.2.1; then rebuild and delete these statements. Tracked in docs/upstream-cve-backlog.md."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-97689",
+        "description": "urllib3 allocation of resources without limits / throttling: a malicious or misbehaving server response can drive unbounded resource consumption in the client, a denial of service (availability-only). Affects >=1.10.3,<2.8.0; fixed in urllib3 2.8.0."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-godynamic",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/urllib3"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
+      "impact_statement": "This is the SAME class as the pip-vendored setuptools (CVE-2025-47273) and msgpack (CVE-2026-57585 / GHSA-6v7p-g79w-8964) statements above, and the SAME root location. SOURCE: the finding resolves to pip's OWN vendored urllib3 -- /az/venv/lib/python3.14/site-packages/pip/_vendor/urllib3, reported via /az/venv/lib/python3.14/site-packages/pip/_vendor/bom.cdx.json (the SBOM pip ships describing its vendored dependencies). It is NOT the azure-cli dependency: the top-level urllib3 that azure-cli 2.87.0 installs into /az/venv is already 2.8.0 (the fixed version -- azure-cli does not pin urllib3, so a fresh build resolves it to 2.8.0; verified in the image at /az/venv/lib/python3.14/site-packages/urllib3-2.8.0.dist-info). The ONLY vulnerable copy is pip's internal vendored one. REACHABILITY: pip's vendored urllib3 (via pip/_vendor/requests) is used solely by pip itself to fetch packages from the configured package index over HTTPS -- at image-build time and on explicit `az extension add`. CVE-2026-97689 is an availability-only DoS that triggers when the server pip talks to returns a crafted/unbounded response; pip connects only to the trusted configured index (PyPI), whose responses an adversary does not control. There is no network-facing service in this image that feeds attacker-controlled HTTP responses to pip's vendored urllib3, so the vulnerable path is not reachable with adversary-controlled input. NO UPSTREAM FIX EXISTS: pip pins its vendored set in pip/_vendor/vendor.txt, and the current release 26.2.1 (the latest at time of writing -- verified: `import pip._vendor.urllib3; urllib3.__version__` == 2.7.0) still vendors urllib3 2.7.0. Upgrading pip does not clear it. The only in-image lever would be deleting pip from /az/venv, which breaks `az extension add` (it shells out to pip) and is a runtime-contract change, not upkeep. DROP TRIGGER: a pip release that refreshes pip/_vendor/vendor.txt to urllib3>=2.8.0; then rebuild and delete this statement (together with CVE-2026-97687). Tracked in docs/upstream-cve-backlog.md."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-97687",
+        "description": "urllib3 improper certificate validation when using an HTTPS proxy: target-specific TLS identity / certificate assertions are applied to the proxy connection, so a malicious HTTPS proxy can be accepted against the target's cert expectations. Affects >=1.26.0,<2.8.0; fixed in urllib3 2.8.0."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-godynamic",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/urllib3"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
+      "impact_statement": "Same SOURCE and same pip-vendored root as CVE-2026-97689 (read that statement for the full source/upstream analysis): the finding is pip's OWN vendored urllib3 at /az/venv/lib/python3.14/site-packages/pip/_vendor/urllib3 (reported via pip/_vendor/bom.cdx.json), NOT the azure-cli dependency -- the top-level urllib3 azure-cli installs is already the fixed 2.8.0. REACHABILITY for THIS CVE: CVE-2026-97687 misapplies target-specific TLS identity/credentials to an HTTPS PROXY connection, so it can only be triggered when the client is configured to reach the index through an attacker-controlled HTTPS proxy. pip in this image is configured with no HTTPS proxy, and the proxy configuration (HTTPS_PROXY / pip's --proxy) is operator-controlled, not adversary-controlled; a remote attacker cannot inject a malicious proxy into pip's build-time index fetches. pip's vendored urllib3 is exercised only for pip's own package-index traffic (image build / explicit `az extension add`), never as a network-facing service handling attacker-routed connections, so the vulnerable proxy-cert-validation path is not reachable with adversary-controlled input. NO UPSTREAM FIX EXISTS: pip 26.2.1 (latest) still vendors urllib3 2.7.0; upgrading pip does not clear it, and deleting pip from /az/venv breaks `az extension add`. DROP TRIGGER: a pip release that refreshes pip/_vendor/vendor.txt to urllib3>=2.8.0; then rebuild and delete this statement (together with CVE-2026-97689). Tracked in docs/upstream-cve-backlog.md."
     }
   ]
 }
