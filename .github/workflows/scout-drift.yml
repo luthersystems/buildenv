@@ -21,10 +21,7 @@ on:
 permissions:
   contents: read
   issues: write
-
-env:
-  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-  DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+  id-token: write # Docker Hub OIDC login (no stored credential; see CLAUDE.md, "Docker Hub login")
 
 jobs:
   drift:
@@ -32,8 +29,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # Docker Scout has no anonymous mode: fail loudly (and alert, via the
+      # "watch errored" step) when the OIDC login fails.
       - name: Configure DockerHub
         uses: ./.github/actions/configure-dockerhub
+        with:
+          connection-id: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
       - name: Install Docker Scout CLI
         run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
       # Scout enrollment is config-drift-prone: build-go / build-java /
@@ -45,9 +46,8 @@ jobs:
       # the scan — the scan's no-policy-results path still surfaces the
       # symptom. Logic: scripts/scout-setup.sh (also `make scout-setup`).
       - name: Self-heal Docker Scout repo enrollment
+        timeout-minutes: 15
         env:
-          DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
-          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
           SLACK_ALERT_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
         run: bash scripts/scout-setup.sh || echo "::warning::scout-setup.sh failed; continuing to the scan"
       # The from-source Docker CLI build (#115) is a workaround for Docker
@@ -58,11 +58,15 @@ jobs:
       # docker-cli-source-build-check.sh (also `make docker-cli-check`).
       - name: Check whether the from-source Docker CLI build can be retired
         run: bash scripts/docker-cli-source-build-check.sh || echo "::warning::docker-cli-source-build-check.sh failed; continuing"
+      # The OIDC token lives 60 min with no refresh: start the scan on a fresh
+      # one and keep the scan inside that hour.
+      - name: Refresh Docker Hub login (before scan)
+        uses: ./.github/actions/configure-dockerhub
+        with:
+          connection-id: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
       - name: Evaluate Scout policy + worst fixable severity on each required :latest image
         id: scan
-        env:
-          DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
-          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+        timeout-minutes: 60
         run: |
           set -uo pipefail
           drift=0

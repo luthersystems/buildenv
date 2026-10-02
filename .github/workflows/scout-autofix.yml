@@ -50,10 +50,11 @@ jobs:
     # turn cap is actually reachable rather than trading one cap for the other.
     timeout-minutes: 120 # rebuilding/scanning from source is heavy
     env:
-      DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }} # so the skill's `docker scout` authenticates
-      DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Docker Hub login is OIDC only (no stored credential; see CLAUDE.md,
+      # "Docker Hub login"). The token lives 60 min with no refresh, but the
+      # agent can run 120: it re-logs in with scripts/dockerhub-oidc-login.sh,
+      # which reads this connection ID.
+      DOCKERHUB_OIDC_CONNECTIONID: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0  (puts .claude/skills/scout-fix + scripts/ on disk)
         with:
@@ -72,6 +73,8 @@ jobs:
           persist-credentials: false
       - name: Configure DockerHub # log the runner's docker in so the agent's pulls / scout are authenticated
         uses: ./.github/actions/configure-dockerhub
+        with:
+          connection-id: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
       - name: Install Docker Scout CLI # pre-install so the agent doesn't spend a turn fetching it (observed in the validation trace)
         run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
       - name: Run /scout-fix
@@ -106,6 +109,13 @@ jobs:
                once merged.
             3. If the only findings are UNFIXABLE (no upstream fix yet): comment that on
                the scout-drift issue; open nothing, cut nothing.
+
+            Docker Hub auth: the runner is logged in with a Docker Hub OIDC token
+            that expires 60 minutes after the job's "Configure DockerHub" step,
+            with no refresh. If `docker` or `docker scout` fails with 401 /
+            "unauthorized" / "incorrect username or password", run
+            `bash scripts/dockerhub-oidc-login.sh` once and retry. Do not ask for
+            or use any other Docker Hub credential.
 
             Steps 1 and 2 are NOT mutually exclusive — ship the rebuild now AND open the
             PR for the deeper fix. Never weaken posture to go green; when unsure,
@@ -182,4 +192,5 @@ jobs:
 #         with:
 #           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}  # plt-or-<env>-luther-ci-buildenv-bedrock-role
 #           aws-region: us-west-2
-#    (`id-token: write` is already granted above.)
+#    (`id-token: write` is already granted above; it also serves the Docker
+#    Hub OIDC login.)
