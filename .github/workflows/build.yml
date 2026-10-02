@@ -94,7 +94,6 @@ jobs:
       # The build only pulls public images, so it may run anonymously.
       - name: Configure DockerHub (pull-only)
         uses: ./.github/actions/ci-dockerhub-login
-        with:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
       - name: Expose GHA runtime to buildx (for type=gha cache backend)
@@ -118,7 +117,6 @@ jobs:
       # first one's hour.
       - name: Refresh Docker Hub login (before Scout, required)
         uses: ./.github/actions/configure-dockerhub
-        with:
       # Record the FULL CVE picture (every severity, fixable AND unfixable) and
       # publish it per run: a quickview breakdown to the job step summary plus a
       # full SARIF artifact. These steps are non-blocking (continue-on-error, so a

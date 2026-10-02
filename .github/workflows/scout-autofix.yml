@@ -49,11 +49,9 @@ jobs:
     # measured ~28s/turn, 150 turns needs ~70min. Raising both together so the
     # turn cap is actually reachable rather than trading one cap for the other.
     timeout-minutes: 120 # rebuilding/scanning from source is heavy
-    env:
-      # Docker Hub login is OIDC only (no stored credential; see CLAUDE.md,
-      # "Docker Hub login"). The token lives 60 min with no refresh, but the
-      # agent can run 120: it re-logs in with scripts/dockerhub-oidc-login.sh,
-      # which reads this connection ID.
+    # Docker Hub login is OIDC only (no stored credential; see CLAUDE.md,
+    # "Docker Hub login"). The token lives 60 min with no refresh, but the
+    # agent can run 120: it re-logs in with scripts/dockerhub-oidc-login.sh.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0  (puts .claude/skills/scout-fix + scripts/ on disk)
         with:
@@ -72,7 +70,6 @@ jobs:
           persist-credentials: false
       - name: Configure DockerHub # log the runner's docker in so the agent's pulls / scout are authenticated
         uses: ./.github/actions/configure-dockerhub
-        with:
       - name: Install Docker Scout CLI # pre-install so the agent doesn't spend a turn fetching it (observed in the validation trace)
         run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
       - name: Run /scout-fix

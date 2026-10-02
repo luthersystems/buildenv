@@ -33,7 +33,6 @@ jobs:
       # "watch errored" step) when the OIDC login fails.
       - name: Configure DockerHub
         uses: ./.github/actions/configure-dockerhub
-        with:
       - name: Install Docker Scout CLI
         run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
       # Scout enrollment is config-drift-prone: build-go / build-java /
@@ -61,7 +60,6 @@ jobs:
       # one and keep the scan inside that hour.
       - name: Refresh Docker Hub login (before scan)
         uses: ./.github/actions/configure-dockerhub
-        with:
       - name: Evaluate Scout policy + worst fixable severity on each required :latest image
         id: scan
         timeout-minutes: 60
