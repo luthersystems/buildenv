@@ -21,8 +21,10 @@
 #                             exit 2 if enablement state cannot be determined.
 #
 # Env:
-#   DOCKER_SCOUT_HUB_USER / DOCKER_SCOUT_HUB_PASSWORD  Docker Hub creds for the
-#       scout CLI (same pair the CI gates use). Locally: export from 1Password.
+#   Docker Hub auth for the scout CLI: an existing `docker login` (CI logs in
+#       with Docker Hub OIDC via .github/actions/configure-dockerhub), or
+#       locally DOCKER_SCOUT_HUB_USER / DOCKER_SCOUT_HUB_PASSWORD (a personal
+#       access token from 1Password).
 #   SCOUT_ORG   defaults to luthersystems.
 #
 # NOTE the split of what is automatable: repo ENROLLMENT has CLI support
