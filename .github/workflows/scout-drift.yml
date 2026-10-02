@@ -170,29 +170,27 @@ jobs:
                 if [ "$sev" = critical ]; then crit="yes"; else high="yes"; fi
               fi
             done
-            # --- TEMPORARY carve-out (#98): Docker evaluates the WRONG policy set ---
-            # Since 2026-07-02 the Scout engine applies Docker's DEFAULT policy set
-            # instead of this org's CONFIGURED set: a phantom "Copyleft licensed
-            # packages found" policy (org has AGPL-only; dashboard shows 0
-            # violations) and a fixable-CVE variant that ignores our attached
-            # OpenVEX. Classify a violation as known-mismatch (NOT drift) only when
-            # BOTH hold: (1) every failing policy row is one of those two phantoms,
-            # and (2) if the fixable-CVE row is present, our own fail-closed
-            # VEX-aware probe above CONTRADICTS it (crit=no AND high=no, with no
-            # probe errors). Any other failing row, any real fixable C/H, or an
-            # unparseable policy table stays hard drift. REMOVE when #98 closes.
-            # Root cause found: `docker scout policy` evaluates LOCALLY against the
-            # built-in set unless given a config; scripts/scout-policy.sh now passes
-            # the org's set from .github/scout-policy/. Once the watch is green
-            # with it, this block never fires and can go.
+            # --- Carve-out (#98): the built-in CVE policy ignores our OpenVEX ---
+            # `docker scout policy` evaluates Docker's built-in Rego set locally
+            # (scripts/scout-policy.sh; config in .github/scout-policy/). Its
+            # fixable-vulnerabilities policy waives a VEX statement only when the
+            # product @id IS the package purl, but our OpenVEX docs use the
+            # standard image product + package subcomponent form, so every waiver
+            # is ignored. Classify a violation as known-mismatch (NOT drift) only
+            # when (1) the ONLY failing row is the fixable-CVE row and (2) our own
+            # fail-closed VEX-aware probe above CONTRADICTS it (crit=no AND
+            # high=no, with no probe errors). Any other failing row (copyleft now
+            # means a real AGPL package), any real fixable C/H, or an unparseable
+            # policy table stays hard drift. REMOVE when Scout's built-in policy
+            # honours subcomponent VEX (or our VEX docs also carry package purls).
             if [ -z "$policy" ]; then
               failing="$(printf '%s\n' "$policy_out" | grep -E '^[[:space:]]*!.*│' || true)"
-              unexpected="$(printf '%s\n' "$failing" | grep -vE 'Copyleft licensed packages found|Fixable critical or high vulnerabilities found' | sed '/^$/d' || true)"
+              unexpected="$(printf '%s\n' "$failing" | grep -vE 'Fixable critical or high vulnerabilities found' | sed '/^$/d' || true)"
               cve_row="$(printf '%s\n' "$failing" | grep -E 'Fixable critical or high vulnerabilities found' || true)"
               if [ -n "$failing" ] && [ -z "$unexpected" ] \
                  && { [ -z "$cve_row" ] || { [ "$crit" = "no" ] && [ "$high" = "no" ] && [ "$probe_error" -eq 0 ]; }; }; then
-                policy="⚠️ known policy-set mismatch (#98) — org-configured policies pass"
-                echo "::warning::$ref failed only phantom default-set policies (see #98); not counted as drift"
+                policy="⚠️ VEX-waived fixable CVEs only (#98) — VEX-aware probe finds none"
+                echo "::warning::$ref failed only the VEX-blind built-in CVE policy and the VEX-aware probe finds no unwaived fixable C/H (see #98); not counted as drift"
               else
                 policy="❌ below grade A"; drift=1
               fi

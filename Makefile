@@ -40,7 +40,7 @@ scout-cli-install:
 test-scripts:
 	node --test scripts/*.test.cjs
 
-# OPA unit tests for the buildenv Docker Scout policy set in .github/scout-policy
-# (#98). Also run in CI by build.yml's `script-tests` job.
+# Guard the Docker Scout policy config in .github/scout-policy (#98). Also run
+# in CI by build.yml's `script-tests` job.
 test-scout-policy:
 	bash scripts/test-scout-policy.sh

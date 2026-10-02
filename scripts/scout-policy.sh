@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
 # Evaluate the buildenv Docker Scout policy set against an image (#98).
 #
-# Since scout-cli moved `docker scout policy` to LOCAL Rego evaluation, it runs
-# Docker's BUILT-IN default policy set unless it is given a config. It does not
-# read the policies configured in the Scout org dashboard. That is the whole of
-# #98: the built-in "No copyleft licenses" policy (GPL/LGPL/MPL/…, where the org
-# set is AGPL-only) and a built-in fixable-CVE policy whose VEX match ignores
-# the standard image+subcomponent OpenVEX form our waivers use.
+# scout-cli runs `docker scout policy` as LOCAL Rego evaluation of Docker's
+# built-in policy set. It does NOT read the policies configured in the Scout
+# org dashboard. Unconfigured, the built-in "No copyleft licenses" policy flags
+# GPL/LGPL/MPL/EPL/CDDL, where the org set flags AGPL only: the phantom
+# copyleft row of #98. .github/scout-policy/policy-config.json sets the org's
+# AGPL-only list; every other built-in policy runs unchanged.
 #
-# The org's policy set now lives in the repo, under .github/scout-policy/:
-#   policy-config.json               copyleft = AGPL-3 only (as the dashboard);
-#                                    built-in fixable-vulnerabilities off,
-#                                    fixable-vulnerabilities-vex on
-#   fixable-vulnerabilities-vex.rego built-in copy + standard OpenVEX matching
-# Every other built-in policy runs unchanged.
+# Do NOT add --policy-file / --policy-dir here. Either one REPLACES the whole
+# built-in set (only the given files load; #135 shipped that way and the gates
+# evaluated 1 policy instead of 7), and in that mode the CLI does not fetch the
+# image's VEX attestation at all.
+#
+# Known gap (#98): the built-in fixable-vulnerabilities policy waives a VEX
+# statement only when its product @id IS the package purl; our OpenVEX docs
+# use the standard image product + package subcomponent form, so that row
+# still fails on build-godynamic. scout-drift.yml's VEX-aware probe covers it.
 #
 # Usage: scout-policy.sh IMAGE_REF [extra docker scout policy flags]
 # Exit code: docker scout policy --exit-code (0 pass, 2 policies not met).
@@ -24,13 +27,12 @@ if [[ $# -lt 1 ]]; then
   exit 64
 fi
 
-POLICY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.github/scout-policy"
+CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.github/scout-policy/policy-config.json"
 ref="$1"
 shift
 
 exec docker scout policy "$ref" \
   --org luthersystems \
   --exit-code \
-  --policy-config "$POLICY_DIR/policy-config.json" \
-  --policy-file "$POLICY_DIR/fixable-vulnerabilities-vex.rego" \
+  --policy-config "$CONFIG" \
   "$@"
