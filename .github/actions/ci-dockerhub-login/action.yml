@@ -1,20 +1,14 @@
-name: configure-dockerhub
+name: ci-dockerhub-login
 description: >-
-  Log in to Docker Hub with Docker Hub OIDC only, for a job that MUST be
-  authenticated: an image push (publish.yml) or a Docker Scout command
-  (Scout has no anonymous mode). It uses no stored credential. The calling job
-  needs `permissions: id-token: write`. It tries up to three times, then fails
-  the job: a push or a Scout gate cannot fall back to anonymous access, so a
-  release never silently skips its push.
-
-  Token lifetime: docker/login-action exchanges the GitHub OIDC token at
-  https://identity.docker.com/oauth/token for a Docker Hub access token that
-  expires after DOCKERHUB_OIDC_EXPIREIN seconds (300-3600). There is no
-  refresh: once it expires every registry and Scout call, even a pull of a
-  public image, fails with "401 Unauthorized". This action asks for the
-  maximum, 3600, so log in right before the Docker work, keep each Docker
-  step at `timeout-minutes: 60` or less, and log in again before a later
-  long step (see CLAUDE.md, "Docker Hub login").
+  Pull-only Docker Hub login for PR image builds. Logs in with Docker Hub OIDC
+  (docker/login-action), up to three attempts, with no stored credential.
+  Every image these builds pull from Docker Hub is public, so a run that cannot
+  log in pulls anonymously (rate-limited) instead of failing: an empty
+  connection ID, a run without an id-token (fork pull requests) and three
+  failed attempts each warn and continue. Never use this for a push or a
+  Docker Scout command: those use .github/actions/configure-dockerhub, which
+  fails the job when it cannot log in. Token lifetime and refresh rules are the
+  same as configure-dockerhub (see its description).
 inputs:
   connection-id:
     description: >-
@@ -35,20 +29,29 @@ runs:
   using: composite
   steps:
     - name: Check OIDC availability
+      id: check
       shell: bash
       env:
         CONNECTION_ID: ${{ inputs.connection-id }}
       run: |
         if [ -z "$CONNECTION_ID" ]; then
-          echo "::error title=Docker Hub login::connection-id input is empty (it defaults to the shared connection; see CLAUDE.md, 'Docker Hub login')."
-          exit 1
+          echo "::warning title=Docker Hub login::connection-id input is empty; pulls are anonymous and rate-limited"
+          echo "oidc=false" >>"$GITHUB_OUTPUT"
+          exit 0
         fi
-        if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
-          echo "::error title=Docker Hub login::no id-token; give the job 'permissions: id-token: write' (fork pull requests never get one)"
-          exit 1
+        if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+          echo "oidc=true" >>"$GITHUB_OUTPUT"
+          exit 0
         fi
+        if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+          echo "No id-token (fork pull request); skipping Docker Hub login, pulls are anonymous"
+        else
+          echo "::warning title=Docker Hub login::no id-token on a $GITHUB_EVENT_NAME run; pulls are anonymous and rate-limited. Give the job 'permissions: id-token: write'"
+        fi
+        echo "oidc=false" >>"$GITHUB_OUTPUT"
     - name: Log in to Docker Hub (OIDC, attempt 1)
       id: oidc1
+      if: steps.check.outputs.oidc == 'true'
       continue-on-error: true
       uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
       with:
@@ -75,10 +78,21 @@ runs:
       shell: bash
       run: sleep 15
     - name: Log in to Docker Hub (OIDC, attempt 3)
+      id: oidc3
       if: steps.oidc2.outcome == 'failure'
+      continue-on-error: true
       uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
       with:
         username: ${{ inputs.username }}
       env:
         DOCKERHUB_OIDC_CONNECTIONID: ${{ inputs.connection-id }}
         DOCKERHUB_OIDC_EXPIREIN: ${{ inputs.oidc-expires-in }}
+    # A failed login must not leave an earlier, possibly expired credential in
+    # the Docker config: a stale credential fails even public pulls with 401,
+    # and an absent one pulls anonymously.
+    - name: Fall back to anonymous pulls
+      if: steps.oidc3.outcome == 'failure'
+      shell: bash
+      run: |
+        echo "::warning title=Docker Hub OIDC failed::OIDC login failed 3 times; pulls are anonymous and rate-limited"
+        docker logout docker.io || true

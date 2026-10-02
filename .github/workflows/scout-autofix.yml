@@ -52,11 +52,9 @@ jobs:
     # measured ~28s/turn, 150 turns needs ~70min. Raising both together so the
     # turn cap is actually reachable rather than trading one cap for the other.
     timeout-minutes: 120 # rebuilding/scanning from source is heavy
-    env:
-      DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }} # so the skill's `docker scout` authenticates
-      DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+    # Docker Hub login is OIDC only (no stored credential; see CLAUDE.md,
+    # "Docker Hub login"). The token lives 60 min with no refresh, but the
+    # agent can run 120: it re-logs in with scripts/dockerhub-oidc-login.sh.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0  (puts .claude/skills/scout-fix + scripts/ on disk)
         with:
@@ -129,6 +127,13 @@ jobs:
                once merged.
             3. If the only findings are UNFIXABLE (no upstream fix yet): comment that on
                the scout-drift issue; open nothing, cut nothing.
+
+            Docker Hub auth: the runner is logged in with a Docker Hub OIDC token
+            that expires 60 minutes after the job's "Configure DockerHub" step,
+            with no refresh. If `docker` or `docker scout` fails with 401 /
+            "unauthorized" / "incorrect username or password", run
+            `bash scripts/dockerhub-oidc-login.sh` once and retry. Do not ask for
+            or use any other Docker Hub credential.
 
             Steps 1 and 2 are NOT mutually exclusive — ship the rebuild now AND open the
             PR for the deeper fix. Never weaken posture to go green; when unsure,

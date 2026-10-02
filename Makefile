@@ -15,8 +15,8 @@ next-patch-version:
 	bash scripts/next-patch-version.sh
 
 # Reconcile Docker Scout repo enrollment with scout-required-images.json
-# (idempotent; needs DOCKER_SCOUT_HUB_USER/PASSWORD). scout-check is the
-# report-only variant. See scripts/scout-setup.sh.
+# (idempotent; needs a `docker login` or DOCKER_SCOUT_HUB_USER/PASSWORD).
+# scout-check is the report-only variant. See scripts/scout-setup.sh.
 scout-setup:
 	bash scripts/scout-setup.sh
 
