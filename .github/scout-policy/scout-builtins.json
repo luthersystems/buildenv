@@ -1,0 +1,32 @@
+{
+  "builtins": [
+    {
+      "name": "oci.referrer",
+      "decl": {
+        "type": "function",
+        "args": [
+          {
+            "type": "string"
+          }
+        ],
+        "result": {
+          "type": "any"
+        }
+      }
+    },
+    {
+      "name": "scout.parse_purl",
+      "decl": {
+        "type": "function",
+        "args": [
+          {
+            "type": "string"
+          }
+        ],
+        "result": {
+          "type": "any"
+        }
+      }
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # Root operator entry points — thin wrappers over scripts/ so repo logic is
 # callable from make (image builds stay in images/Makefile: `cd images && make …`).
 
-.PHONY: slack-test next-patch-version scout-setup scout-check docker-cli-check test-scripts scout-cli-install
+.PHONY: slack-test next-patch-version scout-setup scout-check docker-cli-check test-scripts scout-cli-install test-scout-policy
 
 # Send a test alert through scripts/slack-alert.sh to verify the Slack #alerts
 # webhook wiring end-to-end. No-op (prints a skip) if SLACK_ALERT_WEBHOOK_URL
@@ -39,3 +39,8 @@ scout-cli-install:
 # needs Node >= 18). Also run in CI by build.yml's `script-tests` job.
 test-scripts:
 	node --test scripts/*.test.cjs
+
+# OPA unit tests for the buildenv Docker Scout policy set in .github/scout-policy
+# (#98). Also run in CI by build.yml's `script-tests` job.
+test-scout-policy:
+	bash scripts/test-scout-policy.sh

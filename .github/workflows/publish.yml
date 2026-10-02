@@ -215,7 +215,7 @@ jobs:
           while :; do
             attempt=$(( attempt + 1 ))
             rc=0
-            out="$(docker scout policy "$ref" --org luthersystems --exit-code 2>&1)" || rc=$?
+            out="$(bash scripts/scout-policy.sh "$ref" 2>&1)" || rc=$?
             printf '%s\n' "$out"
             if [ "$rc" -eq 0 ]; then
               echo "Policy PASS for $ref (attempt $attempt)."
