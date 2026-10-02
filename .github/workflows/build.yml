@@ -53,6 +53,8 @@ jobs:
           persist-credentials: false
       - name: make test-scripts
         run: make test-scripts
+      - name: make test-scout-policy
+        run: make test-scout-policy # OPA unit tests for .github/scout-policy (#98)
 
   # Single source of truth for which images must carry a clean Docker Scout
   # bill of health lives in .github/scout-required-images.json. This job
@@ -162,7 +164,7 @@ jobs:
       # Auth: the "Refresh Docker Hub login" step above `docker login`s with
       # OIDC, so the scout CLI is authenticated. See docs/upstream-cve-backlog.md.
       - name: Install Docker Scout CLI
-        run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
+        run: bash scripts/install-scout-cli.sh # pinned + sha256-verified; version in common.config.mk (#120)
       - name: Scan with Docker Scout (fail on UNWAIVED fixable HIGH/CRITICAL)
         timeout-minutes: 30
         env:

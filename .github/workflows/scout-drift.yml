@@ -34,7 +34,7 @@ jobs:
       - name: Configure DockerHub
         uses: ./.github/actions/configure-dockerhub
       - name: Install Docker Scout CLI
-        run: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
+        run: bash scripts/install-scout-cli.sh # pinned + sha256-verified; version in common.config.mk (#120)
       # Scout enrollment is config-drift-prone: build-go / build-java /
       # nginx-frontend / build-godynamic were each found silently un-enrolled
       # (July 2026), and an un-enrolled repo yields NO policy results — which
@@ -95,7 +95,7 @@ jobs:
             policy_out=""
             while :; do
               rc=0
-              out="$(docker scout policy "$ref" --org luthersystems --exit-code 2>&1)" || rc=$?
+              out="$(bash scripts/scout-policy.sh "$ref" 2>&1)" || rc=$?
               printf '%s\n' "$out"
               if [ "$rc" -eq 0 ]; then
                 policy="✅ grade A"; break
@@ -181,6 +181,10 @@ jobs:
             # VEX-aware probe above CONTRADICTS it (crit=no AND high=no, with no
             # probe errors). Any other failing row, any real fixable C/H, or an
             # unparseable policy table stays hard drift. REMOVE when #98 closes.
+            # Root cause found: `docker scout policy` evaluates LOCALLY against the
+            # built-in set unless given a config; scripts/scout-policy.sh now passes
+            # the org's set from .github/scout-policy/. Once the watch is green
+            # with it, this block never fires and can go.
             if [ -z "$policy" ]; then
               failing="$(printf '%s\n' "$policy_out" | grep -E '^[[:space:]]*!.*│' || true)"
               unexpected="$(printf '%s\n' "$failing" | grep -vE 'Copyleft licensed packages found|Fixable critical or high vulnerabilities found' | sed '/^$/d' || true)"

@@ -16,10 +16,10 @@ name: Release (patch)
 # see CLAUDE.md rule 1). Minor/major, and any deliberate grade-A-ENFORCED
 # release, stay human (hand-cut via the GitHub release UI -> hard gate).
 #
-# Model auth: the ~1-year Claude subscription token
-# (op://Reliable-Dev/CLAUDE_CODE_OAUTH_TOKEN -> repo secret CLAUDE_CODE_OAUTH_TOKEN),
-# same as scout-autofix.yml. Durable end state is Amazon Bedrock -- see the swap
-# block at the bottom of scout-autofix.yml and #82.
+# Model auth: same switch as scout-autofix.yml -- repo variable
+# CLAUDE_MODEL_PROVIDER (unset = subscription token CLAUDE_CODE_OAUTH_TOKEN,
+# "bedrock" = Amazon Bedrock via OIDC), validated by
+# scripts/claude-model-auth.sh. See #82.
 on:
   workflow_dispatch:
     inputs:
@@ -45,8 +45,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # all tags + history, so next-patch-version.sh and the notes see prior releases
+      # Model auth (#82): repo variable CLAUDE_MODEL_PROVIDER picks the subscription
+      # token (unset, the default) or Amazon Bedrock via OIDC ("bedrock"). The
+      # script fails here, naming each missing setting, before the agent starts.
+      - name: Check Claude model auth
+        id: auth
+        env:
+          CLAUDE_MODEL_PROVIDER: ${{ vars.CLAUDE_MODEL_PROVIDER }}
+          AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          BEDROCK_MODEL: ${{ vars.BEDROCK_MODEL }}
+          HAS_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          DIRECT_MODEL: claude-opus-4-8
+        run: bash scripts/claude-model-auth.sh
+      - name: Configure AWS credentials for Bedrock (OIDC)
+        if: ${{ vars.CLAUDE_MODEL_PROVIDER == 'bedrock' }}
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
       - name: Cut the release via Claude
-        uses: anthropics/claude-code-action@v1 # TODO: pin to a SHA (repo convention); the dependabot actions group will track it
+        uses: anthropics/claude-code-action@97c53473391bff1901034d4b454b5bac7ab7a029 # v1.0.239
         env:
           DRY_RUN: ${{ inputs.dry_run }}
         with:
@@ -54,7 +73,8 @@ jobs:
           # using `id-token: write` above). Do NOT add a `github_token:` here -- a
           # default GITHUB_TOKEN does not trigger publish.yml, which this release
           # depends on.
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ vars.CLAUDE_MODEL_PROVIDER != 'bedrock' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          use_bedrock: ${{ vars.CLAUDE_MODEL_PROVIDER == 'bedrock' && 'true' || 'false' }}
           prompt: |
             Cut the next PATCH release of buildenv, with generated release notes.
             Do exactly this and nothing else -- no source changes, no PRs, no
@@ -84,7 +104,7 @@ jobs:
           claude_args: |
             --allowedTools Bash,Read,Grep,Glob
             --max-turns 30
-            --model claude-opus-4-8
+            --model ${{ steps.auth.outputs.model }}
       # Capture the agent's full stream-json conversation for troubleshooting.
       # claude-code-action hides the transcript from the job log and writes it to
       # $RUNNER_TEMP/claude-execution-output.json (otherwise wiped on runner

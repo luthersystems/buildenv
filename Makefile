@@ -1,7 +1,7 @@
 # Root operator entry points — thin wrappers over scripts/ so repo logic is
 # callable from make (image builds stay in images/Makefile: `cd images && make …`).
 
-.PHONY: slack-test next-patch-version scout-setup scout-check docker-cli-check test-scripts
+.PHONY: slack-test next-patch-version scout-setup scout-check docker-cli-check test-scripts scout-cli-install test-scout-policy
 
 # Send a test alert through scripts/slack-alert.sh to verify the Slack #alerts
 # webhook wiring end-to-end. No-op (prints a skip) if SLACK_ALERT_WEBHOOK_URL
@@ -30,7 +30,17 @@ scout-check:
 docker-cli-check:
 	bash scripts/docker-cli-source-build-check.sh
 
+# Install the pinned, checksum-verified Docker Scout CLI plugin the CI gates use
+# (SCOUT_CLI_VERSION + sums in common.config.mk). See scripts/install-scout-cli.sh.
+scout-cli-install:
+	bash scripts/install-scout-cli.sh
+
 # Unit tests for the automation logic in scripts/*.cjs (node:test, no deps;
 # needs Node >= 18). Also run in CI by build.yml's `script-tests` job.
 test-scripts:
 	node --test scripts/*.test.cjs
+
+# OPA unit tests for the buildenv Docker Scout policy set in .github/scout-policy
+# (#98). Also run in CI by build.yml's `script-tests` job.
+test-scout-policy:
+	bash scripts/test-scout-policy.sh

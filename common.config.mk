@@ -11,3 +11,12 @@ DOCKER_COMPOSE_VERSION=5.2.0
 AZCLI_VER=2.87.0
 AWSCLI_VER=2.35.11
 NODE_VERSION=20.19.3
+# Docker Scout CLI used by the CI gates (scripts/install-scout-cli.sh). Bump the
+# version and both sums together, from the release's docker-scout_<ver>_checksums.txt.
+SCOUT_CLI_VERSION=1.26.0
+SCOUT_CLI_SHA256_LINUX_AMD64=47daa9ac442816316c65389f516b847146bb9f45e8d6afdcbb9ce835c4e138bd
+SCOUT_CLI_SHA256_LINUX_ARM64=34282a50d6787eec46e44a377a1ed9e70342adf078135cca8617c9199852725c
+# OPA, only for unit-testing .github/scout-policy/*.rego (scripts/test-scout-policy.sh).
+OPA_VERSION=1.21.1
+OPA_SHA256_LINUX_AMD64=668506eb17a2eaa1fce6cc0d1f42ef85125d4ac5bda5fc74d1152d0c77145031
+OPA_SHA256_LINUX_ARM64=9a1f3625529c6f01240fe68286dde06aa0b23c5253da700ac48f4d943ff8a4de

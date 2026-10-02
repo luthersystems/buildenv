@@ -121,9 +121,13 @@ Docker Scout repo enablement with `scout-required-images.json`, and the daily
 drift watch runs it first as a self-heal (an un-enrolled repo yields NO policy
 results and silently falls out of the gates — the July 2026 failure class:
 build-go, build-java, nginx-frontend, build-godynamic were each found
-disabled). Org **policy configuration** (which policies gate, license lists,
-disabling a policy) has **no public API or CLI** — Docker Scout dashboard only
-(policy details page → Edit/Disable).
+disabled). **Policy configuration is code too (#98):** `docker scout policy`
+evaluates Rego policies **locally** with Docker's built-in set — it does **not**
+read the Scout dashboard's org policies. Our set lives in
+[`.github/scout-policy/`](.github/scout-policy/) (AGPL-only copyleft list; a
+VEX-aware fixable-CVE policy) and every gate calls it through
+`scripts/scout-policy.sh`. The dashboard set still drives the Hub health score; keep
+the two in step. Test the repo set with `make test-scout-policy`.
 
 **When a Scout finding (CVE or policy) needs fixing, follow the `/scout-fix`
 skill — it captures exactly how #71/#72, #74, #76, #77, #78 were resolved, plus
