@@ -82,6 +82,27 @@ deadline nears. The autonomous loop ships rebuild-fixable improvements
 and auto-ships a merged source fix on the next daily cycle, so the binding
 constraint is human PR-review latency, not release cadence.
 
+**Docker Hub login (OIDC only — no stored Docker Hub credential):** every CI
+login uses Docker Hub OIDC through `docker/login-action` (job needs
+`permissions: id-token: write`), as the org `luthersystems`, with the Docker
+Home OIDC connection ID `c5a3b4b1-e0dc-4f63-88f4-d71cc0442085` (not a secret;
+the same connection as substrate, with buildenv rulesets) set as the default
+of the login actions and `scripts/dockerhub-oidc-login.sh`. No repo variable
+or secret. Two actions, same pattern as luthersystems/substrate:
+
+| Action | Used for | When it cannot log in |
+|---|---|---|
+| `.github/actions/configure-dockerhub` | any push (publish.yml) and any Docker Scout command (Scout has no anonymous mode) | **fails the job** (no id-token, 3 failed attempts) — a release never silently skips a push |
+| `.github/actions/ci-dockerhub-login` | PR image builds (pull public images only) | warns and pulls anonymously (fork PRs get no id-token) |
+
+**Token lifetime:** the OIDC Docker Hub token lives at most 3600 s with **no
+refresh**, and a stale one fails even public pulls with 401. So log in right
+before Docker work, add a "Refresh Docker Hub login" step before each later
+long Docker step, and keep each Docker step (or a job whose login sits inside
+the `build-docker-images` composite) at `timeout-minutes: 60` or less. The one
+step that outlives a token, the scout-autofix agent (120 min), re-logs in with
+`scripts/dockerhub-oidc-login.sh`. Never add `DOCKERHUB_TOKEN` back.
+
 **Slack alerting (SLA lifecycle → #alerts):** every SLA transition (drift
 detected, clock started, at-risk, breached + daily countdown, recovery,
 watch-errored) and every automation-authored review request (fix PR /

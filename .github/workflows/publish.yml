@@ -3,13 +3,23 @@ on:
   push:
     tags:
       - "*"
-env:
-  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-  DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+# Docker Hub login is OIDC only (no stored credential). Every job that logs in
+# needs `id-token: write` and uses .github/actions/configure-dockerhub, which
+# FAILS the job when it cannot log in (no id-token, or 3 failed
+# attempts): a release never silently
+# skips a push or a Scout gate. The token lives 60 min with no refresh, so
+# each job logs in right before its Docker work and each Docker step stays at
+# `timeout-minutes: 60` or less. See CLAUDE.md, "Docker Hub login".
 jobs:
   build:
     name: ${{ matrix.image }} - ${{ matrix.arch }} docker build & push
     runs-on: ${{ fromJSON('{"arm64":"2vcpu-ubuntu-2204-arm","amd64":"ubuntu-22.04"}')[matrix.arch] }}
+    permissions:
+      contents: read
+      id-token: write # Docker Hub OIDC login
+    # The build-and-push runs inside the composite action, which cannot time
+    # its own steps; this keeps it inside the OIDC token's 60 min.
+    timeout-minutes: 60
     strategy:
       matrix:
         arch:
@@ -37,6 +47,9 @@ jobs:
 
   push-manifests:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write # Docker Hub OIDC login
     needs:
       - build
     steps:
@@ -47,6 +60,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
       - name: Create and push manifest for multiarch
+        timeout-minutes: 30
         run: cd images && make push-manifests GIT_TAG=$GITHUB_REF_NAME
 
   # Single source of truth for the grade-A image set, shared with the PR gate
@@ -100,6 +114,9 @@ jobs:
   cve-scan:
     name: CVE scan published image (${{ matrix.image }})
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write # Docker Hub OIDC login
     needs:
       - push-manifests
       - scout-config
@@ -125,12 +142,13 @@ jobs:
       # scripts/scout-cve-gate.sh so the release and PR gates agree: it lists
       # fixable CRITICAL/HIGH findings and drops only those waived by an OpenVEX
       # not_affected statement under .github/vex/ (fail-closed on any scan/parse
-      # error). Auth via the Configure DockerHub step above plus the Scout env.
+      # error). Auth: the Configure DockerHub step above (OIDC `docker login`).
       - name: VEX-aware CVE gate on published image (${{ matrix.image }})
+        timeout-minutes: 30
         env:
-          DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
-          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: bash scripts/scout-cve-gate.sh "luthersystems/${{ matrix.image }}:${{ github.ref_name }}" "${{ matrix.image }}"
+          IMAGE: ${{ matrix.image }}
+          REF: ${{ github.ref_name }}
+        run: bash scripts/scout-cve-gate.sh "luthersystems/${IMAGE}:${REF}" "${IMAGE}"
 
   # Release-time TRUE grade-A gate. The Docker Scout health grade (A–F) and its
   # supply-chain-attestation / approved+up-to-date base-image / high-profile-CVE
@@ -145,6 +163,9 @@ jobs:
   scout-policy:
     name: Scout policy grade (${{ matrix.image }})
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write # Docker Hub OIDC login
     needs:
       - push-manifests
       - scout-config
@@ -175,9 +196,8 @@ jobs:
       # docs/upstream-cve-backlog.md.
       - name: Attach OpenVEX attestations (if any) for ${{ matrix.image }}
         continue-on-error: true
+        timeout-minutes: 10
         env:
-          DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
-          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
           IMAGE: ${{ matrix.image }}
           REF: ${{ github.ref_name }}
         run: |
@@ -197,9 +217,8 @@ jobs:
           done
           [ "$found" = 0 ] && echo "No OpenVEX docs for ${IMAGE}; nothing to attach."
       - name: Evaluate Docker Scout policies on the published image
-        env:
-          DOCKER_SCOUT_HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
-          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+        # The poll below waits up to ~15 min; stays well inside the token's hour.
+        timeout-minutes: 30
         run: |
           set -uo pipefail
           ref="luthersystems/${{ matrix.image }}:${{ github.ref_name }}"
@@ -244,6 +263,9 @@ jobs:
   verify-attestations:
     name: Verify attestations (${{ matrix.image }})
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write # Docker Hub OIDC login
     needs:
       - push-manifests
     strategy:
@@ -268,6 +290,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
       - name: Verify SBOM + provenance attestations on published image
+        timeout-minutes: 30
         env:
           IMG: luthersystems/${{ matrix.image }}:${{ github.ref_name }}
           REPO: luthersystems/${{ matrix.image }}
