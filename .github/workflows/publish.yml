@@ -215,7 +215,7 @@ jobs:
               --referrer \
               "luthersystems/${IMAGE}:${REF}"
           done
-          [ "$found" = 0 ] && echo "No OpenVEX docs for ${IMAGE}; nothing to attach."
+          if [ "$found" = 0 ]; then echo "No OpenVEX docs for ${IMAGE}; nothing to attach."; fi
       - name: Evaluate Docker Scout policies on the published image
         # The poll below waits up to ~15 min; stays well inside the token's hour.
         timeout-minutes: 30
