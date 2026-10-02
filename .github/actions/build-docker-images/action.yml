@@ -13,6 +13,11 @@ inputs:
   git_rev:
     description: Git commit hash
     default: ""
+  dockerhub-oidc-connection-id:
+    description: >-
+      Docker Home OIDC connection ID (the caller passes
+      vars.DOCKERHUB_OIDC_CONNECTIONID; a composite action cannot read vars).
+    default: ""
 
 runs:
   using: composite
@@ -34,8 +39,23 @@ runs:
         sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin
         sudo chmod 666 /var/run/docker.sock
 
-    - name: Configure DockerHub
+    # A release build (git_tag set) pushes (images/Makefile adds --push when
+    # GIT_TAG is set), so it needs a working login and fails without one: a
+    # release never silently skips its push. A PR build only pulls public
+    # images, so it falls back to anonymous pulls. The OIDC token lives at most
+    # 60 minutes with no refresh, so the calling job keeps
+    # `timeout-minutes: 60` (a composite step cannot set its own timeout).
+    - name: Configure DockerHub (push, required)
+      if: inputs.git_tag != ''
       uses: ./.github/actions/configure-dockerhub
+      with:
+        connection-id: ${{ inputs.dockerhub-oidc-connection-id }}
+
+    - name: Configure DockerHub (pull-only)
+      if: inputs.git_tag == ''
+      uses: ./.github/actions/ci-dockerhub-login
+      with:
+        connection-id: ${{ inputs.dockerhub-oidc-connection-id }}
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
