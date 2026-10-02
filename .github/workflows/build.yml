@@ -54,7 +54,7 @@ jobs:
       - name: make test-scripts
         run: make test-scripts
       - name: make test-scout-policy
-        run: make test-scout-policy # OPA unit tests for .github/scout-policy (#98)
+        run: make test-scout-policy # guards .github/scout-policy config (#98)
 
   # Single source of truth for which images must carry a clean Docker Scout
   # bill of health lives in .github/scout-required-images.json. This job

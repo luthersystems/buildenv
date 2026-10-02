@@ -122,12 +122,14 @@ drift watch runs it first as a self-heal (an un-enrolled repo yields NO policy
 results and silently falls out of the gates — the July 2026 failure class:
 build-go, build-java, nginx-frontend, build-godynamic were each found
 disabled). **Policy configuration is code too (#98):** `docker scout policy`
-evaluates Rego policies **locally** with Docker's built-in set — it does **not**
-read the Scout dashboard's org policies. Our set lives in
-[`.github/scout-policy/`](.github/scout-policy/) (AGPL-only copyleft list; a
-VEX-aware fixable-CVE policy) and every gate calls it through
-`scripts/scout-policy.sh`. The dashboard set still drives the Hub health score; keep
-the two in step. Test the repo set with `make test-scout-policy`.
+evaluates Docker's **built-in** Rego set locally — it does **not** read the
+Scout dashboard's org policies. Every gate calls it through
+`scripts/scout-policy.sh` with
+[`.github/scout-policy/policy-config.json`](.github/scout-policy/policy-config.json)
+(the org's AGPL-only copyleft list). Never add `--policy-file`/`--policy-dir`:
+either one replaces the whole built-in set and stops the VEX fetch. The
+dashboard set still drives the Hub health score; keep the two in step.
+`make test-scout-policy` guards the config.
 
 **When a Scout finding (CVE or policy) needs fixing, follow the `/scout-fix`
 skill — it captures exactly how #71/#72, #74, #76, #77, #78 were resolved, plus
