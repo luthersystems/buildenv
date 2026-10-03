@@ -111,16 +111,15 @@ function classifyFailure(trace) {
     return {
       kind: 'quota',
       summary:
-        `the Claude subscription token hit its \`${window}\` usage limit (HTTP 429)${overage}` +
+        `Claude model calls hit the \`${window}\` rate limit (HTTP 429)${overage}` +
         (reset ? `, resets ${reset}` : '') +
         ' — the agent never started, $0 spent' +
         (said ? ` ("${said}")` : ''),
       humanAction:
-        'Not a code bug — capacity. `CLAUDE_CODE_OAUTH_TOKEN` (op://Reliable-Dev/CLAUDE_CODE_OAUTH_TOKEN) is ONE ' +
-        'Claude subscription shared with other Luther automation (release-patch here, release/autofix workflows ' +
-        'in other repos), and its cap is exhausted. Until it resets nothing autonomous can remediate: fix by ' +
-        'hand now (`/scout-fix`), and restore capacity durably — the Bedrock swap (#82), or a dedicated ' +
-        'token / org extra usage for this automation.',
+        'Not a code bug — capacity. Claude runs on Amazon Bedrock (role `github-actions-claude-bedrock`, ' +
+        'account 637423319757, us-west-2; #82), shared with the release/autofix workflows in other Luther ' +
+        'repos, and Bedrock throttled the call. Re-run the workflow later or fix by hand now (`/scout-fix`). ' +
+        'If it keeps happening, raise the Bedrock quota for the model in AWS Service Quotas.',
     };
   }
 
@@ -141,7 +140,9 @@ function classifyFailure(trace) {
         kind: 'api_error',
         summary: `the model API returned HTTP ${result.api_error_status}: "${msg}"`,
         humanAction:
-          'If it is auth (401/403), the `CLAUDE_CODE_OAUTH_TOKEN` repo secret needs rotating; otherwise re-run ' +
+          'If it is auth (401/403), check the Bedrock setup: the `github-actions-claude-bedrock` role ' +
+          '(common-infrastructure storage/github_actions_claude_bedrock.tf) must trust this repo, and the repo ' +
+          'variables AWS_ROLE_TO_ASSUME, AWS_REGION and BEDROCK_MODEL must be set. Otherwise re-run ' +
           'the workflow. Remediate by hand (`/scout-fix`) if the SLA is close.',
       };
     }

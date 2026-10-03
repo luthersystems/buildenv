@@ -49,6 +49,9 @@ test('classifies the real 2026-09-18 429 trace as quota, with window + reset', (
   assert.match(f.summary, /2026-09-21T20:00:00Z/);
   assert.match(f.summary, /org_level_disabled/);
   assert.match(f.humanAction, /#82/);
+  // The subscription token is retired (org secret deleted); point at Bedrock.
+  assert.doesNotMatch(f.summary + f.humanAction, /CLAUDE_CODE_OAUTH_TOKEN|subscription/);
+  assert.match(f.humanAction, /Bedrock/);
 });
 
 test('a bare 429 result (no rate_limit_event) is still quota', () => {
@@ -68,6 +71,8 @@ test('other API errors keep their status', () => {
   ]);
   assert.equal(f.kind, 'api_error');
   assert.match(f.summary, /HTTP 401/);
+  assert.doesNotMatch(f.humanAction, /CLAUDE_CODE_OAUTH_TOKEN/);
+  assert.match(f.humanAction, /github-actions-claude-bedrock/);
 });
 
 test('non-API agent error', () => {
