@@ -65,6 +65,7 @@ $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} ${
 		--progress plain \
 		--build-arg GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION} \
 		--build-arg NODE_VERSION=${NODE_VERSION} \
+		--build-arg NGINX_VERSION=${NGINX_VERSION} \
 		--build-arg GOLANG_VERSION=${GOLANG_VERSION} \
 		--build-arg ALPINE_VERSION=${ALPINE_VERSION} \
 		--build-arg GO_BINDATA_VERSION=${GO_BINDATA_VERSION} \
