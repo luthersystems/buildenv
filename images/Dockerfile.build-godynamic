@@ -172,7 +172,8 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
 # in alpine edge; 3.24 stable still ships the vulnerable 1.8.1-r0. Pull jq (only)
 # from edge via a tagged repo until the fix is backported to 3.24 stable, then
 # drop this. The @edge tag scopes edge to jq alone; everything else stays stable.
-# libexpat: likewise, the patched libexpat (>= 2.9.0-r0, fixes CVE-2026-102633)
+# libexpat: likewise, the patched libexpat (>= 2.9.0-r0, fixes CVE-2026-102633 and
+# CVE-2026-77214)
 # is only in alpine edge; 3.24 stable still ships the vulnerable 2.8.5-r0 (pulled
 # in by git + python3). Pull libexpat (only) from edge until backported to 3.24
 # stable, then drop it from this line.
