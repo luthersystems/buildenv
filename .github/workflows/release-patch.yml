@@ -55,8 +55,10 @@ jobs:
           AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
           AWS_REGION: ${{ vars.AWS_REGION }}
           BEDROCK_MODEL: ${{ vars.BEDROCK_MODEL }}
+          BEDROCK_FALLBACK_MODEL: ${{ vars.BEDROCK_FALLBACK_MODEL }}
           HAS_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
           DIRECT_MODEL: claude-opus-4-8
+          DIRECT_FALLBACK_MODEL: claude-sonnet-5-5
         run: bash scripts/claude-model-auth.sh
       - name: Configure AWS credentials for Bedrock (OIDC)
         if: ${{ vars.CLAUDE_MODEL_PROVIDER == 'bedrock' }}
@@ -105,6 +107,7 @@ jobs:
             --allowedTools Bash,Read,Grep,Glob
             --max-turns 30
             --model ${{ steps.auth.outputs.model }}
+            ${{ steps.auth.outputs.fallback_args }}
       # Capture the agent's full stream-json conversation for troubleshooting.
       # claude-code-action hides the transcript from the job log and writes it to
       # $RUNNER_TEMP/claude-execution-output.json (otherwise wiped on runner
