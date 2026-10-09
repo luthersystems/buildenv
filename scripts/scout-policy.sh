@@ -16,7 +16,8 @@
 # Known gap (#98): the built-in fixable-vulnerabilities policy waives a VEX
 # statement only when its product @id IS the package purl; our OpenVEX docs
 # use the standard image product + package subcomponent form, so that row
-# still fails on build-godynamic. scout-drift.yml's VEX-aware probe covers it.
+# still fails on build-godynamic. The callers (scout-drift.yml, publish.yml)
+# apply the fail-closed VEX-only rule in scripts/scout-policy-verdict.sh.
 #
 # Usage: scout-policy.sh IMAGE_REF [extra docker scout policy flags]
 # Exit code: docker scout policy --exit-code (0 pass, 2 policies not met).

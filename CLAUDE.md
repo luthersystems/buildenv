@@ -129,7 +129,13 @@ Scout dashboard's org policies. Every gate calls it through
 (the org's AGPL-only copyleft list). Never add `--policy-file`/`--policy-dir`:
 either one replaces the whole built-in set and stops the VEX fetch. The
 dashboard set still drives the Hub health score; keep the two in step.
-`make test-scout-policy` guards the config.
+The built-in CVE policy ignores our OpenVEX (it matches only a bare package
+purl, not our image + subcomponent form), so both policy gates apply one
+fail-closed **VEX-only rule**
+([`scripts/scout-policy-verdict.sh`](scripts/scout-policy-verdict.sh)): a
+failure passes only when the CVE row is the sole failing row and the VEX-aware
+probe finds 0 unwaived fixable C/H. `make test-scout-policy` guards the config
+and tests that rule.
 
 **When a Scout finding (CVE or policy) needs fixing, follow the `/scout-fix`
 skill — it captures exactly how #71/#72, #74, #76, #77, #78 were resolved, plus

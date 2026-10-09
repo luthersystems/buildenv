@@ -110,7 +110,7 @@ jobs:
                 continue
               fi
               # Real violation: defer the drift verdict until the VEX-aware
-              # severity probe below has run — see the #98 carve-out after it.
+              # severity probe below has run — see the #98 VEX-only rule after it.
               policy_out="$out"; break
             done
 
@@ -128,7 +128,7 @@ jobs:
             # Transient API errors (any rc other than 0/2) get 3 attempts with
             # 30s backoff: on 2026-07-07 the probe returned rc=1 on 6/7 images
             # (Docker API hiccup, self-healed by the next run), and because the
-            # #98 carve-out below fail-closes on probe_error, the watch redded
+            # #98 VEX-only rule below fail-closes on probe_error, the watch redded
             # as "below grade A" and opened a false drift issue (#101) for
             # images whose health hadn't changed. Retries absorb the hiccup;
             # after exhausted retries the behavior is unchanged (probe_error=1,
@@ -170,25 +170,18 @@ jobs:
                 if [ "$sev" = critical ]; then crit="yes"; else high="yes"; fi
               fi
             done
-            # --- Carve-out (#98): the built-in CVE policy ignores our OpenVEX ---
-            # `docker scout policy` evaluates Docker's built-in Rego set locally
-            # (scripts/scout-policy.sh; config in .github/scout-policy/). Its
-            # fixable-vulnerabilities policy waives a VEX statement only when the
-            # product @id IS the package purl, but our OpenVEX docs use the
-            # standard image product + package subcomponent form, so every waiver
-            # is ignored. Classify a violation as known-mismatch (NOT drift) only
-            # when (1) the ONLY failing row is the fixable-CVE row and (2) our own
-            # fail-closed VEX-aware probe above CONTRADICTS it (crit=no AND
-            # high=no, with no probe errors). Any other failing row (copyleft now
-            # means a real AGPL package), any real fixable C/H, or an unparseable
-            # policy table stays hard drift. REMOVE when Scout's built-in policy
-            # honours subcomponent VEX (or our VEX docs also carry package purls).
+            # --- VEX-only rule (#98): the built-in CVE policy ignores our OpenVEX ---
+            # Docker's built-in fixable-vulnerabilities policy waives a VEX
+            # statement only when the product @id IS the package purl; our
+            # OpenVEX docs use the image + subcomponent form. So a violation is
+            # NOT drift only when the CVE row is the sole failing row AND the
+            # fail-closed VEX-aware probe above contradicts it (crit=no, high=no,
+            # no probe error). The rule and its tests live in
+            # scripts/scout-policy-verdict.sh; publish.yml's grade gate uses it too.
             if [ -z "$policy" ]; then
-              failing="$(printf '%s\n' "$policy_out" | grep -E '^[[:space:]]*!.*│' || true)"
-              unexpected="$(printf '%s\n' "$failing" | grep -vE 'Fixable critical or high vulnerabilities found' | sed '/^$/d' || true)"
-              cve_row="$(printf '%s\n' "$failing" | grep -E 'Fixable critical or high vulnerabilities found' || true)"
-              if [ -n "$failing" ] && [ -z "$unexpected" ] \
-                 && { [ -z "$cve_row" ] || { [ "$crit" = "no" ] && [ "$high" = "no" ] && [ "$probe_error" -eq 0 ]; }; }; then
+              vex_clean=no
+              if [ "$crit" = "no" ] && [ "$high" = "no" ] && [ "$probe_error" -eq 0 ]; then vex_clean=yes; fi
+              if printf '%s\n' "$policy_out" | bash scripts/scout-policy-verdict.sh "$vex_clean" >/dev/null; then
                 policy="⚠️ VEX-waived fixable CVEs only (#98) — VEX-aware probe finds none"
                 echo "::warning::$ref failed only the VEX-blind built-in CVE policy and the VEX-aware probe finds no unwaived fixable C/H (see #98); not counted as drift"
               else

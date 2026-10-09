@@ -249,6 +249,17 @@ jobs:
               sleep 30
               continue
             fi
+            # VEX-only rule (#98): the built-in CVE policy ignores our OpenVEX
+            # (image + subcomponent form). Pass ONLY if that row is the sole
+            # failure AND the fail-closed VEX-aware gate finds 0 unwaived
+            # fixable C/H. Same rule as scout-drift.yml; see
+            # scripts/scout-policy-verdict.sh.
+            vex_clean=no
+            if bash scripts/scout-cve-gate.sh "$ref" "${{ matrix.image }}"; then vex_clean=yes; fi
+            if printf '%s\n' "$out" | bash scripts/scout-policy-verdict.sh "$vex_clean" >/dev/null; then
+              echo "::warning::$ref failed only the VEX-blind built-in CVE policy, and every fixable C/H is VEX-waived (#98). Policy PASS."
+              exit 0
+            fi
             echo "::error::Docker Scout policy is non-compliant for $ref."
             exit "$rc"
           done
