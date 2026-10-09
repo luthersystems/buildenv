@@ -1,7 +1,18 @@
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+# Versions come from common.config.mk; these defaults are fallbacks only.
+# 1.27-alpine is an old line on Alpine 3.21, which has no fixed tiff for
+# CVE-2026-4775. 1.30 runs on Alpine 3.24, the base the other images use.
+ARG NGINX_VERSION=1.30
+ARG ALPINE_VERSION=3.24
+FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine${ALPINE_VERSION}
 
 USER root
-RUN apk update && apk upgrade --no-cache
+# libexpat: the patched libexpat (>= 2.9.0-r0, fixes CVE-2026-102633 and
+# CVE-2026-77214) is only in alpine edge; 3.24 stable still ships the
+# vulnerable 2.8.5-r0. Pull libexpat (only) from edge until it is backported to
+# 3.24 stable, then drop the edge lines. Same fix as build-godynamic (#140).
+RUN apk update && apk upgrade --no-cache && \
+  echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
+  apk add --no-cache libexpat@edge
 USER nginx
 
 COPY nginx/nginx_serve.sh /opt/
