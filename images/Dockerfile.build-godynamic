@@ -76,9 +76,10 @@ ARG GO_TESTSUM_VERSION
 # in transitively via x/tools); gotestsum otherwise bundles vulnerable versions.
 # Trade-off: `gotestsum --version` reports "(devel)" — it has no version ldflag
 # and derives its version from the main module.
+# golang.org/x/text: pinned for CVE-2026-56851 (HIGH, fixed in 0.41.0).
 RUN mkdir /tmp/gotestsum && cd /tmp/gotestsum && \
     go mod init _gotestsum && \
-    go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 && \
+    go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 golang.org/x/text@v0.41.0 && \
     go build -o /go/bin/gotestsum "gotest.tools/gotestsum" && \
     cd / && rm -rf /tmp/gotestsum
 ARG GOLANGCI_LINT_VERSION
@@ -87,9 +88,10 @@ ARG GOLANGCI_LINT_VERSION
 # x/tools); golangci-lint otherwise bundles x/sys 0.42.0 and a vulnerable x/mod.
 # The ldflags preserve `--version` (golangci-lint uses build-info only when
 # main.date is empty).
+# golang.org/x/text: pinned for CVE-2026-56851 (HIGH, fixed in 0.41.0).
 RUN mkdir /tmp/golangci && cd /tmp/golangci && \
     go mod init _golangci && \
-    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 && \
+    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 golang.org/x/text@v0.41.0 && \
     go build -ldflags "-X main.version=${GOLANGCI_LINT_VERSION} -X main.commit=unknown -X main.date=unknown" \
       -o /go/bin/golangci-lint "github.com/golangci/golangci-lint/v2/cmd/golangci-lint" && \
     cd / && rm -rf /tmp/golangci
