@@ -1,4 +1,4 @@
-ARG GOLANG_VERSION=1.26.6
+ARG GOLANG_VERSION=1.26.9
 FROM golang:$GOLANG_VERSION AS go-downloader
 # A transient stream reset from proxy.golang.org must cost a re-request, not
 # the whole publish (three v0.1.16 attempts died that way -- run 32405801237).
