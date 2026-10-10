@@ -43,6 +43,9 @@ ARG AZCLI_VER
 ENV AZCLI_VER=$AZCLI_VER
 
 WORKDIR /az
+# azure-cli resolves cryptography 48.0.1, vulnerable to CVE-2026-69247 (fixed in
+# 50.0.0) and CVE-2026-69249 (49.0.0); upgrade it in the venv. Drop once azure-cli
+# resolves >= 50.0.0 itself.
 
 RUN set -ex; \
   apk update; \
@@ -51,7 +54,8 @@ RUN set -ex; \
   build-base libffi-dev openssl-dev cargo python3-dev py3-pip; \
   python3 -m venv ./venv; \
   . ./venv/bin/activate; \
-  pip install --no-cache-dir azure-cli==${AZCLI_VER} wheel==0.46.2
+  pip install --no-cache-dir azure-cli==${AZCLI_VER} wheel==0.46.2; \
+  pip install --no-cache-dir "cryptography>=50.0.0"
 
 #
 # Go utils
@@ -77,9 +81,11 @@ ARG GO_TESTSUM_VERSION
 # Trade-off: `gotestsum --version` reports "(devel)" — it has no version ldflag
 # and derives its version from the main module.
 # golang.org/x/text: pinned for CVE-2026-56851 (HIGH, fixed in 0.41.0).
+# Every from-source tool below pins golang.org/x/net@v0.60.0 (CVE-2026-78659 /
+# -78660 / -78663 / -78669, fixed in 0.60.0); drop once the tools require it.
 RUN mkdir /tmp/gotestsum && cd /tmp/gotestsum && \
     go mod init _gotestsum && \
-    go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 golang.org/x/text@v0.41.0 && \
+    go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/mod@v0.41.0 golang.org/x/sys@v0.48.0 golang.org/x/text@v0.42.0 golang.org/x/net@v0.60.0 && \
     go build -o /go/bin/gotestsum "gotest.tools/gotestsum" && \
     cd / && rm -rf /tmp/gotestsum
 ARG GOLANGCI_LINT_VERSION
@@ -91,7 +97,7 @@ ARG GOLANGCI_LINT_VERSION
 # golang.org/x/text: pinned for CVE-2026-56851 (HIGH, fixed in 0.41.0).
 RUN mkdir /tmp/golangci && cd /tmp/golangci && \
     go mod init _golangci && \
-    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 golang.org/x/text@v0.41.0 && \
+    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/mod@v0.41.0 golang.org/x/sys@v0.48.0 golang.org/x/text@v0.42.0 golang.org/x/net@v0.60.0 && \
     go build -ldflags "-X main.version=${GOLANGCI_LINT_VERSION} -X main.commit=unknown -X main.date=unknown" \
       -o /go/bin/golangci-lint "github.com/golangci/golangci-lint/v2/cmd/golangci-lint" && \
     cd / && rm -rf /tmp/golangci
@@ -104,7 +110,7 @@ ARG GIT_LFS_VERSION
 RUN apk add --no-cache gcc git musl-dev && \
     mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.56.0 golang.org/x/net@v0.57.0 golang.org/x/sys@v0.47.0 && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.57.0 golang.org/x/net@v0.60.0 golang.org/x/sys@v0.48.0 && \
     go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
@@ -124,7 +130,7 @@ ARG DOCKER_CLI_VERSION
 # Alpine variants; the ldflags preserve `docker --version`.
 RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
     go mod init _dockercli && \
-    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v1.83.2 && \
+    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v1.83.2 golang.org/x/net@v0.60.0 && \
     CGO_ENABLED=0 go build -tags "grpcnotrace,osusergo,netgo" \
       -ldflags "-X github.com/docker/cli/cli/version.Version=${DOCKER_CLI_VERSION} -X github.com/docker/cli/cli/version.GitCommit=unknown -X github.com/docker/cli/cli/version.BuildTime=unknown -X github.com/docker/cli/cli/version.PlatformName=Docker" \
       -o /go/bin/docker "github.com/docker/cli/cmd/docker" && \
@@ -147,7 +153,7 @@ ARG DOCKER_COMPOSE_VERSION
 # fixed version transitively.
 RUN mkdir /tmp/compose && cd /tmp/compose && \
     go mod init _compose && \
-    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v1.83.2 github.com/moby/go-archive@v0.3.3 golang.org/x/crypto@v0.56.0 golang.org/x/net@v0.58.0 && \
+    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v1.83.2 github.com/moby/go-archive@v0.3.3 golang.org/x/crypto@v0.57.0 golang.org/x/net@v0.60.0 && \
     go build -o /go/bin/docker-compose "github.com/docker/compose/v5/cmd" && \
     cd / && rm -rf /tmp/compose
 

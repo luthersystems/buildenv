@@ -19,9 +19,11 @@ ARG GO_TESTSUM_VERSION
 # Trade-off: `gotestsum --version` reports "(devel)" — it has no version ldflag
 # and derives its version from the main module.
 # golang.org/x/text: pinned for CVE-2026-56851 (HIGH, fixed in 0.41.0).
+# Every from-source tool below pins golang.org/x/net@v0.60.0 (CVE-2026-78659 /
+# -78660 / -78663 / -78669, fixed in 0.60.0); drop once the tools require it.
 RUN mkdir /tmp/gotestsum && cd /tmp/gotestsum && \
     go mod init _gotestsum && \
-    go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 golang.org/x/text@v0.41.0 && \
+    go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/mod@v0.41.0 golang.org/x/sys@v0.48.0 golang.org/x/text@v0.42.0 golang.org/x/net@v0.60.0 && \
     go build -o /go/bin/gotestsum "gotest.tools/gotestsum" && \
     cd / && rm -rf /tmp/gotestsum
 ARG GOLANGCI_LINT_VERSION
@@ -33,7 +35,7 @@ ARG GOLANGCI_LINT_VERSION
 # golang.org/x/text: pinned for CVE-2026-56851 (HIGH, fixed in 0.41.0).
 RUN mkdir /tmp/golangci && cd /tmp/golangci && \
     go mod init _golangci && \
-    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 golang.org/x/text@v0.41.0 && \
+    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/mod@v0.41.0 golang.org/x/sys@v0.48.0 golang.org/x/text@v0.42.0 golang.org/x/net@v0.60.0 && \
     go build -ldflags "-X main.version=${GOLANGCI_LINT_VERSION} -X main.commit=unknown -X main.date=unknown" \
       -o /go/bin/golangci-lint "github.com/golangci/golangci-lint/v2/cmd/golangci-lint" && \
     cd / && rm -rf /tmp/golangci
@@ -46,7 +48,7 @@ ARG BUF_VERSION
 # family is pinned to that floor here (git-lfs below, without x/mod, stays 0.56.0).
 RUN mkdir /tmp/buf && cd /tmp/buf && \
     go mod init _buf && \
-    go get "github.com/bufbuild/buf/cmd/buf@v${BUF_VERSION}" golang.org/x/crypto@v0.56.0 golang.org/x/mod@v0.40.0 golang.org/x/net@v0.58.0 golang.org/x/sys@v0.47.0 github.com/quic-go/quic-go@v0.59.1 && \
+    go get "github.com/bufbuild/buf/cmd/buf@v${BUF_VERSION}" golang.org/x/crypto@v0.57.0 golang.org/x/mod@v0.41.0 golang.org/x/net@v0.60.0 golang.org/x/sys@v0.48.0 github.com/quic-go/quic-go@v0.59.1 && \
     go build -o /go/bin/buf "github.com/bufbuild/buf/cmd/buf" && \
     cd / && rm -rf /tmp/buf
 ARG GO_SWAGGER_VERSION
@@ -55,7 +57,7 @@ ARG GO_SWAGGER_VERSION
 # forces x/net >= 0.58.0 / x/crypto >= 0.55.0.
 RUN mkdir /tmp/swagger && cd /tmp/swagger && \
     go mod init _swagger && \
-    go get "github.com/go-swagger/go-swagger/cmd/swagger@v${GO_SWAGGER_VERSION}" golang.org/x/crypto@v0.56.0 golang.org/x/mod@v0.40.0 golang.org/x/net@v0.58.0 golang.org/x/sys@v0.47.0 && \
+    go get "github.com/go-swagger/go-swagger/cmd/swagger@v${GO_SWAGGER_VERSION}" golang.org/x/crypto@v0.57.0 golang.org/x/mod@v0.41.0 golang.org/x/net@v0.60.0 golang.org/x/sys@v0.48.0 && \
     go build -o /go/bin/swagger "github.com/go-swagger/go-swagger/cmd/swagger" && \
     cd / && rm -rf /tmp/swagger
 ARG GIT_LFS_VERSION
@@ -66,7 +68,7 @@ ARG GIT_LFS_VERSION
 # x/crypto@0.56.0 requires x/net >= 0.57.0, so x/net is pinned to that floor.
 RUN mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.56.0 golang.org/x/net@v0.57.0 golang.org/x/sys@v0.47.0 && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.57.0 golang.org/x/net@v0.60.0 golang.org/x/sys@v0.48.0 && \
     go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
