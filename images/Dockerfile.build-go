@@ -43,9 +43,12 @@ ARG GIT_LFS_VERSION
 # CVE-2026-78662 / CVE-2026-56855, fixed in 0.56.0), plus the x/sys they
 # coordinate with. x/crypto@0.56.0 requires
 # x/net >= 0.57.0, so x/net is pinned to that floor.
+# golang.org/x/net 0.60.0: CVE-2026-78663 (CRITICAL) and CVE-2026-78659 /
+# CVE-2026-78660 / CVE-2026-78669 (HIGH), all fixed in 0.60.0 (#144). x/net
+# 0.60.0 requires x/crypto >= 0.57.0, x/sys >= 0.48.0 and x/text >= 0.42.0.
 RUN mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.56.0 golang.org/x/net@v0.57.0 golang.org/x/sys@v0.47.0 && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.57.0 golang.org/x/net@v0.60.0 golang.org/x/sys@v0.48.0 && \
     go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
@@ -56,17 +59,20 @@ ARG DOCKER_CLI_VERSION
 # stdlib CVEs fixed in Go 1.26.6 ride along in the prebuilt binary and no
 # DOCKER_CLI_VERSION bump can clear them -- CVE-2026-33818, -39821, -46600,
 # -56853, -56859 and -56862 (#115). Building here links the GOLANG_VERSION
-# stdlib instead, and picks up x/text 0.41.0, so it needs no extra golang.org/x
-# pins beyond the grpc-driven x/net bump below. CGO_ENABLED=0 with osusergo,netgo
+# stdlib instead, and picks up x/text 0.41.0; x/net is pinned below (#144).
+# CGO_ENABLED=0 with osusergo,netgo
 # keeps the binary static (as the tarball was) and avoids a gcc/musl-dev
 # dependency in the Alpine variants; the ldflags preserve `docker --version`.
 # docker/cli transitively pulls google.golang.org/grpc 1.83.1, vulnerable to
 # CVE-2026-84445 (xDS array-index DoS, affects >=1.83.0 <1.83.2), so grpc is
 # pinned to the patched 1.83.2 (which also raises x/net to its 0.58.0 floor).
 # Drop the pin once docker/cli requires it.
+# golang.org/x/net 0.60.0: CVE-2026-78663 (CRITICAL) and CVE-2026-78659 /
+# CVE-2026-78660 / CVE-2026-78669 (HIGH), all fixed in 0.60.0 (#144). x/net
+# 0.60.0 requires x/crypto >= 0.57.0, x/sys >= 0.48.0 and x/text >= 0.42.0.
 RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
     go mod init _dockercli && \
-    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v1.83.2 && \
+    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v1.83.2 golang.org/x/net@v0.60.0 && \
     CGO_ENABLED=0 go build -tags "grpcnotrace,osusergo,netgo" \
       -ldflags "-X github.com/docker/cli/cli/version.Version=${DOCKER_CLI_VERSION} -X github.com/docker/cli/cli/version.GitCommit=unknown -X github.com/docker/cli/cli/version.BuildTime=unknown -X github.com/docker/cli/cli/version.PlatformName=Docker" \
       -o /go/bin/docker "github.com/docker/cli/cmd/docker" && \
