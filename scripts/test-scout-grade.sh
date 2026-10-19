@@ -14,6 +14,7 @@ cat > "$work/bin/docker" <<'EOF'
 # Fake docker. Fixture files live in $FIX.
 case "$1 $2" in
   "scout cves")
+    echo "$*" >> "$FIX/calls"
     shift 2
     label=""
     for a in "$@"; do
@@ -134,8 +135,23 @@ echo "  ✗ LOW CVE-2021-44228" > "$FIX/cves-kev.txt"
 check "CISA KEV finding fails" 1 kev=yes critical=no
 
 base_fixture "$FIX"
+touch "$FIX/cves-kev.err"
+check "KEV scan error is recorded as error" 1 kev=error critical=no
+
+base_fixture "$FIX"
+check "scans every platform" 0 grade=pass
+for p in linux/amd64 linux/arm64; do
+  n="$(grep -c -- "--platform $p" "$FIX/calls" || true)"
+  if [ "$n" != 3 ]; then echo "FAIL scans every platform: $p scanned $n times, want 3"; fails=$((fails + 1)); fi
+done
+
+base_fixture "$FIX"
 echo '{"digest":"sha256:beef","manifests":[{"digest":"sha256:f00d"}]}' > "$FIX/base-alpine_3.24.json"
 check "stale base is report only" 0 base=stale grade=pass
+
+base_fixture "$FIX"
+echo 'not json' > "$FIX/image.json"
+check "an unexpected error still writes the results" 1 grade=fail critical=no nonroot=error
 
 base_fixture "$FIX"
 rm "$FIX/index.json"

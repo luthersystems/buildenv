@@ -45,10 +45,30 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 policy_config="${SCOUT_LICENSE_CONFIG:-$here/../.github/scout-policy/policy-config.json}"
 
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+# Any non-zero exit (a grade fail or an unexpected error) is exit 1.
+on_exit() {
+  local rc=$?
+  write_out
+  rm -rf "$tmp"
+  [ "$rc" = 0 ] || exit 1
+}
+trap on_exit EXIT
 
 declare -A result=()
 fail=0
+# Write the results on every exit, so an unexpected error still leaves a
+# file; a missing rule reads as error.
+write_out() {
+  [ -n "${SCOUT_GRADE_OUT:-}" ] || return 0
+  local g=pass k
+  [ "$fail" = 0 ] || g=fail
+  : > "$SCOUT_GRADE_OUT"
+  for k in critical high kev nonroot attestations licenses base; do
+    echo "${k}=${result[$k]:-error}" >> "$SCOUT_GRADE_OUT"
+    case "${result[$k]:-error}" in yes | error) [ "$k" = base ] || g=fail ;; esac
+  done
+  echo "grade=${g}" >> "$SCOUT_GRADE_OUT"
+}
 # record <rule> <value>: yes and error fail the grade.
 record() {
   result[$1]="$2"
@@ -57,32 +77,53 @@ record() {
 
 inspect() { docker buildx imagetools inspect "$@"; }
 
-echo "== Grade ${ref}"
+# merge <rule> <value>: the worst value across platforms (error > yes > no).
+merge() {
+  case "${result[$1]:-no}/$2" in
+    error/* | */error) result[$1]=error ;;
+    yes/* | */yes) result[$1]=yes ;;
+    *) result[$1]=no ;;
+  esac
+}
 
-# 1) Fixable critical/high and 2) CISA KEV, both VEX-aware and fail-closed.
-if SCOUT_CVE_OUT="$tmp/cve.out" bash "$here/scout-cve-gate.sh" "registry://${ref}" "$key"; then
-  record critical no; record high no
-elif [ -s "$tmp/cve.out" ]; then
-  record critical "$(sed -n 's/^critical=//p' "$tmp/cve.out")"
-  record high "$(sed -n 's/^high=//p' "$tmp/cve.out")"
-  # A format-drift failure can leave both at "no"; never let that pass.
-  [ "${result[critical]}${result[high]}" != nono ] || { record critical error; record high error; }
-else
-  record critical error; record high error
-fi
-# scout-cve-gate.sh exits 1 for findings and for scan errors alike; both fail
-# the grade, which is what matters here.
-if bash "$here/scout-cve-gate.sh" --kev "registry://${ref}" "$key"; then
-  record kev no
-else
-  record kev yes
-fi
+# cve_scans: runs scout-cve-gate.sh (fixable C/H, then CISA KEV) once per line
+# of $tmp/platforms; an empty line scans the host platform.
+cve_scans() {
+  local plat mode out
+  while IFS= read -r plat; do
+    for mode in fixable kev; do
+      out="$tmp/cve-${mode}.out"; rm -f "$out"
+      local args=("registry://${ref}" "$key")
+      [ "$mode" = fixable ] || args=(--kev "${args[@]}")
+      if SCOUT_PLATFORM="$plat" SCOUT_CVE_OUT="$out" bash "$here/scout-cve-gate.sh" "${args[@]}"; then
+        :
+      elif [ ! -s "$out" ] || ! grep -qE '=(yes|error)$' "$out"; then
+        # Failed with no finding recorded (format drift): never pass.
+        echo "${mode/fixable/critical}=error" >> "$out"
+      fi
+      if [ -s "$out" ]; then
+        while IFS='=' read -r k v; do merge "$k" "$v"; done < "$out"
+      else
+        if [ "$mode" = kev ]; then merge kev error; else merge critical error; merge high error; fi
+      fi
+    done
+  done < "$tmp/platforms"
+  local k
+  for k in critical high kev; do
+    case "${result[$k]:-error}" in yes | error) fail=1 ;; esac
+    result[$k]="${result[$k]:-error}"
+  done
+}
+
+echo "== Grade ${ref}"
 
 # The rest reads the published index and its attestations.
 if ! inspect "$ref" --raw > "$tmp/index.json" 2> "$tmp/err"; then
   echo "::error::cannot read the index of ${ref}: $(head -c 300 "$tmp/err")"
   record nonroot error; record attestations error; record licenses error
   result[base]=unknown
+  echo "" > "$tmp/platforms" # still scan the host platform
+  cve_scans
 else
   platforms="$(jq '[.manifests[]?
       | select((.annotations["vnd.docker.reference.type"] // "") != "attestation-manifest")
@@ -91,7 +132,16 @@ else
   # single-platform image. norm turns both into a list of values.
   norm='if type == "object" and (has("SLSA") or has("SPDX") or has("config") or has("architecture")) then [.] elif type == "object" then [.[]] else [] end'
 
-  # 3) Non-root default user on every platform.
+  # 1) Fixable critical/high and 2) CISA KEV, per platform (Scout scans only
+  #    the host platform unless told), VEX-aware and fail-closed.
+  jq -r '.manifests[]?
+      | select((.annotations["vnd.docker.reference.type"] // "") != "attestation-manifest")
+      | select((.platform.os // "") != "unknown")
+      | [.platform.os, .platform.architecture, .platform.variant] | map(select(. != null and . != "")) | join("/")' \
+    "$tmp/index.json" > "$tmp/platforms"
+  [ -s "$tmp/platforms" ] || echo "" > "$tmp/platforms" # single-platform image
+  cve_scans
+
   if inspect "$ref" --format '{{json .Image}}' > "$tmp/image.json" 2> "$tmp/err"; then
     users="$(jq -r "$norm | .[] | (.config.User // \"\")" "$tmp/image.json")"
     n_users="$(printf '%s\n' "$users" | sed '/^$/d' | wc -l)"
@@ -172,12 +222,5 @@ else
 fi
 
 grade=pass; [ "$fail" = 0 ] || grade=fail
-if [ -n "${SCOUT_GRADE_OUT:-}" ]; then
-  : > "$SCOUT_GRADE_OUT"
-  for k in critical high kev nonroot attestations licenses base; do
-    echo "${k}=${result[$k]:-error}" >> "$SCOUT_GRADE_OUT"
-  done
-  echo "grade=${grade}" >> "$SCOUT_GRADE_OUT"
-fi
 echo "== ${ref}: grade ${grade}"
 [ "$grade" = pass ]

@@ -49,6 +49,8 @@ jobs:
       # one and keep the scan inside that hour.
       - name: Refresh Docker Hub login (before scan)
         uses: ./.github/actions/configure-dockerhub
+      - name: Set up Docker Buildx (scout-grade.sh reads attestations with imagetools)
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
       - name: Grade each required :latest image (no org-level Scout call)
         id: scan
         timeout-minutes: 60
