@@ -151,9 +151,11 @@ ARG DOCKER_COMPOSE_VERSION
 # golang.org/x/net 0.60.0: CVE-2026-78663 (CRITICAL) and CVE-2026-78659 /
 # CVE-2026-78660 / CVE-2026-78669 (HIGH), all fixed in 0.60.0 (#144). x/net
 # 0.60.0 requires x/crypto >= 0.57.0, x/sys >= 0.48.0 and x/text >= 0.42.0.
+# github.com/containerd/containerd/v2 2.2.7: compose v5.2.0 bundles 2.2.5
+# (CVE-2026-95837 — HIGH, improper privilege management, fixed in 2.2.7).
 RUN mkdir /tmp/compose && cd /tmp/compose && \
     go mod init _compose && \
-    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v1.83.2 github.com/moby/go-archive@v0.3.3 golang.org/x/crypto@v0.57.0 golang.org/x/net@v0.60.0 && \
+    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v1.83.2 github.com/moby/go-archive@v0.3.3 golang.org/x/crypto@v0.57.0 golang.org/x/net@v0.60.0 github.com/containerd/containerd/v2@v2.2.7 && \
     go build -o /go/bin/docker-compose "github.com/docker/compose/v5/cmd" && \
     cd / && rm -rf /tmp/compose
 
@@ -176,17 +178,14 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
   apk upgrade --no-cache && \
   apk add --no-cache ca-certificates tzdata libltdl rsync zip openssh git bash shadow gcc musl-dev make linux-headers curl tini gcompat python3-dev py3-pip groff openrc
 
-# jq: the patched jq (>= 1.8.2-r0, fixes CVE-2026-32316 / CVE-2026-40164) is only
-# in alpine edge; 3.24 stable still ships the vulnerable 1.8.1-r0. Pull jq (only)
-# from edge via a tagged repo until the fix is backported to 3.24 stable, then
-# drop this. The @edge tag scopes edge to jq alone; everything else stays stable.
-# libexpat: likewise, the patched libexpat (>= 2.9.0-r0, fixes CVE-2026-102633 and
-# CVE-2026-77214)
-# is only in alpine edge; 3.24 stable still ships the vulnerable 2.8.5-r0 (pulled
-# in by git + python3). Pull libexpat (only) from edge until backported to 3.24
-# stable, then drop it from this line.
+# curl: the patched libcurl (>= 8.23.0-r0, fixes CVE-2026-92392) is only in
+# alpine edge; 3.24 stable still ships the vulnerable 8.22.0-r0. Pull curl +
+# libcurl (only) from edge via a tagged repo until the fix is backported to 3.24
+# stable, then drop this. The @edge tag scopes edge to those two packages;
+# everything else stays stable. (jq >= 1.8.2-r0 and libexpat >= 2.9.0-r0 have
+# reached 3.24 stable, so they no longer come from edge.)
 RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache jq@edge libexpat@edge
+  apk add --no-cache jq curl@edge libcurl@edge
 
 # Docker CLI, built from source in the go-alpine-downloader stage above --
 # the published static tarball carries an unpatched Go stdlib (#115).
