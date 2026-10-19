@@ -10,7 +10,8 @@ on:
 jobs:
   # Docs-only PRs skip the image builds and CVE scans (scripts/ci-changes.sh;
   # anything else, or an error, runs them). The heavy jobs still run, so their
-  # required check names report; their steps are skipped.
+  # required check names report; their steps are skipped. Steps run unless the
+  # output is exactly 'false', so a failed or empty result runs everything.
   changes:
     name: Decide whether the PR needs image CI
     runs-on: ubuntu-22.04
@@ -30,6 +31,9 @@ jobs:
   build:
     name: ${{ matrix.image }} - ${{ matrix.arch }} docker build
     needs: changes
+    # Run even when `changes` failed: its output is then empty, and every
+    # step runs (fail closed).
+    if: ${{ !cancelled() }}
     runs-on: ${{ fromJSON('{"arm64":"2vcpu-ubuntu-2204-arm","amd64":"ubuntu-22.04"}')[matrix.arch] }}
     permissions:
       contents: read
@@ -56,7 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Build container
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.full != 'false'
         uses: ./.github/actions/build-docker-images
         with:
           arch: ${{ matrix.arch }}
@@ -105,6 +109,7 @@ jobs:
     needs:
       - scout-config
       - changes
+    if: ${{ !cancelled() }} # see the build job
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -119,13 +124,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       # The build only pulls public images, so it may run anonymously.
       - name: Configure DockerHub (pull-only)
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.full != 'false'
         uses: ./.github/actions/ci-dockerhub-login
       - name: Set up Docker Buildx
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.full != 'false'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
       - name: Expose GHA runtime to buildx (for type=gha cache backend)
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.full != 'false'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         with:
           script: |
@@ -133,7 +138,7 @@ jobs:
               if (k.startsWith('ACTIONS_') && v) core.exportVariable(k, v);
             }
       - name: Build image for scan (amd64, loaded locally)
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.full != 'false'
         timeout-minutes: 60 # the OIDC token's lifetime
         run: |
           cd images && make \
@@ -146,7 +151,7 @@ jobs:
       # error. A fresh token, because the build above can use most of the
       # first one's hour.
       - name: Refresh Docker Hub login (before Scout, required)
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.full != 'false'
         uses: ./.github/actions/configure-dockerhub
       # Record the FULL CVE picture (every severity, fixable AND unfixable) and
       # publish it per run: a quickview breakdown to the job step summary plus a
@@ -156,7 +161,7 @@ jobs:
       # fixable HIGH/CRITICAL. NOTE: this records per run only; durable trend
       # tracking would mean feeding the SARIF to the code-scanning Security tab.
       - name: Record total CVE breakdown (all severities, non-blocking)
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.full != 'false'
         uses: docker/scout-action@221e7f4860634eeb1579e3bd7ca232e577bd1864  # v1.26.0
         continue-on-error: true
         with:
@@ -166,7 +171,7 @@ jobs:
           exit-code: false
           write-comment: false
       - name: Generate full CVE SARIF (all severities, non-blocking)
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.full != 'false'
         uses: docker/scout-action@221e7f4860634eeb1579e3bd7ca232e577bd1864  # v1.26.0
         continue-on-error: true
         with:
@@ -177,7 +182,7 @@ jobs:
           exit-code: false
           write-comment: false
       - name: Upload full CVE SARIF artifact
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.full != 'false'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         continue-on-error: true
         with:
@@ -196,10 +201,10 @@ jobs:
       # Auth: the "Refresh Docker Hub login" step above `docker login`s with
       # OIDC, so the scout CLI is authenticated. See docs/upstream-cve-backlog.md.
       - name: Install Docker Scout CLI
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.full != 'false'
         run: bash scripts/install-scout-cli.sh # pinned + sha256-verified; version in common.config.mk (#120)
       - name: Scan with Docker Scout (fail on UNWAIVED fixable HIGH/CRITICAL)
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.full != 'false'
         timeout-minutes: 30
         env:
           IMAGE: ${{ matrix.image }}

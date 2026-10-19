@@ -174,6 +174,8 @@ else
   #    for its whole family (the text before its first "-"): AGPL-3.0 also
   #    covers AGPL-1.0, AGPL-3.0+ and a bare AGPL, so a spelling the list does
   #    not name cannot pass. GPL-3.0 is another family and is not matched.
+  #    So every list entry must start with a family meant to be blocked whole:
+  #    an entry such as CC-BY-NC-4.0 would block every CC-* license.
   if [ "$n_sbom" -lt 1 ]; then
     echo "::error::no SBOM to check licenses on for ${ref}"; record licenses error
   elif ! jq -e '.policies[] | select(.name == "copyleft-license") | .config.licenses | length > 0' "$policy_config" > /dev/null; then

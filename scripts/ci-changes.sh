@@ -19,11 +19,13 @@ out() {
 }
 
 [ -n "$base" ] && [ -n "$head" ] || { echo "ci-changes: no base/head; running full CI" >&2; out true; }
-if ! files="$(git diff --name-only "${base}...${head}" 2>&1)"; then
+if ! files="$(git diff --no-renames --name-only "${base}...${head}" 2>&1)"; then
   echo "ci-changes: git diff failed; running full CI: $files" >&2; out true
 fi
 [ -n "$files" ] || { echo "ci-changes: no changed files; running full CI" >&2; out true; }
 
+# --no-renames: a rename lists its old path too, so moving a script into
+# docs/ is not docs-only.
 # Docs-only paths. Never list a path a build, gate or workflow reads.
 docs_only() {
   case "$1" in

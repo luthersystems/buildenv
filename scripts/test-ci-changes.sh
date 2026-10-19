@@ -29,6 +29,11 @@ check "an action runs" true .github/actions/x/action.yml
 check "VEX runs" true .github/vex/x.openvex.json
 check "config runs" true common.config.mk
 
+git checkout -q -B "t$RANDOM" "$base"
+mkdir -p docs && git mv images/x/Dockerfile docs/Dockerfile.md && git commit -qm move
+got="$(GITHUB_OUTPUT='' bash "$here/ci-changes.sh" "$base" HEAD 2> /dev/null)"
+if [ "$got" = full=true ]; then echo "ok   a rename into docs runs"; else echo "FAIL rename: $got"; fails=$((fails + 1)); fi
+
 got="$(GITHUB_OUTPUT='' bash "$here/ci-changes.sh" "" "" 2> /dev/null)"
 if [ "$got" = full=true ]; then echo "ok   no base runs"; else echo "FAIL no base: $got"; fails=$((fails + 1)); fi
 got="$(GITHUB_OUTPUT='' bash "$here/ci-changes.sh" deadbeef HEAD 2> /dev/null)"

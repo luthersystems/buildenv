@@ -27,6 +27,7 @@ to **propose** fixes, not ship them. The lock that enforces "propose, don't merg
 Strict (security/grade-A — **must** be required):
 
 - `Resolve Docker Scout image lists`
+- `Decide whether the PR needs image CI` — the docs-only skip (`scripts/ci-changes.sh`)
 - `Non-root user audit (all images)` — hard-fails only on a strict-image root regression
 - `CVE scan (build-api)`
 - `CVE scan (build-go-alpine)`
@@ -72,6 +73,7 @@ cat > /tmp/buildenv-main-protection.json <<'JSON'
     "strict": true,
     "contexts": [
       "Resolve Docker Scout image lists",
+      "Decide whether the PR needs image CI",
       "Non-root user audit (all images)",
       "CVE scan (build-api)",
       "CVE scan (build-go-alpine)",
