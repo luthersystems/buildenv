@@ -6,14 +6,14 @@ ARG ALPINE_VERSION=3.24
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine${ALPINE_VERSION}
 
 USER root
-# curl / libx11: the patched libcurl (>= 8.23.0-r0, fixes CVE-2026-92392) and
-# libx11 (>= 1.8.14-r0, fixes CVE-2026-88806) are only in alpine edge; 3.24
-# stable still ships the vulnerable 8.22.0-r0 / 1.8.13-r0. Pull these (only)
-# from edge until they are backported to 3.24 stable, then drop the edge lines.
-# (libexpat >= 2.9.0-r0 has reached 3.24 stable, so it no longer comes from edge.)
+# curl: the patched libcurl (>= 8.23.0-r0, fixes CVE-2026-92392) is only in
+# alpine edge; 3.24 stable still ships the vulnerable 8.22.0-r0. Pull curl +
+# libcurl (only) from edge until backported to 3.24 stable, then drop the edge
+# lines. (libexpat >= 2.9.0-r0 and libx11 >= 1.8.14-r0, which fixes
+# CVE-2026-88806, have reached 3.24 stable; `apk upgrade` picks them up.)
 RUN apk update && apk upgrade --no-cache && \
   echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache curl@edge libcurl@edge libx11@edge
+  apk add --no-cache curl@edge libcurl@edge
 USER nginx
 
 COPY nginx/nginx_serve.sh /opt/
