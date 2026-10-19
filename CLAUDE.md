@@ -60,7 +60,7 @@ the bundled artifact goes clean. `build-godynamic` stays grade-A via an OpenVEX
 moby finding (CVE-2026-34040 — a daemon AuthZ bug not reachable from the compose
 client it ships): the PR gate ([`scripts/scout-cve-gate.sh`](scripts/scout-cve-gate.sh))
 lists fixable C/H findings and drops VEX-waived ones, fail-closed (Scout's own
-`cves --exit-code` can't honor VEX — only `docker scout policy` does). The
+`cves --exit-code` can't honor VEX). The
 required + exempt sets are the single source of truth in
 [`.github/scout-required-images.json`](.github/scout-required-images.json), gated
 in CI four ways:
@@ -68,7 +68,7 @@ in CI four ways:
 | When | Workflow | Gate |
 |---|---|---|
 | every PR | `build.yml` → `cve-scan` + `non-root-audit` | fixable CRITICAL/HIGH CVEs (required set); non-root audit across **all** images — hard-fails only if a required image regresses to root, reports the rest |
-| release (tag) | `publish.yml` → `scout-policy` | `docker scout policy --exit-code` (true grade) + attestations. **Hard for human-cut releases; report-only for automation's interim patch releases** (`release-meta` detects `claude[bot]`) |
+| release (tag) | `publish.yml` → `scout-grade` | `scripts/scout-grade.sh` on the pushed image (grade rules, below) + attestations. **Hard for human-cut releases; report-only for automation's interim patch releases** (`release-meta` detects `claude[bot]`) |
 | daily cron | `scout-drift.yml` | re-scan published `:latest`; open/refresh a `scout-drift` issue on drift, auto-close on recovery, and **escalate the remediation SLA** |
 | publish failed | `publish-recovery.yml` | a failed `v*` publish is **re-run once**, then escalated onto the open `scout-drift` issue + Slack. **Cutting a release is not remediating** — v0.1.12's publish died on a transient Docker Hub timeout and `:latest` served the vulnerable build for 3 days while the issue read "Remediated" (#107 → #109) |
 
@@ -115,27 +115,23 @@ default `GITHUB_TOKEN`, whose events can't trigger workflows); Claude-App-
 authored events go through `slack-alerts.yml`. Verify wiring with
 `make slack-test`.
 
-**Scout enrollment is code-driven — never hand-toggle it in the Hub UI.**
-`scripts/scout-setup.sh` (`make scout-setup` / `make scout-check`) reconciles
-Docker Scout repo enablement with `scout-required-images.json`, and the daily
-drift watch runs it first as a self-heal (an un-enrolled repo yields NO policy
-results and silently falls out of the gates — the July 2026 failure class:
-build-go, build-java, nginx-frontend, build-godynamic were each found
-disabled). **Policy configuration is code too (#98):** `docker scout policy`
-evaluates Docker's **built-in** Rego set locally — it does **not** read the
-Scout dashboard's org policies. Every gate calls it through
-`scripts/scout-policy.sh` with
-[`.github/scout-policy/policy-config.json`](.github/scout-policy/policy-config.json)
-(the org's AGPL-only copyleft list). Never add `--policy-file`/`--policy-dir`:
-either one replaces the whole built-in set and stops the VEX fetch. The
-dashboard set still drives the Hub health score; keep the two in step.
-The built-in CVE policy ignores our OpenVEX (it matches only a bare package
-purl, not our image + subcomponent form), so both policy gates apply one
-fail-closed **VEX-only rule**
-([`scripts/scout-policy-verdict.sh`](scripts/scout-policy-verdict.sh)): a
-failure passes only when the CVE row is the sole failing row and the VEX-aware
-probe finds 0 unwaived fixable C/H. `make test-scout-policy` guards the config
-and tests that rule.
+**CI computes the grade itself — never call `docker scout policy` in CI
+(#150).** `docker scout policy` and Scout repo enrollment are org-level Scout
+API calls; the OIDC login has no Scout scope (nor does an org access token), so
+they return 403. Image-level `docker scout cves` and registry reads work, so
+[`scripts/scout-grade.sh`](scripts/scout-grade.sh) checks each Scout
+health-score rule on a pushed image: fixable C/H and CISA KEV CVEs (VEX-aware,
+via `scout-cve-gate.sh`), non-root user and SBOM + provenance on every
+platform, no AGPL package in the SBOM (list:
+[`.github/scout-policy/policy-config.json`](.github/scout-policy/policy-config.json)),
+and outdated base images (report only). It fails closed. The drift watch and
+`publish.yml` → `scout-grade` call it; `docker/scout-action` `quickview` adds a
+report-only CVE overview to the run summary. `make test-scout-grade` tests it
+with a fake `docker`. The Docker Hub grade is Scout's own and is unchanged, so
+keep the dashboard policy set and `policy-config.json` in step.
+`scripts/scout-setup.sh` (`make scout-setup` / `make scout-check`) still
+reconciles Scout repo enrollment, but it needs a human `docker login`; CI no
+longer runs it.
 
 **When a Scout finding (CVE or policy) needs fixing, follow the `/scout-fix`
 skill — it captures exactly how #71/#72, #74, #76, #77, #78 were resolved, plus

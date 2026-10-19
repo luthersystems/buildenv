@@ -52,7 +52,7 @@ both reading the list above via the `scout-config` job:
 | Tier | Workflow | What it gates |
 |---|---|---|
 | **PR** (every PR) | `build.yml` → `cve-scan` + `non-root-audit` | **fixable CRITICAL/HIGH CVEs** on the required set, plus a **non-root-user audit across all 10 images** — hard-fails only if a required image regresses to root, and reports every other image's status (the 6 root builders are surfaced, not gated). |
-| **Release** (tag push) | `publish.yml` → `scout-policy` | the **true grade** on the pushed image: `docker scout policy --exit-code` (covers attestations, approved/up-to-date base images, high-profile CVEs, and licenses on top of the above). **Hard for human-cut releases**; **report-only for automation's interim patch releases** (the `release-meta` job detects a `claude[bot]` author — those ship strictly-better improvements while a deeper fix is still in review, enforced by the daily drift watch + SLA below). |
+| **Release** (tag push) | `publish.yml` → `scout-grade` | the **grade** on the pushed image, from `scripts/scout-grade.sh` (see below): fixable C/H and CISA KEV CVEs (VEX-aware), non-root user, SBOM + provenance on every platform, and no AGPL package in the SBOM; outdated base images are reported, not gated. **Hard for human-cut releases**; **report-only for automation's interim patch releases** (the `release-meta` job detects a `claude[bot]` author — those ship strictly-better improvements while a deeper fix is still in review, enforced by the daily drift watch + SLA below). |
 
 `cve_net_extra` in the JSON (currently `build-go`) lists extra builder images
 that get the fixable CRITICAL/HIGH CVE net only — not the full grade-A gate.
@@ -60,9 +60,19 @@ that get the fixable CRITICAL/HIGH CVE net only — not the full grade-A gate.
 **To require a new service:** add it to `required` in the JSON. First give it a
 non-root default `USER` and clean deps, or the very first PR/release will fail
 the gate (which is the point). If a release is ever blocked by an *unfixable*
-CVE or a newly-added low-weight policy, scope `scout-policy` with
-`--only-policy <slug,...>` or temporarily set `continue-on-error: true` — see the
-comment on that job in `publish.yml`.
+finding, add an OpenVEX waiver when the code is not reachable, or temporarily
+set `continue-on-error: true` on `scout-grade` — see the comment on that job in
+`publish.yml`.
+
+**Why CI does not call `docker scout policy` (#150).** `docker scout policy`
+and Scout repo enrollment are org-level Scout API calls. CI logs in to Docker
+Hub with OIDC only, and neither an OIDC connection nor an organization access
+token has a Scout scope, so those calls return 403. Image-level calls
+(`docker scout cves`) and registry reads work. So `scripts/scout-grade.sh`
+checks each health-score rule from them, and the daily drift watch and the
+release gate use it. The grade shown on Docker Hub is Scout's own and does
+not change. `docker/scout-action` `quickview` adds a CVE overview to each run
+summary (report only). `make scout-setup` still needs a human login.
 
 For the strict-image gates to actually **block merges** — and to ensure
 automation can open PRs but never merge them — the checks must be marked required

@@ -3,8 +3,8 @@ name: Scout drift watch
 # Layer 2 of keeping the required images at grade A (see README "Image security
 # policies"). The PR gate (build.yml) and release gate (publish.yml) only fire on
 # code changes — but a CVE disclosed today against an UNCHANGED pin drops the
-# grade with no commit to trigger a scan. This cron re-evaluates the real Docker
-# Scout policy grade on the published `:latest` images, opens/refreshes a tracking
+# grade with no commit to trigger a scan. This cron re-evaluates the Docker Scout
+# grade (scripts/scout-grade.sh) on the published `:latest` images, opens/refreshes a tracking
 # issue + reds the run on drift, and auto-closes it on recovery.
 #
 # It also enforces the customer remediation SLA (.github/scout-sla.json): it
@@ -27,6 +27,8 @@ jobs:
   drift:
     name: Docker Scout drift watch (published :latest)
     runs-on: ubuntu-22.04
+    outputs:
+      images: ${{ steps.scan.outputs.images }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       # Docker Scout has no anonymous mode: fail loudly (and alert, via the
@@ -35,19 +37,6 @@ jobs:
         uses: ./.github/actions/configure-dockerhub
       - name: Install Docker Scout CLI
         run: bash scripts/install-scout-cli.sh # pinned + sha256-verified; version in common.config.mk (#120)
-      # Scout enrollment is config-drift-prone: build-go / build-java /
-      # nginx-frontend / build-godynamic were each found silently un-enrolled
-      # (July 2026), and an un-enrolled repo yields NO policy results — which
-      # the scan below then flags as ⚠️ drift. Reconcile it daily from
-      # scout-required-images.json (idempotent; alerts #alerts when it had to
-      # fix something). Best-effort: an enablement API failure must not stop
-      # the scan — the scan's no-policy-results path still surfaces the
-      # symptom. Logic: scripts/scout-setup.sh (also `make scout-setup`).
-      - name: Self-heal Docker Scout repo enrollment
-        timeout-minutes: 15
-        env:
-          SLACK_ALERT_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
-        run: bash scripts/scout-setup.sh || echo "::warning::scout-setup.sh failed; continuing to the scan"
       # The from-source Docker CLI build (#115) is a workaround for Docker
       # publishing its CLI on an older Go than our GOLANG_VERSION. Its risk is
       # becoming permanent by inertia, so the daily watch checks the exit
@@ -60,142 +49,51 @@ jobs:
       # one and keep the scan inside that hour.
       - name: Refresh Docker Hub login (before scan)
         uses: ./.github/actions/configure-dockerhub
-      - name: Evaluate Scout policy + worst fixable severity on each required :latest image
+      - name: Set up Docker Buildx (scout-grade.sh reads attestations with imagetools)
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
+      - name: Grade each required :latest image (no org-level Scout call)
         id: scan
         timeout-minutes: 60
+        # The grade is rebuilt from image-level checks in scripts/scout-grade.sh:
+        # `docker scout policy` and Scout enrollment are org-level API calls,
+        # which an OIDC token cannot make (403; #150). scout-grade.sh is
+        # VEX-aware and fail-closed: an image whose checks cannot run is drift.
         run: |
-          set -uo pipefail
+          set +e -uo pipefail
           drift=0
           worst="none" # severity ranking: none < high < critical
-          vex_dir=".github/vex"
+          echo "images=$(jq -c '.required' .github/scout-required-images.json)" >> "$GITHUB_OUTPUT"
           {
-            echo "## Docker Scout policy drift on published \`:latest\` images"
+            echo "## Docker Scout grade drift on published \`:latest\` images"
             echo
-            echo "Re-evaluated by the daily \`Scout drift watch\` workflow."
+            echo "Re-evaluated by the daily \`Scout drift watch\` workflow (\`scripts/scout-grade.sh\`)."
             echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             echo
           } > summary.md
           for img in $(jq -r '.required[]' .github/scout-required-images.json); do
             ref="luthersystems/${img}:latest"
-            echo "::group::scout $ref"
-            # --- Grade (authoritative + VEX-honoring) ---
-            # Docker Scout analyzes a (re)published tag asynchronously, so a fresh
-            # :latest can transiently report "No policy evaluation results found" —
-            # a race, NOT a grade drop. Same failure #89 (92c0a31) fixed for the
-            # release gate in publish.yml; the daily watch was missed and treated
-            # the transient state as "below grade A", opening a false drift issue.
-            # Mirror the fix: poll `docker scout policy` until results appear (up to
-            # ~15 min), then let --exit-code decide. A real violation exits non-zero
-            # WITHOUT the "no results" marker, so it is recorded immediately (never
-            # waits the window). `docker scout policy` is the only Scout surface
-            # that honors OpenVEX (server-side, via the pushed attestation), so it
-            # is the authoritative grade; the raw `cves` probe below is VEX-blind.
-            deadline=$(( SECONDS + 900 ))
-            policy=""
-            policy_out=""
-            while :; do
-              rc=0
-              out="$(bash scripts/scout-policy.sh "$ref" 2>&1)" || rc=$?
-              printf '%s\n' "$out"
-              if [ "$rc" -eq 0 ]; then
-                policy="✅ grade A"; break
-              fi
-              if printf '%s' "$out" | grep -qiE 'no policy .*results'; then
-                if [ "$SECONDS" -ge "$deadline" ]; then
-                  echo "::warning::Scout policy results for $ref never became available (~15 min) — flagging as drift so it stays visible; usually clears next run once Scout finishes analyzing."
-                  policy="⚠️ no policy results (Scout not ready)"; drift=1; break
-                fi
-                echo "Policy results not ready for $ref; retrying in 30s..."
-                sleep 30
-                continue
-              fi
-              # Real violation: defer the drift verdict until the VEX-aware
-              # severity probe below has run — see the #98 VEX-only rule after it.
-              policy_out="$out"; break
-            done
-
-            # --- Worst fixable severity for the SLA clock (VEX-aware, crash-safe) ---
-            # `docker scout cves --exit-code` returns exactly 2 when fixable
-            # findings exist, 0 when none. Two bugs the old code had, both fixed:
-            # (1) the runner uses `bash -e` and `set -uo pipefail` does NOT clear
-            # -e, so a bare `cves …; rc=$?` let the rc=2 abort the whole step
-            # mid-loop — that is what crashed the watch on build-godynamic (its
-            # VEX-waived CVE-2026-34040 makes cves exit 2) and stopped it opening
-            # an issue; guard with set +e/set -e. (2) raw `cves` cannot honor
-            # OpenVEX, so it would count that waived finding and spoof the SLA
-            # severity — subtract this image's not_affected waivers (same jq as
-            # scripts/scout-cve-gate.sh) before classifying.
-            # Transient API errors (any rc other than 0/2) get 3 attempts with
-            # 30s backoff: on 2026-07-07 the probe returned rc=1 on 6/7 images
-            # (Docker API hiccup, self-healed by the next run), and because the
-            # #98 VEX-only rule below fail-closes on probe_error, the watch redded
-            # as "below grade A" and opened a false drift issue (#101) for
-            # images whose health hadn't changed. Retries absorb the hiccup;
-            # after exhausted retries the behavior is unchanged (probe_error=1,
-            # fail-closed).
-            waived=""
-            if compgen -G "${vex_dir}/"'*.json' >/dev/null 2>&1; then
-              waived="$(jq -r --arg key "$img" '
-                  .statements[]? | select(.status == "not_affected")
-                  | select([.products[]?."@id" // empty] | map(test("/" + $key + "(@|$)")) | any)
-                  | .vulnerability.name' "${vex_dir}"/*.json 2>/dev/null | sort -u || true)"
+            echo "::group::grade $ref"
+            rm -f grade.out
+            SCOUT_GRADE_OUT=grade.out bash scripts/scout-grade.sh "$ref" "$img" || true
+            val() { sed -n "s/^$1=//p" grade.out 2>/dev/null; }
+            crit="$(val critical)"; high="$(val high)"
+            if [ "$(val grade)" = pass ]; then
+              status="✅ grade A"
+            else
+              drift=1
+              failed="$(grep -E '=(yes|error)$' grade.out 2>/dev/null | paste -sd, - || true)"
+              status="❌ below grade A (${failed:-grade not read})"
             fi
-            crit="no"; high="no"; probe_error=0
-            for sev in critical high; do
-              rc=1
-              for attempt in 1 2 3; do
-                set +e
-                out="$(docker scout cves "$ref" --only-fixed --only-severity "$sev" --exit-code 2>/dev/null)"; rc=$?
-                set -e
-                if [ "$rc" -eq 0 ] || [ "$rc" -eq 2 ]; then break; fi
-                if [ "$attempt" -lt 3 ]; then
-                  echo "scout cves $sev probe attempt $attempt errored (rc=$rc) for $ref; retrying in 30s..."
-                  sleep 30
-                fi
-              done
-              if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
-                echo "::warning::scout cves $sev probe errored (rc=$rc) for $ref after 3 attempts"; probe_error=1; continue
-              fi
-              [ "$rc" -eq 2 ] || continue   # rc=0 → nothing fixable at this severity
-              present="$(printf '%s' "$out" | grep -oE 'CVE-[0-9]{4}-[0-9]+|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}' | sort -u || true)"
-              # Fail-safe toward escalation: Scout says fixable findings exist but
-              # we parsed no IDs to match against VEX → count as present, never
-              # under-report the SLA severity.
-              if [ -z "$present" ]; then
-                if [ "$sev" = critical ]; then crit="yes"; else high="yes"; fi
-                continue
-              fi
-              unwaived="$(comm -23 <(printf '%s\n' "$present" | sed '/^$/d') <(printf '%s\n' "$waived" | sed '/^$/d') || true)"
-              if [ -n "$unwaived" ]; then
-                if [ "$sev" = critical ]; then crit="yes"; else high="yes"; fi
-              fi
-            done
-            # --- VEX-only rule (#98): the built-in CVE policy ignores our OpenVEX ---
-            # Docker's built-in fixable-vulnerabilities policy waives a VEX
-            # statement only when the product @id IS the package purl; our
-            # OpenVEX docs use the image + subcomponent form. So a violation is
-            # NOT drift only when the CVE row is the sole failing row AND the
-            # fail-closed VEX-aware probe above contradicts it (crit=no, high=no,
-            # no probe error). The rule and its tests live in
-            # scripts/scout-policy-verdict.sh; publish.yml's grade gate uses it too.
-            if [ -z "$policy" ]; then
-              vex_clean=no
-              if [ "$crit" = "no" ] && [ "$high" = "no" ] && [ "$probe_error" -eq 0 ]; then vex_clean=yes; fi
-              if printf '%s\n' "$policy_out" | bash scripts/scout-policy-verdict.sh "$vex_clean" >/dev/null; then
-                policy="⚠️ VEX-waived fixable CVEs only (#98) — VEX-aware probe finds none"
-                echo "::warning::$ref failed only the VEX-blind built-in CVE policy and the VEX-aware probe finds no unwaived fixable C/H (see #98); not counted as drift"
-              else
-                policy="❌ below grade A"; drift=1
-              fi
-            fi
-            if [ "$crit" = "yes" ]; then worst="critical"; fi
-            if [ "$high" = "yes" ] && [ "$worst" != "critical" ]; then worst="high"; fi
-            echo "- \`${img}\` — ${policy}; fixable Critical: ${crit}, fixable High: ${high}" >> summary.md
+            [ "$(val base)" = stale ] && status="${status}; base image has a newer digest (report only)"
+            [ "$crit" = yes ] && worst="critical"
+            [ "$high" = yes ] && [ "$worst" != critical ] && worst="high"
+            echo "- \`${img}\` — ${status}; fixable Critical: ${crit:-error}, fixable High: ${high:-error}" >> summary.md
             echo "::endgroup::"
           done
           echo "drift=${drift}" >> "$GITHUB_OUTPUT"
           echo "worst_severity=${worst}" >> "$GITHUB_OUTPUT"
           echo "----- summary -----"; cat summary.md
+          cat summary.md >> "$GITHUB_STEP_SUMMARY"
       # Issue/SLA state machine + Slack #alerts egress live in
       # scripts/scout-drift-sla.cjs (logic stays out of workflow YAML). Slack
       # alerts for the drift/SLA lifecycle are posted INLINE from this watch —
@@ -241,3 +139,32 @@ jobs:
           SLACK_ALERT_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK_URL }}
         run: |
           bash scripts/slack-alert.sh "⚠️ *Scout drift watch errored* — the watch itself broke (no drift verdict; silence is not green). <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+
+  # Readable per-image CVE overview in the run summary (docker/scout-action
+  # quickview). Report only: the verdict is the drift job's scout-grade.sh.
+  quickview:
+    name: Scout quickview (${{ matrix.image }}, report only)
+    needs: drift
+    if: always() && needs.drift.outputs.images != ''
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.drift.outputs.images) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Configure DockerHub
+        uses: ./.github/actions/configure-dockerhub
+      - name: Scout quickview of luthersystems/${{ matrix.image }}:latest
+        uses: docker/scout-action@221e7f4860634eeb1579e3bd7ca232e577bd1864  # v1.26.0
+        continue-on-error: true
+        with:
+          command: quickview,cves
+          image: luthersystems/${{ matrix.image }}:latest
+          only-fixed: true
+          only-severities: critical,high
+          vex-location: .github/vex
+          summary: true
+          exit-code: false
+          write-comment: false
