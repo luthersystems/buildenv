@@ -32,7 +32,10 @@ cd images && make PLATFORMS=linux/amd64 DOCKER_BUILDX_OPTS=--load build-go-alpin
 
 There is no image unit-test suite; correctness is "the image builds multi-arch
 and passes the Docker Scout gate." The automation logic in `scripts/*.cjs` has
-`node:test` unit tests (`make test-scripts`, CI job `script-tests`). Releases
+`node:test` unit tests (`make test-scripts`, CI job `script-tests`). A PR that
+changes only docs (`*.md`, `docs/`, `.claude/`) skips the image builds and CVE
+scans: those jobs still report their check names but skip their steps
+(`scripts/ci-changes.sh`; any other path, or an error, runs them all). Releases
 happen on `v*` tag push (publish.yml) — created via the GitHub release UI.
 
 ## Versions are centralized — change them in ONE place
