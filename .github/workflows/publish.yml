@@ -150,18 +150,17 @@ jobs:
           REF: ${{ github.ref_name }}
         run: bash scripts/scout-cve-gate.sh "luthersystems/${IMAGE}:${REF}" "${IMAGE}"
 
-  # Release-time TRUE grade-A gate. The Docker Scout health grade (A–F) and its
-  # supply-chain-attestation / approved+up-to-date base-image / high-profile-CVE
-  # / license policies are computed registry-side on the PUSHED image, so this is
-  # the only place the real "A A A" bill of health can be enforced (a PR's local
-  # --load image structurally can't carry attestations, so it can't grade A).
-  # `docker scout policy --exit-code` returns non-zero if ANY org policy is
-  # non-compliant on the published image. Escape hatch if an UNFIXABLE CVE or a
-  # newly-added low-weight policy ever blocks an otherwise-good release: scope
-  # with `--only-policy <slug,...>`, or temporarily add `continue-on-error: true`.
+  # Release-time grade-A gate on the PUSHED image (attestations, base images
+  # and SBOM licenses exist only there; a PR's local --load image cannot carry
+  # them). scripts/scout-grade.sh rebuilds Docker Scout's health-score rules
+  # from image-level checks: `docker scout policy` is an org-level Scout API
+  # call, which the OIDC login cannot make (403; #150). It is VEX-aware and
+  # fail-closed. Escape hatch if an UNFIXABLE finding ever blocks an
+  # otherwise-good release: an OpenVEX waiver (.github/vex/) when the code is
+  # not reachable, or temporarily `continue-on-error: true`.
   # Runs on the required grade-A set from .github/scout-required-images.json.
-  scout-policy:
-    name: Scout policy grade (${{ matrix.image }})
+  scout-grade:
+    name: Scout grade (${{ matrix.image }})
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -184,16 +183,10 @@ jobs:
       - name: Install Docker Scout CLI
         run: bash scripts/install-scout-cli.sh # pinned + sha256-verified; version in common.config.mk (#120)
       # Attach any OpenVEX not_affected statement for this image as an image
-      # attestation BEFORE policy evaluation. `docker scout policy` has no
-      # --vex-location flag (unlike the PR-time `cves` gate), so the only way it
-      # honors a VEX waiver is server-side via an attestation on the pushed image.
-      # Best-effort (continue-on-error): if the attach can't run (registry
-      # referrer / containerd-store limits) the policy step still runs and an
-      # unwaived finding trips it -- report-only for automation's interim releases
-      # (release-meta), and for a human release the escape hatch above
-      # (--only-policy / temporary continue-on-error) or a Scout dashboard
-      # exception applies. Validated at the next release. See
-      # docs/upstream-cve-backlog.md.
+      # attestation, so the Docker Hub health score can honor the waiver. The
+      # grade step below reads .github/vex/ itself and does not need it.
+      # Best-effort (continue-on-error): `attestation add --org` is an org-level
+      # Scout call and may be refused under the OIDC login (#150).
       - name: Attach OpenVEX attestations (if any) for ${{ matrix.image }}
         continue-on-error: true
         timeout-minutes: 10
@@ -216,53 +209,27 @@ jobs:
               "luthersystems/${IMAGE}:${REF}"
           done
           if [ "$found" = 0 ]; then echo "No OpenVEX docs for ${IMAGE}; nothing to attach."; fi
-      - name: Evaluate Docker Scout policies on the published image
-        # The poll below waits up to ~15 min; stays well inside the token's hour.
+      - name: Grade the published image (${{ matrix.image }})
         timeout-minutes: 30
-        run: |
-          set -uo pipefail
-          ref="luthersystems/${{ matrix.image }}:${{ github.ref_name }}"
-          # Docker Scout analyzes a pushed image asynchronously, so right after
-          # push the policy evaluation for a freshly-pushed tag may not exist yet
-          # ("No policy evaluation results found"). That is a transient race, not
-          # a grade failure -- on run 28482425988 build-go PASSED on attempt 1 and
-          # hit this on attempt 2. Poll until results appear, then let --exit-code
-          # decide. A real policy violation exits non-zero WITHOUT the "no results"
-          # marker, so it still fails fast (never waits the full window).
-          deadline=$(( SECONDS + 900 ))   # give Scout up to ~15 min to analyze
-          attempt=0
-          while :; do
-            attempt=$(( attempt + 1 ))
-            rc=0
-            out="$(bash scripts/scout-policy.sh "$ref" 2>&1)" || rc=$?
-            printf '%s\n' "$out"
-            if [ "$rc" -eq 0 ]; then
-              echo "Policy PASS for $ref (attempt $attempt)."
-              exit 0
-            fi
-            if printf '%s' "$out" | grep -qiE 'no policy .*results'; then
-              if [ "$SECONDS" -ge "$deadline" ]; then
-                echo "::error::Scout policy results for $ref never became available (~15 min). Re-run this job."
-                exit 1
-              fi
-              echo "Policy results not ready for $ref (attempt $attempt); retrying in 30s..."
-              sleep 30
-              continue
-            fi
-            # VEX-only rule (#98): the built-in CVE policy ignores our OpenVEX
-            # (image + subcomponent form). Pass ONLY if that row is the sole
-            # failure AND the fail-closed VEX-aware gate finds 0 unwaived
-            # fixable C/H. Same rule as scout-drift.yml; see
-            # scripts/scout-policy-verdict.sh.
-            vex_clean=no
-            if bash scripts/scout-cve-gate.sh "$ref" "${{ matrix.image }}"; then vex_clean=yes; fi
-            if printf '%s\n' "$out" | bash scripts/scout-policy-verdict.sh "$vex_clean" >/dev/null; then
-              echo "::warning::$ref failed only the VEX-blind built-in CVE policy, and every fixable C/H is VEX-waived (#98). Policy PASS."
-              exit 0
-            fi
-            echo "::error::Docker Scout policy is non-compliant for $ref."
-            exit "$rc"
-          done
+        env:
+          IMAGE: ${{ matrix.image }}
+          REF: ${{ github.ref_name }}
+        run: bash scripts/scout-grade.sh "luthersystems/${IMAGE}:${REF}" "${IMAGE}"
+      # Readable CVE overview in the run summary. Report only: the step above
+      # decides.
+      - name: Scout quickview (report only)
+        if: always()
+        uses: docker/scout-action@221e7f4860634eeb1579e3bd7ca232e577bd1864  # v1.26.0
+        continue-on-error: true
+        with:
+          command: quickview,cves
+          image: luthersystems/${{ matrix.image }}:${{ github.ref_name }}
+          only-fixed: true
+          only-severities: critical,high
+          vex-location: .github/vex
+          summary: true
+          exit-code: false
+          write-comment: false
 
   # Gate the release on supply-chain attestations actually being present on the
   # PUBLISHED multi-arch image. The Makefile attaches SBOM + provenance during
