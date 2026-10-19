@@ -53,8 +53,8 @@ jobs:
           persist-credentials: false
       - name: make test-scripts
         run: make test-scripts
-      - name: make test-scout-policy
-        run: make test-scout-policy # guards .github/scout-policy config (#98)
+      - name: make test-scout-grade
+        run: make test-scout-grade # CI grade + VEX-aware CVE gate (#150)
 
   # Single source of truth for which images must carry a clean Docker Scout
   # bill of health lives in .github/scout-required-images.json. This job

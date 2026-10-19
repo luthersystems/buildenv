@@ -1,7 +1,7 @@
 # Root operator entry points — thin wrappers over scripts/ so repo logic is
 # callable from make (image builds stay in images/Makefile: `cd images && make …`).
 
-.PHONY: slack-test next-patch-version scout-setup scout-check docker-cli-check test-scripts scout-cli-install test-scout-policy
+.PHONY: slack-test next-patch-version scout-setup scout-check docker-cli-check test-scripts scout-cli-install test-scout-grade
 
 # Send a test alert through scripts/slack-alert.sh to verify the Slack #alerts
 # webhook wiring end-to-end. No-op (prints a skip) if SLACK_ALERT_WEBHOOK_URL
@@ -40,8 +40,7 @@ scout-cli-install:
 test-scripts:
 	node --test scripts/*.test.cjs
 
-# Guard the Docker Scout policy config in .github/scout-policy and unit-test the
-# VEX-only policy verdict (#98). Also run in CI by build.yml's `script-tests` job.
-test-scout-policy:
-	bash scripts/test-scout-policy.sh
-	bash scripts/test-scout-policy-verdict.sh
+# Unit-test the CI grade (scripts/scout-grade.sh) and the VEX-aware CVE gate
+# with a fake docker; no network. Also run in CI by build.yml's `script-tests` job.
+test-scout-grade:
+	bash scripts/test-scout-grade.sh
