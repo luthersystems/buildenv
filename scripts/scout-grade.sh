@@ -170,19 +170,23 @@ else
     record attestations yes
   fi
 
-  # 5) No license from the AGPL list in any SBOM package.
+  # 5) No license from the AGPL list in any SBOM package. A listed id stands
+  #    for its whole family (the text before its first "-"): AGPL-3.0 also
+  #    covers AGPL-1.0, AGPL-3.0+ and a bare AGPL, so a spelling the list does
+  #    not name cannot pass. GPL-3.0 is another family and is not matched.
   if [ "$n_sbom" -lt 1 ]; then
     echo "::error::no SBOM to check licenses on for ${ref}"; record licenses error
   elif ! jq -e '.policies[] | select(.name == "copyleft-license") | .config.licenses | length > 0' "$policy_config" > /dev/null; then
     echo "::error::no copyleft license list in ${policy_config}"; record licenses error
   else
     hits="$(jq -r --slurpfile cfg "$policy_config" "
-        (\$cfg[0].policies[] | select(.name == \"copyleft-license\") | .config.licenses | map(ascii_upcase)) as \$bad
+        (\$cfg[0].policies[] | select(.name == \"copyleft-license\") | .config.licenses
+          | map(ascii_upcase | split(\"-\")[0]) | unique) as \$fam
         | $norm | .[] | .SPDX.packages[]?
         | . as \$p
         | [(.licenseConcluded // \"\"), (.licenseDeclared // \"\")]
         | map(ascii_upcase | [scan(\"[A-Z0-9.+-]+\")]) | add
-        | select(any(.[]; . as \$l | \$bad | index(\$l)))
+        | select(any(.[]; . as \$l | any(\$fam[]; . as \$f | \$l == \$f or (\$l | startswith(\$f + \"-\")) or (\$l | startswith(\$f + \"+\")))))
         | \"\(\$p.name)@\(\$p.versionInfo // \"?\")\"" "$tmp/sbom.json" | sort -u)"
     if [ -n "$hits" ]; then
       echo "::error::${ref} has packages under a disallowed (AGPL) license:"

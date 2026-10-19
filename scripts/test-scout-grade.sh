@@ -107,6 +107,12 @@ base_fixture "$FIX"
 jq '."linux/amd64".SPDX.packages += [{"name":"ghostscript","versionInfo":"9","licenseDeclared":"AGPL-3.0-or-later OR LicenseRef-x"}]' "$FIX/sbom.json" > "$FIX/t" && mv "$FIX/t" "$FIX/sbom.json"
 check "AGPL package fails" 1 licenses=yes
 
+for lic in "AGPL-3.0+" "AGPL-1.0" "agpl-3.0-only" "AGPL" "MIT AND AGPL-1.0-or-later"; do
+  base_fixture "$FIX"
+  jq --arg l "$lic" '."linux/arm64".SPDX.packages += [{"name":"y","licenseConcluded":$l}]' "$FIX/sbom.json" > "$FIX/t" && mv "$FIX/t" "$FIX/sbom.json"
+  check "AGPL family spelling '$lic' fails" 1 licenses=yes
+done
+
 base_fixture "$FIX"
 jq '."linux/amd64".SPDX.packages += [{"name":"x","licenseDeclared":"GPL-3.0-only"}]' "$FIX/sbom.json" > "$FIX/t" && mv "$FIX/t" "$FIX/sbom.json"
 check "GPL (not AGPL) passes" 0 licenses=no
