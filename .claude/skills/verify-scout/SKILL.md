@@ -49,7 +49,7 @@ done
 
 - **Supply-chain attestations** and the **true A–F grade** only exist on the
   *pushed* image — a `--load` build carries no attestations. Those are enforced
-  at release by `publish.yml` → `scout-policy` (`docker scout policy --exit-code`)
+  at release by `publish.yml` → `scout-grade` (`scripts/scout-grade.sh`)
   and `verify-attestations`. Don't try to attest a `--load` build.
 - **Unfixable** CVEs won't fail Gate 1 (it's `--only-fixed`); they're tracked
   non-blocking in CI. Drop the `--only-fixed` flag if you want to see the total.
