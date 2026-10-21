@@ -14,8 +14,10 @@
 #     also when the image has only a prebuilt bundle;
 #   - the Red Hat store (/etc/pki/ca-trust), on Amazon Linux (awscli);
 #   - the JDK cacerts and the Debian Java keystore (Temurin images);
-#   - the cacert.pem bundles that Python packages carry (certifi in
-#     azure-cli, pip, botocore).
+#   - every other text file under /usr/lib, /usr/local, /az and /opt that
+#     holds an emSign root, whatever its name: the cacert.pem bundles that
+#     Python packages carry (certifi in azure-cli, pip, botocore) and others
+#     such as google-cloud-cli's grpc roots.pem and gsutil cacerts.txt.
 #
 # It fails the build if an emSign root is still present afterwards. Run it as
 # root, as the last step that installs or upgrades packages: a later
@@ -29,13 +31,17 @@ CONF=/etc/ca-certificates.conf
 BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 # Line 4 of each emSign root's PEM file (in Mozilla's set before NSS 3.131.1),
-# used to find the root in a bundle whatever the bundle's layout.
-EMSIGN_LINES="
-IDAeBgNVBAMTF2VtU2lnbiBFQ0MgUm9vdCBDQSAtIEMzMB4XDTE4MDIxODE4MzAw
-bm9sb2dpZXMgTGltaXRlZDEgMB4GA1UEAxMXZW1TaWduIEVDQyBSb290IENBIC0g
-SW5jMRwwGgYDVQQDExNlbVNpZ24gUm9vdCBDQSAtIEMxMB4XDTE4MDIxODE4MzAw
-ZWNobm9sb2dpZXMgTGltaXRlZDEcMBoGA1UEAxMTZW1TaWduIFJvb3QgQ0EgLSBH
+# used to find the root in a bundle whatever the bundle's layout. Each line is
+# stored split by a "_" (not a base64 character) and joined at run time, so
+# this script, or a copy of it elsewhere in the image, never holds a line it
+# looks for and is never mistaken for a bundle.
+EMSIGN_SPLIT="
+IDAeBgNVBAMTF2VtU2lnbiBF_Q0MgUm9vdCBDQSAtIEMzMB4XDTE4MDIxODE4MzAw
+bm9sb2dpZXMgTGltaXRlZDEg_MB4GA1UEAxMXZW1TaWduIEVDQyBSb290IENBIC0g
+SW5jMRwwGgYDVQQDExNlbVNp_Z24gUm9vdCBDQSAtIEMxMB4XDTE4MDIxODE4MzAw
+ZWNobm9sb2dpZXMgTGltaXRl_ZDEcMBoGA1UEAxMTZW1TaWduIFJvb3QgQ0EgLSBH
 "
+EMSIGN_LINES=$(echo "$EMSIGN_SPLIT" | tr -d _)
 
 found=0
 if [ -d "$MOZILLA_DIR" ]; then
@@ -62,8 +68,8 @@ strip_pem() {
 	tmp=$(mktemp)
 	awk -v lines="$EMSIGN_LINES" -v file="$1" '
 		BEGIN { n = split(lines, want, "\n"); for (i = 1; i <= n; i++) if (want[i] != "") bad[want[i]] = 1 }
-		/^-----BEGIN CERTIFICATE-----/ { inblk = 1; blk = $0 "\n"; drop = 0; next }
-		inblk { blk = blk $0 "\n"; if ($0 in bad) drop = 1
+		/^-----BEGIN CERTIFICATE-----\r?$/ { inblk = 1; blk = $0 "\n"; drop = 0; next }
+		inblk { blk = blk $0 "\n"; line = $0; sub(/\r$/, "", line); if (line in bad) drop = 1
 			if (/^-----END CERTIFICATE-----/) { inblk = 0; if (drop) removed++; else printf "%s", blk }
 			next }
 		{ print }
@@ -140,14 +146,37 @@ fi
 
 # Bundles that a program carries for itself and reads instead of the system
 # bundle: Python certifi (azure-cli 2.91.0 accepts a certifi older than
-# 2026.10.19, which trusts the roots), pip's vendored certifi and botocore's
-# cacert.pem.
+# 2026.10.19, which trusts the roots), pip's vendored certifi, botocore's
+# cacert.pem, and bundles with other names, such as google-cloud-cli's grpc
+# roots.pem and gsutil cacerts.txt (found in luthersystems/mars). They are
+# found by content, not by name, so a new tool's bundle is covered too. A file
+# that holds a root in another layout (not a PEM block) fails the build in
+# strip_pem: it is reported, not passed. A file with a NUL byte is a binary
+# (a CA list compiled into a program, such as Node's, or a phar): rewriting it
+# would break it, so it is skipped and listed in the summary.
+grep_args=
+for line in $EMSIGN_LINES; do
+	grep_args="$grep_args -e $line"
+done
+binaries=$(mktemp)
 for dir in /usr/lib /usr/local /az /opt; do
 	[ -d "$dir" ] || continue
-	find "$dir" -xdev -type f -name cacert.pem 2>/dev/null
+	# A find that cannot walk the tree must fail the build, not report no
+	# bundle. The -exec run below cannot tell that apart from grep's
+	# "no match" exit status, so walk the tree once on its own first.
+	find "$dir" -xdev -type f >/dev/null
+	# shellcheck disable=SC2086 # grep_args is a list of -e options
+	find "$dir" -xdev -type f -exec grep -lF $grep_args {} + || true
 done | while IFS= read -r pem; do
+	if [ "$(tr -d '\000' <"$pem" | wc -c)" -ne "$(wc -c <"$pem")" ]; then
+		echo "distrust-emudhra: skipping binary $pem, which holds an emSign root" >&2
+		echo "$pem" >>"$binaries"
+		continue
+	fi
 	strip_pem "$pem"
 done
+skipped=$(wc -l <"$binaries")
+rm -f "$binaries"
 
 # Java keystores: the JDK's own cacerts (Temurin: $JAVA_HOME/lib/security)
 # and the Debian ca-certificates-java store. A Temurin alias holds commas
@@ -201,4 +230,4 @@ while IFS= read -r ks; do
 done <"$list"
 rm -f "$list" "$list.aliases"
 
-echo "distrust-emudhra: removed $found emSign root file(s), blocked $blocked in $PKI and removed $aliases keystore alias(es)"
+echo "distrust-emudhra: removed $found emSign root file(s), blocked $blocked in $PKI, removed $aliases keystore alias(es) and skipped $skipped binary file(s)"
