@@ -11,7 +11,7 @@ DOCKER_COMPOSE_VERSION=5.2.0
 AZCLI_VER=2.91.0
 AWSCLI_VER=2.35.11
 # dind base: docker:${DIND_VERSION}-dind (see images/Dockerfile.dind)
-DIND_VERSION=19.03.14
+DIND_VERSION=29.9.2
 # fabric-tools base: hyperledger/fabric-tools:${FABRIC_TOOLS_VERSION} (see
 # images/Dockerfile.fabric-tools). The fabric-snapshot-archiver base.
 FABRIC_TOOLS_VERSION=2.5.6

@@ -6,11 +6,11 @@
 # upstream image still trusts all four, and eight eMudhra intermediates were
 # compromised (CVE-2026-111943). It keeps the upstream entrypoint and user.
 #
-# DIND_VERSION is 19.03.14, the Docker that docker:stable-dind (which the
-# chart used) has run since 2020, so this changes only the trust store.
-# Moving to a current Docker is a separate change: dockerd builds and runs
-# the chaincode containers.
-ARG DIND_VERSION=19.03.14
+# DIND_VERSION is a supported Docker. The chart used docker:stable-dind,
+# frozen at the end-of-life 19.03.14 since 2020. Fabric 2.5's peer talks to
+# dockerd through go-dockerclient with unversioned API paths, and it builds,
+# starts and stops Go chaincode on 29.9.2 as it did on 19.03.14 (#159).
+ARG DIND_VERSION=29.9.2
 FROM docker:${DIND_VERSION}-dind
 
 COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
