@@ -46,6 +46,8 @@ WORKDIR /az
 
 # certifi 2026.10.19: GHSA-6q48-6c7w-9gw2 (CRITICAL, the compromised eMudhra
 # intermediates, CVE-2026-111943); azure-cli 2.91.0 allows an older certifi.
+# pip 26.2.2 vendors certifi 2026.10.19 (the venv's pip 26.2.1 vendors
+# 2026.6.17, which Scout reports for the same advisory).
 RUN set -ex; \
   apk update; \
   apk upgrade --no-cache; \
@@ -53,6 +55,7 @@ RUN set -ex; \
   build-base libffi-dev openssl-dev cargo python3-dev py3-pip; \
   python3 -m venv ./venv; \
   . ./venv/bin/activate; \
+  pip install --no-cache-dir pip==26.2.2; \
   pip install --no-cache-dir azure-cli==${AZCLI_VER} wheel==0.46.2 certifi==2026.10.19
 
 #
