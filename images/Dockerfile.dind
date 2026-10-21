@@ -4,14 +4,29 @@
 # It is docker:dind with the eMudhra (emSign) roots removed, so dockerd does
 # not trust them when it pulls images. Alpine's ca-certificates in the
 # upstream image still trusts all four, and eight eMudhra intermediates were
-# compromised (CVE-2026-111943). It keeps the upstream entrypoint and user.
+# compromised (CVE-2026-111943). It keeps the upstream user, and its
+# entrypoint runs the upstream one.
 #
-# DIND_VERSION is 19.03.14, the Docker that docker:stable-dind (which the
-# chart used) has run since 2020, so this changes only the trust store.
-# Moving to a current Docker is a separate change: dockerd builds and runs
-# the chaincode containers.
-ARG DIND_VERSION=19.03.14
+# DIND_VERSION is the newest Docker that Fabric 2.5's peer can use. The
+# chart used docker:stable-dind, frozen at the end-of-life 19.03.14 since
+# 2020 (#159). The peer builds chaincode images with API 1.25 (POST
+# /v1.25/build). Docker 29 refuses that version, and with
+# DOCKER_MIN_API_VERSION=1.24 its classic builder panics after the build: a
+# nil *AuxFormatter is stored in the AuxEmitter interface, so the nil check in
+# emitImageID passes (moby daemon/builder/dockerfile/builder.go). Docker 28
+# keeps the concrete type. On 28.5.2 a Fabric 2.5.7 peer installs, upgrades
+# and runs Go chaincode. Do not move to Docker 29 until moby fixes that.
+#
+# dind-entrypoint.sh lets this image start on a /var/lib/docker volume that
+# Docker 19.03 wrote; see that script.
+ARG DIND_VERSION=28.5.2
 FROM docker:${DIND_VERSION}-dind
 
+# Alpine fixes reach the upstream image only when Docker releases, so take
+# them here (zlib 1.3.2-r1 fixed a HIGH CVE in 29.9.2-dind; 28.5.2-dind is older).
+RUN apk upgrade --no-cache
+
 COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
+COPY dind-entrypoint.sh /usr/local/bin/dind-entrypoint.sh
+ENTRYPOINT ["dind-entrypoint.sh"]
 RUN sh /usr/local/sbin/distrust-emudhra.sh
