@@ -84,6 +84,8 @@ jobs:
         run: make test-ci-changes # docs-only CI skip
       - name: make check-distrust-emudhra
         run: make check-distrust-emudhra # eMudhra roots removed (CVE-2026-111943)
+      - name: make test-check-distrust-emudhra
+        run: make test-check-distrust-emudhra
 
   # Single source of truth for which images must carry a clean Docker Scout
   # bill of health lives in .github/scout-required-images.json. This job

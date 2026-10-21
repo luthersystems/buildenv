@@ -6,12 +6,13 @@
 # compromised (CVE-2026-111943, golang/go#82345). Go 1.26.10 refuses them
 # in crypto/x509, and Mozilla removed emSign ECC Root CA - G3 from NSS, but
 # the distribution ca-certificates packages in our base images still trust
-# all four emSign roots. Every other tool in an image (curl, git, openssl,
-# Python, Java) reads those stores, so this script removes every emSign root
+# all four emSign roots. Most tools in an image (curl, git, openssl, Java,
+# Python without certifi) read those stores, so this script removes every emSign root
 # from them:
 #
-#   - the system bundle (/etc/ssl/certs), on Alpine, Debian and Ubuntu;
-#   - each Java cacerts keystore it finds (Temurin images).
+#   - the system bundle (/etc/ssl/certs), on Alpine, Debian and Ubuntu,
+#     also when the image has only a prebuilt bundle;
+#   - the JDK cacerts and the Debian Java keystore (Temurin images).
 #
 # It fails the build if an emSign root is still present afterwards. Run it as
 # root, as the last step that installs or upgrades packages: a later
@@ -52,8 +53,25 @@ if [ "$found" -gt 0 ]; then
 	update-ca-certificates --fresh >/dev/null 2>&1 || update-ca-certificates
 fi
 
-# Check the system bundle, also when no emSign file was found above (an
-# image with only a prebuilt bundle).
+# Remove any emSign PEM block that is still in the bundle. This covers an
+# image with only a prebuilt bundle and no per-root files (Alpine with only
+# ca-certificates-bundle), where update-ca-certificates has nothing to drop.
+if [ -f "$BUNDLE" ]; then
+	tmp=$(mktemp)
+	awk -v lines="$EMSIGN_LINES" '
+		BEGIN { n = split(lines, want, "\n"); for (i = 1; i <= n; i++) if (want[i] != "") bad[want[i]] = 1 }
+		/^-----BEGIN CERTIFICATE-----/ { inblk = 1; blk = $0 "\n"; drop = 0; next }
+		inblk { blk = blk $0 "\n"; if ($0 in bad) drop = 1
+			if (/^-----END CERTIFICATE-----/) { inblk = 0; if (drop) removed++; else printf "%s", blk }
+			next }
+		{ print }
+		END { if (removed) printf "distrust-emudhra: removed %d emSign block(s) from the bundle\n", removed > "/dev/stderr" }
+	' "$BUNDLE" >"$tmp"
+	cat "$tmp" >"$BUNDLE"
+	rm -f "$tmp"
+fi
+
+# Check the system bundle and the hashed links.
 for line in $EMSIGN_LINES; do
 	if [ -f "$BUNDLE" ] && grep -qF "$line" "$BUNDLE"; then
 		echo "distrust-emudhra: an emSign root is still in $BUNDLE" >&2
@@ -65,35 +83,53 @@ if ls /etc/ssl/certs 2>/dev/null | grep -qi 'emsign'; then
 	exit 1
 fi
 
-# Java keystores. Temurin ships its own cacerts; the Debian
-# ca-certificates-java hook keeps /etc/ssl/certs/java/cacerts. A Temurin
-# alias holds commas (cn_emsign_root_ca__g1,o_emudhra_inc,...), so the alias
-# is everything before the ", <date>, trustedCertEntry" tail.
-keystores=$(find / -xdev -name cacerts -type f 2>/dev/null || true)
-if [ -n "$keystores" ]; then
+# Java keystores: the JDK's own cacerts (Temurin: $JAVA_HOME/lib/security)
+# and the Debian ca-certificates-java store. A Temurin alias holds commas
+# (cn_emsign_root_ca__g1,o_emudhra_inc,...), so the alias is everything
+# before the ", <date>, trustedCertEntry" tail. Any keytool failure fails
+# the build: an unreadable keystore must not pass as clean.
+aliases=0
+list=$(mktemp)
+for ks in "${JAVA_HOME:-/nonexistent}/lib/security/cacerts" \
+	/etc/ssl/certs/java/cacerts \
+	/usr/lib/jvm/*/lib/security/cacerts \
+	/opt/java/*/lib/security/cacerts; do
+	[ -f "$ks" ] || continue
+	# The same file can appear twice (JAVA_HOME is one of the globs).
+	real=$(readlink -f "$ks")
+	grep -qxF "$real" "$list" 2>/dev/null && continue
+	echo "$real" >>"$list"
+done
+while IFS= read -r ks; do
 	keytool=$(command -v keytool 2>/dev/null || true)
 	if [ -z "$keytool" ] && [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/keytool" ]; then
 		keytool=$JAVA_HOME/bin/keytool
 	fi
 	if [ -z "$keytool" ]; then
-		echo "distrust-emudhra: found a cacerts keystore but no keytool" >&2
+		echo "distrust-emudhra: found $ks but no keytool" >&2
 		exit 1
 	fi
-	for ks in $keystores; do
-		"$keytool" -list -keystore "$ks" -storepass changeit 2>/dev/null |
-			sed -n 's/^\(.*\), [A-Z][a-z][a-z] [0-9]*, [0-9]*, trustedCertEntry.*/\1/p' |
-			grep -iE 'emsign|emudhra' >/tmp/distrust-emudhra.aliases || true
-		while IFS= read -r alias; do
-			echo "distrust-emudhra: removing alias '$alias' from $ks"
-			"$keytool" -delete -alias "$alias" -keystore "$ks" -storepass changeit -noprompt
-		done </tmp/distrust-emudhra.aliases
-		rm -f /tmp/distrust-emudhra.aliases
-		if "$keytool" -list -v -keystore "$ks" -storepass changeit 2>/dev/null |
-			grep -qiE '^(Owner|Issuer):.*(emSign|eMudhra)'; then
-			echo "distrust-emudhra: an emSign root is still in $ks" >&2
-			exit 1
-		fi
-	done
-fi
+	if ! out=$("$keytool" -list -keystore "$ks" -storepass changeit 2>&1); then
+		echo "distrust-emudhra: keytool cannot read $ks: $out" >&2
+		exit 1
+	fi
+	echo "$out" |
+		sed -n 's/^\(.*\), [A-Z][a-z][a-z] [0-9]*, [0-9]*, trustedCertEntry.*/\1/p' |
+		grep -iE 'emsign|emudhra' >"$list.aliases" || true
+	while IFS= read -r alias; do
+		echo "distrust-emudhra: removing alias '$alias' from $ks"
+		"$keytool" -delete -alias "$alias" -keystore "$ks" -storepass changeit -noprompt 2>/dev/null
+		aliases=$((aliases + 1))
+	done <"$list.aliases"
+	if ! out=$("$keytool" -list -v -keystore "$ks" -storepass changeit 2>&1); then
+		echo "distrust-emudhra: keytool cannot read $ks: $out" >&2
+		exit 1
+	fi
+	if echo "$out" | grep -qiE '^(Owner|Issuer):.*(emSign|eMudhra)'; then
+		echo "distrust-emudhra: an emSign root is still in $ks" >&2
+		exit 1
+	fi
+done <"$list"
+rm -f "$list" "$list.aliases"
 
-echo "distrust-emudhra: removed $found emSign root file(s)"
+echo "distrust-emudhra: removed $found emSign root file(s) and $aliases keystore alias(es)"

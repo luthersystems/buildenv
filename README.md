@@ -35,12 +35,14 @@ Every image removes the four eMudhra emSign root CAs from its trust stores
 (`images/distrust-emudhra.sh`). The keys of eight eMudhra intermediate CAs were
 compromised (CVE-2026-111943, golang/go#82345), and the distribution
 `ca-certificates` packages still trust the roots. The script removes them from
-the system bundle (`/etc/ssl/certs`) and from each Java `cacerts` keystore, and
-fails the build if one remains.
+the system bundle (`/etc/ssl/certs`, also a prebuilt bundle with no per-root
+files) and from the JDK and Debian Java `cacerts` keystores. It fails the build
+if one remains or if keytool cannot read a keystore.
 
 - Each Dockerfile runs it in its final stage, after the last package step:
   a later `apk upgrade` or `apt-get upgrade` of `ca-certificates` can restore
-  the roots. `make check-distrust-emudhra` (CI `script-tests`) enforces this.
+  the roots. `make check-distrust-emudhra` (CI `script-tests`) enforces this; it also
+  fails on a later COPY or ADD into a trust store path.
 - The script stays in the image at `/usr/local/sbin/distrust-emudhra.sh`. A
   downstream image that installs or upgrades packages as root runs it again
   last: `RUN sh /usr/local/sbin/distrust-emudhra.sh`.

@@ -41,6 +41,11 @@ scout-cli-install:
 check-distrust-emudhra:
 	bash scripts/check-distrust-emudhra.sh
 
+# Self-test for the check above, with fixture Dockerfiles.
+.PHONY: test-check-distrust-emudhra
+test-check-distrust-emudhra:
+	bash scripts/test-check-distrust-emudhra.sh
+
 # Unit tests for the automation logic in scripts/*.cjs (node:test, no deps;
 # needs Node >= 18). Also run in CI by build.yml's `script-tests` job.
 test-scripts:
