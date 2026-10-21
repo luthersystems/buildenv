@@ -54,10 +54,13 @@ or if keytool cannot read a keystore.
 - The script stays in the image at `/usr/local/sbin/distrust-emudhra.sh`. A
   downstream image that installs or upgrades packages as root runs it again
   last: `RUN sh /usr/local/sbin/distrust-emudhra.sh`.
-- It also strips the roots from the `cacert.pem` bundles that Python packages
-  carry (azure-cli's certifi, pip's vendored certifi, botocore), under
-  `/usr/lib`, `/usr/local`, `/az` and `/opt`. azure-cli 2.91.0 accepts a
-  certifi older than 2026.10.19, which trusts the roots.
+- It also strips the roots from every text file under `/usr/lib`,
+  `/usr/local`, `/az` and `/opt` that holds one, whatever its name: the
+  `cacert.pem` bundles that Python packages carry (azure-cli's certifi, pip's
+  vendored certifi, botocore) and bundles such as google-cloud-cli's grpc
+  `roots.pem` and gsutil `cacerts.txt` (in luthersystems/mars). azure-cli
+  2.91.0 accepts a certifi older than 2026.10.19, which trusts the roots. A
+  binary file (one with a NUL byte) is skipped, not rewritten.
 - Not covered: a CA list compiled into a binary, such as Node's built-in
   list. Node 22.23.4, 24.22.1 and 26.12.1 take Mozilla's NSS 3.131.1 list,
   which drops emSign ECC Root CA - G3, emSign Root CA - C1 and emSign ECC Root

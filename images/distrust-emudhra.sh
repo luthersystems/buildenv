@@ -140,12 +140,28 @@ fi
 
 # Bundles that a program carries for itself and reads instead of the system
 # bundle: Python certifi (azure-cli 2.91.0 accepts a certifi older than
-# 2026.10.19, which trusts the roots), pip's vendored certifi and botocore's
-# cacert.pem.
+# 2026.10.19, which trusts the roots), pip's vendored certifi, botocore's
+# cacert.pem, and bundles with other names, such as google-cloud-cli's grpc
+# roots.pem and gsutil cacerts.txt (found in luthersystems/mars). They are
+# found by content, not by name, so a new tool's bundle is covered too. A file
+# with a NUL byte is skipped: it is a binary (a CA list compiled into a
+# program, such as Node's), and rewriting it would break it. This script is
+# skipped too: it holds the lines it looks for.
+self=$(readlink -f "$0" 2>/dev/null || echo "$0")
+grep_args=
+for line in $EMSIGN_LINES; do
+	grep_args="$grep_args -e $line"
+done
 for dir in /usr/lib /usr/local /az /opt; do
 	[ -d "$dir" ] || continue
-	find "$dir" -xdev -type f -name cacert.pem 2>/dev/null
+	# shellcheck disable=SC2086 # grep_args is a list of -e options
+	find "$dir" -xdev -type f -exec grep -lF $grep_args {} + 2>/dev/null || true
 done | while IFS= read -r pem; do
+	[ "$(readlink -f "$pem" 2>/dev/null || echo "$pem")" = "$self" ] && continue
+	if [ "$(tr -d '\000' <"$pem" | wc -c)" -ne "$(wc -c <"$pem")" ]; then
+		echo "distrust-emudhra: skipping binary $pem"
+		continue
+	fi
 	strip_pem "$pem"
 done
 
