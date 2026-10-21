@@ -36,6 +36,7 @@ jobs:
           - build-js
           - build-swaggercodegen
           - dind
+          - fabric-tools
           - nginx-frontend
           - service-base-alpine
     steps:

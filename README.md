@@ -44,6 +44,8 @@ or if keytool cannot read a keystore.
 - `awscli` and `dind` are the upstream `amazon/aws-cli` and
   `docker:19.03.14-dind` images with only this step added, for the init and
   Docker-in-Docker containers of the luthersystems/mars Fabric charts.
+  `fabric-tools` is `hyperledger/fabric-tools:2.5.6` with only this step
+  added, as the ko base image of luthersystems/fabric-snapshot-archiver.
 
 - Each Dockerfile runs it in its final stage, after the last package step:
   a later `apk upgrade` or `apt-get upgrade` of `ca-certificates` can restore

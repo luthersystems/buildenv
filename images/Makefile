@@ -15,6 +15,7 @@ IMAGES= \
 	luthersystems/build-js \
 	luthersystems/build-swaggercodegen \
 	luthersystems/dind \
+	luthersystems/fabric-tools \
 	luthersystems/nginx-frontend \
 	luthersystems/service-base-alpine
 ALL_IMAGES=${IMAGES}
@@ -80,6 +81,7 @@ $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% distrust-emudhra.sh Makefile $
 		--build-arg AZCLI_VER=${AZCLI_VER} \
 		--build-arg AWSCLI_VER=${AWSCLI_VER} \
 		--build-arg DIND_VERSION=${DIND_VERSION} \
+		--build-arg FABRIC_TOOLS_VERSION=${FABRIC_TOOLS_VERSION} \
 		-t luthersystems/$*:${VERSION}${TAG_SUFFIX} \
 		-f $< .
 	${MKDIR_P} $(dir $@)
