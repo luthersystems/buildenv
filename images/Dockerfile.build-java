@@ -58,5 +58,10 @@ RUN docker --version
 # user (`ubuntu`); let useradd auto-assign a free uid (still non-root).
 RUN useradd --create-home --user-group build
 ENV HOME=/home/build
+# Remove the eMudhra (emSign) roots: eight eMudhra intermediates were
+# compromised (CVE-2026-111943). Keep this after the last package install.
+COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
+RUN sh /usr/local/sbin/distrust-emudhra.sh
+
 USER build
 ENTRYPOINT ["tini", "--"]

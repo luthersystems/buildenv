@@ -5,6 +5,11 @@ RUN echo "nobody:x:1:1:nobody:/:/bin/sh" >> /etc/passwd
 RUN echo "nobody:x:1:" >> /etc/group
 RUN chmod 1777 /tmp
 RUN apk update && apk upgrade --no-cache && apk add --no-cache libltdl tini ca-certificates
+# Remove the eMudhra (emSign) roots: eight eMudhra intermediates were
+# compromised (CVE-2026-111943). Keep this after the last package install.
+COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
+RUN sh /usr/local/sbin/distrust-emudhra.sh
+
 USER nobody
 WORKDIR /opt
 VOLUME ["/opt"]

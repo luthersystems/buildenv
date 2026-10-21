@@ -57,7 +57,7 @@ clean:
 %: $(call IMAGE_DUMMY,luthersystems/%)
 	@
 
-$(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% Makefile ${COMMON_MAKEFILE} ${CONFIG_MAKEFILE} $(call DUMMY_TARGET,deps,luthersystems/%)
+$(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% distrust-emudhra.sh Makefile ${COMMON_MAKEFILE} ${CONFIG_MAKEFILE} $(call DUMMY_TARGET,deps,luthersystems/%)
 	@echo "Building image $*"
 	${DOCKER} buildx inspect --bootstrap
 	${DOCKER} buildx build ${DOCKER_BUILDX_OPTS} ${DOCKER_ATTEST_OPTS} ${BUILDX_CACHE_FLAGS} \

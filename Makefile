@@ -35,6 +35,17 @@ docker-cli-check:
 scout-cli-install:
 	bash scripts/install-scout-cli.sh
 
+# Check that every image Dockerfile runs images/distrust-emudhra.sh last
+# (CVE-2026-111943). Also run in CI by build.yml's `script-tests` job.
+.PHONY: check-distrust-emudhra
+check-distrust-emudhra:
+	bash scripts/check-distrust-emudhra.sh
+
+# Self-test for the check above, with fixture Dockerfiles.
+.PHONY: test-check-distrust-emudhra
+test-check-distrust-emudhra:
+	bash scripts/test-check-distrust-emudhra.sh
+
 # Unit tests for the automation logic in scripts/*.cjs (node:test, no deps;
 # needs Node >= 18). Also run in CI by build.yml's `script-tests` job.
 test-scripts:

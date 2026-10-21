@@ -1,4 +1,4 @@
-ARG NODE_VERSION=20.19.3
+ARG NODE_VERSION=24.22.1
 ARG GOLANG_VERSION=1.26.10
 FROM golang:$GOLANG_VERSION AS docker-cli-builder
 # A transient stream reset from proxy.golang.org must cost a re-request, not
@@ -104,4 +104,9 @@ RUN apt-get update && apt-get install -y azure-cli=${AZCLI_VER}\*
 # auto-assign a free uid (still non-root).
 RUN useradd --create-home --user-group build
 ENV HOME=/home/build
+# Remove the eMudhra (emSign) roots: eight eMudhra intermediates were
+# compromised (CVE-2026-111943). Keep this after the last package install.
+COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
+RUN sh /usr/local/sbin/distrust-emudhra.sh
+
 USER build
