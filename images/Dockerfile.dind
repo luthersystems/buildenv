@@ -8,10 +8,16 @@
 #
 # DIND_VERSION is a supported Docker. The chart used docker:stable-dind,
 # frozen at the end-of-life 19.03.14 since 2020. Fabric 2.5's peer talks to
-# dockerd through go-dockerclient with unversioned API paths, and it builds,
-# starts and stops Go chaincode on 29.9.2 as it did on 19.03.14 (#159).
+# dockerd through go-dockerclient with unversioned API paths; with it, the
+# peer's own Docker controller builds, starts, waits on and stops Go chaincode
+# on DIND_VERSION as it did on 19.03.14 (#159).
+#
+# dind-entrypoint.sh lets this image start on a /var/lib/docker volume that
+# Docker 19.03 wrote; see that script.
 ARG DIND_VERSION=29.9.2
 FROM docker:${DIND_VERSION}-dind
 
 COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
+COPY dind-entrypoint.sh /usr/local/bin/dind-entrypoint.sh
+ENTRYPOINT ["dind-entrypoint.sh"]
 RUN sh /usr/local/sbin/distrust-emudhra.sh
