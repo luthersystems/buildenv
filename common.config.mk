@@ -10,6 +10,8 @@ DOCKER_CLI_VERSION=29.6.1
 DOCKER_COMPOSE_VERSION=5.2.0
 AZCLI_VER=2.91.0
 AWSCLI_VER=2.35.11
+# dind base: docker:${DIND_VERSION}-dind (see images/Dockerfile.dind)
+DIND_VERSION=19.03.14
 NODE_VERSION=24.22.1
 # nginx-frontend base: nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine${ALPINE_VERSION}
 NGINX_VERSION=1.30

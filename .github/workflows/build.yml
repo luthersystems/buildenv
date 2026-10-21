@@ -47,6 +47,7 @@ jobs:
           - amd64
           - arm64
         image:
+          - aws-cli
           - build-api
           - build-go
           - build-go-alpine
@@ -55,6 +56,7 @@ jobs:
           - build-java
           - build-js
           - build-swaggercodegen
+          - dind
           - nginx-frontend
           - service-base-alpine
     steps:

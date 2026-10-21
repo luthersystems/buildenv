@@ -19,6 +19,7 @@ consume these as `docker run` tools or as `FROM` bases in multi-stage builds.
 | `build-js`, `build-java`, `build-e2e`, `build-swaggercodegen` | JS / Java / e2e / codegen toolchains |
 | `nginx-frontend` | Static frontend serving base |
 | `service-base-alpine` | Minimal **prod runtime** base (runs as `nobody`) |
+| `aws-cli`, `dind` | Upstream `amazon/aws-cli` and `docker:dind` with the emSign roots removed, for the mars Fabric charts (exempt from grade A) |
 
 ## Build & test
 

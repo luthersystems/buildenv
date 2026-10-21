@@ -36,8 +36,14 @@ Every image removes the four eMudhra emSign root CAs from its trust stores
 compromised (CVE-2026-111943, golang/go#82345), and the distribution
 `ca-certificates` packages still trust the roots. The script removes them from
 the system bundle (`/etc/ssl/certs`, also a prebuilt bundle with no per-root
-files) and from the JDK and Debian Java `cacerts` keystores. It fails the build
-if one remains or if keytool cannot read a keystore.
+files), from the Red Hat store on Amazon Linux (`/etc/pki/ca-trust`: it puts
+each root in the p11-kit blocklist and runs `update-ca-trust extract`), and from
+the JDK and Debian Java `cacerts` keystores. It fails the build if one remains
+or if keytool cannot read a keystore.
+
+- `aws-cli` and `dind` are the upstream `amazon/aws-cli` and
+  `docker:19.03.14-dind` images with only this step added, for the init and
+  Docker-in-Docker containers of the luthersystems/mars Fabric charts.
 
 - Each Dockerfile runs it in its final stage, after the last package step:
   a later `apk upgrade` or `apt-get upgrade` of `ca-certificates` can restore

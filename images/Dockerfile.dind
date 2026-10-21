@@ -1,0 +1,17 @@
+# The Docker-in-Docker image that Luther's fabric-peer Helm chart runs beside
+# the peer to build and run Docker chaincode (luthersystems/mars).
+#
+# It is docker:dind with the eMudhra (emSign) roots removed, so dockerd does
+# not trust them when it pulls images. Alpine's ca-certificates in the
+# upstream image still trusts all four, and eight eMudhra intermediates were
+# compromised (CVE-2026-111943). It keeps the upstream entrypoint and user.
+#
+# DIND_VERSION is 19.03.14, the Docker that docker:stable-dind (which the
+# chart used) has run since 2020, so this changes only the trust store.
+# Moving to a current Docker is a separate change: dockerd builds and runs
+# the chaincode containers.
+ARG DIND_VERSION=19.03.14
+FROM docker:${DIND_VERSION}-dind
+
+COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
+RUN sh /usr/local/sbin/distrust-emudhra.sh
