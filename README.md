@@ -51,8 +51,8 @@ if one remains or if keytool cannot read a keystore.
   `/usr/lib`, `/usr/local`, `/az` and `/opt`. azure-cli 2.91.0 still pins
   certifi 2024.7.4, which trusts all four roots.
 - Not covered: a CA list compiled into a binary, such as Node's built-in
-  list. Node 22.23.4, 24.22.1 and 26.12.1 drop the compromised roots; Node 20
-  is past end of life and gets no fix. Go programs built with Go 1.26.10 or
+  list. Node 22.23.4, 24.22.1 and 26.12.1 drop the compromised roots, so
+  build-js uses Node 24.22.1; Node 20 is past end of life and gets no fix. Go programs built with Go 1.26.10 or
   later refuse the eight intermediates themselves.
 
 ### Grade-A bill of health (required image list)
