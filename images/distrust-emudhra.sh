@@ -4,9 +4,9 @@
 # In October 2026 the private keys of eight eMudhra intermediate CAs
 # (EM DV/OV/EV TLS CA - G3B and G3C, EM OV CS CA - G3B and G3C) were
 # compromised (CVE-2026-111943, golang/go#82345). Go 1.26.10 refuses them
-# in crypto/x509, and Mozilla removed emSign ECC Root CA - G3 from NSS, but
+# in crypto/x509, and Mozilla NSS 3.131.1 keeps only emSign Root CA - G1, but
 # the distribution ca-certificates packages in our base images still trust
-# all four emSign roots. Most tools in an image (curl, git, openssl, Java,
+# all four emSign roots. We remove all four, G1 too. Most tools in an image (curl, git, openssl, Java,
 # Python without certifi) read those stores, so this script removes every emSign root
 # from them:
 #
@@ -27,7 +27,7 @@ MOZILLA_DIR=/usr/share/ca-certificates/mozilla
 CONF=/etc/ca-certificates.conf
 BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
-# Line 4 of each emSign root's PEM file (in Mozilla's set as of 2026-10),
+# Line 4 of each emSign root's PEM file (in Mozilla's set before NSS 3.131.1),
 # used to find the root in a bundle whatever the bundle's layout.
 EMSIGN_LINES="
 IDAeBgNVBAMTF2VtU2lnbiBFQ0MgUm9vdCBDQSAtIEMzMB4XDTE4MDIxODE4MzAw
@@ -66,8 +66,9 @@ strip_pem() {
 			if (/^-----END CERTIFICATE-----/) { inblk = 0; if (drop) removed++; else printf "%s", blk }
 			next }
 		{ print }
-		END { if (removed) printf "distrust-emudhra: removed %d emSign block(s) from %s\n", removed, file > "/dev/stderr" }
-	' "$1" >"$tmp"
+		END { if (inblk) { printf "distrust-emudhra: %s ends inside a certificate block\n", file > "/dev/stderr"; exit 1 }
+			if (removed) printf "distrust-emudhra: removed %d emSign block(s) from %s\n", removed, file > "/dev/stderr" }
+	' "$1" >"$tmp" || { rm -f "$tmp"; exit 1; }
 	cat "$tmp" >"$1"
 	rm -f "$tmp"
 	for line in $EMSIGN_LINES; do
@@ -89,8 +90,9 @@ if ls /etc/ssl/certs 2>/dev/null | grep -qi 'emsign'; then
 fi
 
 # Bundles that a program carries for itself and reads instead of the system
-# bundle: Python certifi (azure-cli pins certifi 2024.7.4, which trusts all
-# four roots), pip's vendored certifi and botocore's cacert.pem.
+# bundle: Python certifi (azure-cli 2.91.0 accepts a certifi older than
+# 2026.10.19, which trusts the roots), pip's vendored certifi and botocore's
+# cacert.pem.
 for dir in /usr/lib /usr/local /az /opt; do
 	[ -d "$dir" ] || continue
 	find "$dir" -xdev -type f -name cacert.pem 2>/dev/null
@@ -133,7 +135,10 @@ while IFS= read -r ks; do
 		grep -iE 'emsign|emudhra' >"$list.aliases" || true
 	while IFS= read -r alias; do
 		echo "distrust-emudhra: removing alias '$alias' from $ks"
-		"$keytool" -delete -alias "$alias" -keystore "$ks" -storepass changeit -noprompt 2>/dev/null
+		if ! out=$("$keytool" -delete -alias "$alias" -keystore "$ks" -storepass changeit -noprompt 2>&1); then
+			echo "distrust-emudhra: keytool cannot delete '$alias' from $ks: $out" >&2
+			exit 1
+		fi
 		aliases=$((aliases + 1))
 	done <"$list.aliases"
 	if ! out=$("$keytool" -list -v -keystore "$ks" -storepass changeit 2>&1); then

@@ -48,4 +48,16 @@ expect fail continued-line "$run" 'RUN set -eux; \' '    apk upgrade'
 expect fail copy-bundle "$run" 'COPY --from=x /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/'
 expect fail copy-cacerts "$run" 'COPY cacerts /opt/java/openjdk/lib/security/cacerts'
 
+expect fail chained-apk 'RUN sh /usr/local/sbin/distrust-emudhra.sh && apk add --no-cache ca-certificates-bundle'
+expect fail continued-run 'RUN sh /usr/local/sbin/distrust-emudhra.sh \' '    && apk upgrade'
+expect fail only-named 'RUN rm -f /usr/local/sbin/distrust-emudhra.sh'
+expect fail echo-named 'RUN echo skip distrust-emudhra.sh'
+expect fail copy-from-az "$run" 'COPY --from=azcli /az /az'
+expect fail copy-from-aws "$run" 'COPY --from=aws /usr/local/aws-cli/ /usr/local/aws-cli/'
+expect fail aws-install "$run" 'RUN unzip awscliv2.zip && ./aws/install'
+expect fail add-url "$run" 'ADD https://example.com/bundle.tar.gz /opt/'
+expect fail copy-cacert-pem "$run" 'COPY cacert.pem /usr/lib/python3/site-packages/certifi/cacert.pem'
+expect fail npm-after "$run" 'RUN npm install -g newman'
+expect pass copy-config "$run" 'COPY nginx/nginx.conf /etc/nginx/nginx.conf'
+
 exit "$bad"
