@@ -41,7 +41,7 @@ each root in the p11-kit blocklist and runs `update-ca-trust extract`), and from
 the JDK and Debian Java `cacerts` keystores. It fails the build if one remains
 or if keytool cannot read a keystore.
 
-- `aws-cli` and `dind` are the upstream `amazon/aws-cli` and
+- `awscli` and `dind` are the upstream `amazon/aws-cli` and
   `docker:19.03.14-dind` images with only this step added, for the init and
   Docker-in-Docker containers of the luthersystems/mars Fabric charts.
 

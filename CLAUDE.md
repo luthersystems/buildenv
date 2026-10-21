@@ -19,7 +19,7 @@ consume these as `docker run` tools or as `FROM` bases in multi-stage builds.
 | `build-js`, `build-java`, `build-e2e`, `build-swaggercodegen` | JS / Java / e2e / codegen toolchains |
 | `nginx-frontend` | Static frontend serving base |
 | `service-base-alpine` | Minimal **prod runtime** base (runs as `nobody`) |
-| `aws-cli`, `dind` | Upstream `amazon/aws-cli` and `docker:dind` with the emSign roots removed, for the mars Fabric charts (exempt from grade A) |
+| `awscli`, `dind` | Upstream `amazon/aws-cli` and `docker:dind` with the emSign roots removed, for the mars Fabric charts (exempt from grade A) |
 
 ## Build & test
 
@@ -52,7 +52,7 @@ drifts (CI builds use the central value regardless).
 
 Seven images **must** stay at Docker Scout grade A: `build-api`, `build-go`,
 `build-go-alpine`, `build-godynamic`, `build-java`, `nginx-frontend`,
-`service-base-alpine`. The wrappers `aws-cli` and `dind` are **exempt**
+`service-base-alpine`. The wrappers `awscli` and `dind` are **exempt**
 (upstream images with only the emSign roots removed; their CVEs are
 upstream's). The other three (`build-e2e`, `build-js`,
 `build-swaggercodegen`) are **exempt** — each fails only on third-party-bundled,

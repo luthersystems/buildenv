@@ -5,7 +5,7 @@ CONFIG_MAKEFILE=${PROJECT_DIR}/common.config.mk
 include ${CONFIG_MAKEFILE}
 
 IMAGES= \
-	luthersystems/aws-cli \
+	luthersystems/awscli \
 	luthersystems/build-api \
 	luthersystems/build-go \
 	luthersystems/build-go-alpine \

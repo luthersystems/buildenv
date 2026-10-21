@@ -47,7 +47,7 @@ jobs:
           - amd64
           - arm64
         image:
-          - aws-cli
+          - awscli
           - build-api
           - build-go
           - build-go-alpine
