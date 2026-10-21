@@ -10,7 +10,7 @@ DOCKER_CLI_VERSION=29.6.1
 DOCKER_COMPOSE_VERSION=5.2.0
 AZCLI_VER=2.91.0
 AWSCLI_VER=2.35.11
-NODE_VERSION=20.19.3
+NODE_VERSION=24.22.1
 # nginx-frontend base: nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine${ALPINE_VERSION}
 NGINX_VERSION=1.30
 # Docker Scout CLI used by the CI gates (scripts/install-scout-cli.sh). Bump the

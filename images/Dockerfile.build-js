@@ -1,4 +1,4 @@
-ARG NODE_VERSION=20.19.3
+ARG NODE_VERSION=24.22.1
 ARG GOLANG_VERSION=1.26.10
 FROM golang:$GOLANG_VERSION AS docker-cli-builder
 # A transient stream reset from proxy.golang.org must cost a re-request, not
