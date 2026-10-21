@@ -108,5 +108,10 @@ COPY build-api.mk /opt/Dockerfile.api.mk
 # GOPATH (/go) mode 1777, so module/cache writes succeed for a non-root uid.
 RUN useradd --create-home --uid 1000 --user-group build
 ENV HOME=/home/build
+# Remove the eMudhra (emSign) roots: eight eMudhra intermediates were
+# compromised (CVE-2026-111943). Keep this after the last package install.
+COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
+RUN sh /usr/local/sbin/distrust-emudhra.sh
+
 USER build
 ENTRYPOINT ["tini", "--", "sh", "-c", "make -f /opt/Dockerfile.api.mk -C $PWD build"]

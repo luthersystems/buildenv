@@ -29,6 +29,25 @@ The published images are scanned against Docker Scout policies. CI enforces a
 grade-A "bill of health" on a defined set of images (below), and two policy
 requirements affect how downstream repos consume these images (further down).
 
+### eMudhra (emSign) roots removed
+
+Every image removes the four eMudhra emSign root CAs from its trust stores
+(`images/distrust-emudhra.sh`). The keys of eight eMudhra intermediate CAs were
+compromised (CVE-2026-111943, golang/go#82345), and the distribution
+`ca-certificates` packages still trust the roots. The script removes them from
+the system bundle (`/etc/ssl/certs`) and from each Java `cacerts` keystore, and
+fails the build if one remains.
+
+- Each Dockerfile runs it in its final stage, after the last package step:
+  a later `apk upgrade` or `apt-get upgrade` of `ca-certificates` can restore
+  the roots. `make check-distrust-emudhra` (CI `script-tests`) enforces this.
+- The script stays in the image at `/usr/local/sbin/distrust-emudhra.sh`. A
+  downstream image that installs or upgrades packages as root runs it again
+  last: `RUN sh /usr/local/sbin/distrust-emudhra.sh`.
+- Not covered: CA lists compiled into a program (Node's built-in list, the
+  `certifi` copies inside aws-cli and az-cli). Go programs built with Go
+  1.26.10 or later refuse the eight intermediates themselves.
+
 ### Grade-A bill of health (required image list)
 
 A [Docker Scout health score](https://docs.docker.com/scout/policy/scores/) is a

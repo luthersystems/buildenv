@@ -229,4 +229,9 @@ ENV PATH="/az/venv/bin:$PATH"
 # must declare `USER root` (the build-go-alpine pattern).
 RUN addgroup -g 1000 build && adduser -D -u 1000 -G build -h /home/build build
 ENV HOME=/home/build
+# Remove the eMudhra (emSign) roots: eight eMudhra intermediates were
+# compromised (CVE-2026-111943). Keep this after the last package install.
+COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
+RUN sh /usr/local/sbin/distrust-emudhra.sh
+
 USER build

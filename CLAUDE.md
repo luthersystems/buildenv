@@ -173,6 +173,9 @@ the strictly-better republish (section F) and the SLA.** Verify with
    also get a root `Makefile` target (e.g. `make slack-test`). Precedents:
    `scripts/scout-cve-gate.sh`, `scripts/scout-drift-sla.cjs`,
    `scripts/slack-alert.sh`.
+6. **Every image runs `images/distrust-emudhra.sh` last in its final stage**
+   (CVE-2026-111943; `make check-distrust-emudhra`). A new image or a new
+   package step goes before it. See README "eMudhra (emSign) roots removed".
 
 ## Skills
 

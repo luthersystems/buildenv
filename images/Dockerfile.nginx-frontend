@@ -14,6 +14,11 @@ USER root
 RUN apk update && apk upgrade --no-cache && \
   echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
   apk add --no-cache curl@edge libcurl@edge
+# Remove the eMudhra (emSign) roots: eight eMudhra intermediates were
+# compromised (CVE-2026-111943). Keep this after the last package install.
+COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
+RUN sh /usr/local/sbin/distrust-emudhra.sh
+
 USER nginx
 
 COPY nginx/nginx_serve.sh /opt/

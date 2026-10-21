@@ -100,6 +100,11 @@ RUN fc-cache -f
 
 # Fail the build if the assembly is wrong. (substratehcp is a go-plugin binary
 # that expects a handshake, so we only check it's present/executable.)
+# Remove the eMudhra (emSign) roots: eight eMudhra intermediates were
+# compromised (CVE-2026-111943). Keep this after the last package install.
+COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
+RUN sh /usr/local/sbin/distrust-emudhra.sh
+
 RUN set -eux; \
     go version; node --version; newman --version; \
     shirotester --help >/dev/null; \
