@@ -1,0 +1,14 @@
+# The AWS CLI image that Luther's Helm charts run as an init container to
+# fetch Fabric MSP and TLS files and chaincode archives from S3 (luthersystems/mars).
+#
+# It is amazon/aws-cli with the eMudhra (emSign) roots removed. Amazon Linux
+# 2023's ca-certificates still trusts all four, and eight eMudhra
+# intermediates were compromised (CVE-2026-111943). We wrap the upstream
+# image instead of installing the CLI ourselves so the CLI stays exactly the
+# one Amazon ships; only the trust store changes. It keeps the upstream root
+# user and entrypoint, so the charts' commands run as before.
+ARG AWSCLI_VER=2.35.11
+FROM amazon/aws-cli:${AWSCLI_VER}
+
+COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
+RUN sh /usr/local/sbin/distrust-emudhra.sh

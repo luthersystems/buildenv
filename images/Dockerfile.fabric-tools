@@ -1,0 +1,16 @@
+# The base image of luthersystems/fabric-snapshot-archiver, which ko builds
+# onto (its .ko.yaml defaultBaseImage). The archiver runs in the Fabric peer
+# pod, calls the peer CLI, and uploads snapshots to S3 through the system
+# trust store.
+#
+# It is hyperledger/fabric-tools with the eMudhra (emSign) roots removed.
+# Ubuntu's ca-certificates in the upstream image still trusts all four, and
+# eight eMudhra intermediates were compromised (CVE-2026-111943). ko cannot
+# run a step in a base image, so buildenv removes the roots here, and the
+# archiver gets the fix, and later fixes, from a buildenv release. It keeps
+# the upstream user, PATH and Fabric binaries.
+ARG FABRIC_TOOLS_VERSION=2.5.6
+FROM hyperledger/fabric-tools:${FABRIC_TOOLS_VERSION}
+
+COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
+RUN sh /usr/local/sbin/distrust-emudhra.sh
