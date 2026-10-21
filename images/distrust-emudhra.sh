@@ -12,7 +12,9 @@
 #
 #   - the system bundle (/etc/ssl/certs), on Alpine, Debian and Ubuntu,
 #     also when the image has only a prebuilt bundle;
-#   - the JDK cacerts and the Debian Java keystore (Temurin images).
+#   - the JDK cacerts and the Debian Java keystore (Temurin images);
+#   - the cacert.pem bundles that Python packages carry (certifi in
+#     azure-cli, pip, botocore).
 #
 # It fails the build if an emSign root is still present afterwards. Run it as
 # root, as the last step that installs or upgrades packages: a later
@@ -53,35 +55,48 @@ if [ "$found" -gt 0 ]; then
 	update-ca-certificates --fresh >/dev/null 2>&1 || update-ca-certificates
 fi
 
-# Remove any emSign PEM block that is still in the bundle. This covers an
-# image with only a prebuilt bundle and no per-root files (Alpine with only
-# ca-certificates-bundle), where update-ca-certificates has nothing to drop.
-if [ -f "$BUNDLE" ]; then
+# strip_pem FILE: remove each PEM block that holds an emSign root from FILE,
+# then fail if one is still there. Other lines (comments) are kept.
+strip_pem() {
 	tmp=$(mktemp)
-	awk -v lines="$EMSIGN_LINES" '
+	awk -v lines="$EMSIGN_LINES" -v file="$1" '
 		BEGIN { n = split(lines, want, "\n"); for (i = 1; i <= n; i++) if (want[i] != "") bad[want[i]] = 1 }
 		/^-----BEGIN CERTIFICATE-----/ { inblk = 1; blk = $0 "\n"; drop = 0; next }
 		inblk { blk = blk $0 "\n"; if ($0 in bad) drop = 1
 			if (/^-----END CERTIFICATE-----/) { inblk = 0; if (drop) removed++; else printf "%s", blk }
 			next }
 		{ print }
-		END { if (removed) printf "distrust-emudhra: removed %d emSign block(s) from the bundle\n", removed > "/dev/stderr" }
-	' "$BUNDLE" >"$tmp"
-	cat "$tmp" >"$BUNDLE"
+		END { if (removed) printf "distrust-emudhra: removed %d emSign block(s) from %s\n", removed, file > "/dev/stderr" }
+	' "$1" >"$tmp"
+	cat "$tmp" >"$1"
 	rm -f "$tmp"
-fi
+	for line in $EMSIGN_LINES; do
+		if grep -qF "$line" "$1"; then
+			echo "distrust-emudhra: an emSign root is still in $1" >&2
+			exit 1
+		fi
+	done
+}
 
-# Check the system bundle and the hashed links.
-for line in $EMSIGN_LINES; do
-	if [ -f "$BUNDLE" ] && grep -qF "$line" "$BUNDLE"; then
-		echo "distrust-emudhra: an emSign root is still in $BUNDLE" >&2
-		exit 1
-	fi
-done
+# The system bundle. Stripping it also covers an image with only a prebuilt
+# bundle and no per-root files (Alpine with only ca-certificates-bundle).
+if [ -f "$BUNDLE" ]; then
+	strip_pem "$BUNDLE"
+fi
 if ls /etc/ssl/certs 2>/dev/null | grep -qi 'emsign'; then
 	echo "distrust-emudhra: /etc/ssl/certs still has an emSign entry" >&2
 	exit 1
 fi
+
+# Bundles that a program carries for itself and reads instead of the system
+# bundle: Python certifi (azure-cli pins certifi 2024.7.4, which trusts all
+# four roots), pip's vendored certifi and botocore's cacert.pem.
+for dir in /usr/lib /usr/local /az /opt; do
+	[ -d "$dir" ] || continue
+	find "$dir" -xdev -type f -name cacert.pem 2>/dev/null
+done | while IFS= read -r pem; do
+	strip_pem "$pem"
+done
 
 # Java keystores: the JDK's own cacerts (Temurin: $JAVA_HOME/lib/security)
 # and the Debian ca-certificates-java store. A Temurin alias holds commas

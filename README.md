@@ -46,9 +46,14 @@ if one remains or if keytool cannot read a keystore.
 - The script stays in the image at `/usr/local/sbin/distrust-emudhra.sh`. A
   downstream image that installs or upgrades packages as root runs it again
   last: `RUN sh /usr/local/sbin/distrust-emudhra.sh`.
-- Not covered: CA lists compiled into a program (Node's built-in list, the
-  `certifi` copies inside aws-cli and az-cli). Go programs built with Go
-  1.26.10 or later refuse the eight intermediates themselves.
+- It also strips the roots from the `cacert.pem` bundles that Python packages
+  carry (azure-cli's certifi, pip's vendored certifi, botocore), under
+  `/usr/lib`, `/usr/local`, `/az` and `/opt`. azure-cli 2.91.0 still pins
+  certifi 2024.7.4, which trusts all four roots.
+- Not covered: a CA list compiled into a binary, such as Node's built-in
+  list. Node 22.23.4, 24.22.1 and 26.12.1 drop the compromised roots; Node 20
+  is past end of life and gets no fix. Go programs built with Go 1.26.10 or
+  later refuse the eight intermediates themselves.
 
 ### Grade-A bill of health (required image list)
 
