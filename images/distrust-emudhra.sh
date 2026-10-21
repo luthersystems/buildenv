@@ -89,13 +89,21 @@ strip_pem() {
 # bundle step: on Amazon Linux /etc/ssl/certs is a link into this store.
 PKI=/etc/pki/ca-trust
 blocked=0
-if [ -d "$PKI/source/blocklist" ]; then
+if [ -d "$PKI/extracted" ]; then
+	# Older p11-kit names the directory "blacklist". Without either, a root
+	# found below fails the build instead of passing unchecked.
+	blocklist=$PKI/source/blocklist
+	[ -d "$blocklist" ] || blocklist=$PKI/source/blacklist
 	for pem in "$PKI"/extracted/pem/directory-hash/*.pem; do
 		[ -e "$pem" ] || continue
 		for line in $EMSIGN_LINES; do
 			if grep -qF "$line" "$pem"; then
+				if [ ! -d "$blocklist" ]; then
+					echo "distrust-emudhra: $PKI has no source/blocklist directory to block $(basename "$pem")" >&2
+					exit 1
+				fi
 				echo "distrust-emudhra: blocking $(basename "$pem")"
-				cp "$pem" "$PKI/source/blocklist/"
+				cp "$pem" "$blocklist/"
 				blocked=$((blocked + 1))
 				break
 			fi
