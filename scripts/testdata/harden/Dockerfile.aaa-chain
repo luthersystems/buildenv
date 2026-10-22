@@ -1,0 +1,8 @@
+# A bundle that still trusts AAA Certificate Services, which cross-signed the
+# leaked eMudhra intermediates. scripts/test-harden.sh builds it with a copy
+# of the kit whose list leaves AAA out, so the module must find that a listed
+# intermediate still verifies and fail the build.
+FROM debian:bookworm-slim
+RUN apt-get -qq update && apt-get -qq install -y --no-install-recommends ca-certificates openssl >/dev/null
+RUN --mount=type=bind,from=certs,target=/fx mkdir -p /usr/local/lib/oldcertifi && cp /fx/comodo-aaa-certificate-services.pem /usr/local/lib/oldcertifi/cacert.pem
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh

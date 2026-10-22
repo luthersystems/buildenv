@@ -1,0 +1,7 @@
+# PEM text that never ends, as in source code or a test fixture: the module
+# leaves it alone. The second file holds a listed root in a block with no END
+# line, which the module cannot edit: it must fail the build.
+FROM alpine:3.20
+RUN printf -- '-----BEGIN CERTIFICATE-----\nAAAA\n' >/usr/lib/quoted.pem
+RUN --mount=type=bind,from=certs,target=/fx sed '$d' /fx/emsign-root-ca-g1.pem >/usr/lib/broken.pem
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh

@@ -1,0 +1,5 @@
+# Alpine with only the prebuilt bundle (ca-certificates-bundle), to which a
+# listed root and intermediate were added.
+FROM alpine:3.20
+RUN --mount=type=bind,from=certs,target=/fx cat /fx/emsign-root-ca-c1.pem /fx/emsign-root-tls-ca-g3.pem >>/etc/ssl/certs/ca-certificates.crt
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh

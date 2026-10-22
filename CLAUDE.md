@@ -19,7 +19,8 @@ consume these as `docker run` tools or as `FROM` bases in multi-stage builds.
 | `build-js`, `build-java`, `build-e2e`, `build-swaggercodegen` | JS / Java / e2e / codegen toolchains |
 | `nginx-frontend` | Static frontend serving base |
 | `service-base-alpine` | Minimal **prod runtime** base (runs as `nobody`) |
-| `awscli`, `dind`, `fabric-tools` | Upstream `amazon/aws-cli`, `docker:dind` and `hyperledger/fabric-tools` with the emSign roots removed, for the mars Fabric charts and the fabric-snapshot-archiver base (exempt from grade A) |
+| `build-harden` | The hardening kit (scripts and policy data, FROM scratch) that every image, here and in other repos, bind-mounts and runs last (exempt from grade A) |
+| `awscli`, `dind`, `fabric-tools` | Upstream `amazon/aws-cli`, `docker:dind` and `hyperledger/fabric-tools` with only the build-harden kit run, for the mars Fabric charts and the fabric-snapshot-archiver base (exempt from grade A) |
 
 ## Build & test
 
@@ -176,9 +177,14 @@ the strictly-better republish (section F) and the SLA.** Verify with
    also get a root `Makefile` target (e.g. `make slack-test`). Precedents:
    `scripts/scout-cve-gate.sh`, `scripts/scout-drift-sla.cjs`,
    `scripts/slack-alert.sh`.
-6. **Every image runs `images/distrust-emudhra.sh` last in its final stage**
-   (CVE-2026-111943; `make check-distrust-emudhra`). A new image or a new
-   package step goes before it. See README "eMudhra (emSign) roots removed".
+6. **Every image runs the build-harden kit last in its final stage**
+   (`RUN --mount=type=bind,source=harden,target=/harden sh /harden/harden.sh`;
+   `make check-harden`, and CI checks each built image with
+   `images/harden/check/image.sh`). A new image or a new package step goes
+   before it. A new policy is a module in `images/harden/modules/` plus its
+   data in `images/harden/policy/`; a new bad CA is a line in
+   `policy/ca-distrust.list`. See README "Hardening (build-harden)" and
+   `images/harden/README.md`.
 
 ## Skills
 

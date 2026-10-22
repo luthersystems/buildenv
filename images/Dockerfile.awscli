@@ -10,5 +10,8 @@
 ARG AWSCLI_VER=2.35.11
 FROM amazon/aws-cli:${AWSCLI_VER}
 
-COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
-RUN sh /usr/local/sbin/distrust-emudhra.sh
+# Harden the image with the build-harden kit (images/harden): today it makes
+# the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
+# and intermediates whose keys leaked, CVE-2026-111943). Keep this after the
+# last package install; the kit is bind-mounted, so no kit file stays.
+RUN --mount=type=bind,source=harden,target=/harden sh /harden/harden.sh

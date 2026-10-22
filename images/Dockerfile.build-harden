@@ -1,0 +1,13 @@
+# The build-harden kit: harden.sh, its policy modules and data, and the
+# checks a repo runs on its own Dockerfiles and images (see harden/README.md).
+# It is never run as a container. A Dockerfile bind-mounts it from a pinned
+# tag and digest and runs harden.sh as the last step of its final stage:
+#
+#   FROM luthersystems/build-harden:<version>@sha256:<digest> AS harden
+#   RUN --mount=type=bind,from=harden,source=/harden,target=/harden \
+#       sh /harden/harden.sh
+#
+# It holds only text files, so the one image serves every architecture.
+FROM scratch
+COPY harden /harden
+USER 65534:65534

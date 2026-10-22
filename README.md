@@ -29,52 +29,60 @@ The published images are scanned against Docker Scout policies. CI enforces a
 grade-A "bill of health" on a defined set of images (below), and two policy
 requirements affect how downstream repos consume these images (further down).
 
-### eMudhra (emSign) roots removed
+### Hardening (build-harden)
 
-Every image removes the four eMudhra emSign root CAs from its trust stores
-(`images/distrust-emudhra.sh`). The keys of eight eMudhra intermediate CAs were
-compromised (CVE-2026-111943, golang/go#82345), and the distribution
-`ca-certificates` packages still trust the roots. The script removes them from
-the system bundle (`/etc/ssl/certs`, also a prebuilt bundle with no per-root
-files), from the Red Hat store on Amazon Linux (`/etc/pki/ca-trust`: it puts
-each root in the p11-kit blocklist and runs `update-ca-trust extract`), and from
-the JDK and Debian Java `cacerts` keystores. It fails the build if one remains
-or if keytool cannot read a keystore.
+Every image runs the build-harden kit (`images/harden`, published as
+`luthersystems/build-harden`) as the last step of its final stage. The kit
+holds each policy as a module and its data; see
+[images/harden/README.md](images/harden/README.md) for how other repos use it.
+Today it has one policy, `ca-distrust`: the image trusts no CA in
+`images/harden/policy/ca-distrust.list`.
 
-- `awscli` and `dind` are the upstream `amazon/aws-cli` and
-  `docker:<DIND_VERSION>-dind` images with only this step added, for the init
-  and Docker-in-Docker containers of the luthersystems/mars Fabric charts.
-  `dind` also upgrades its Alpine packages and clears a legacy BuildKit cache at start
+That list holds the eMudhra certificates of CVE-2026-111943 (golang/go#82345):
+the eight intermediates whose keys leaked, each in its emSign-issued and its
+Sectigo "AAA Certificate Services" cross-signed copy (same key), and the
+emSign roots above them. The distribution `ca-certificates` packages still
+trust the roots, and a store that still trusts AAA (an old certifi, a JDK
+cacerts) would accept the cross-signed copies, so removing the roots alone is
+not enough.
+
+- The kit removes each listed root from the system bundle and its sources,
+  the p11-kit store (Amazon Linux: `awscli`), every other PEM bundle found by
+  content (azure-cli's certifi, pip, botocore, google-cloud-cli), and the JDK
+  and Debian Java keystores. It blocks every listed certificate in p11-kit,
+  each JDK's `blocked.certs` and each NSS database. It fails the build if a
+  listed certificate is still trusted, or still verifies against a trust
+  store in the image.
+- `awscli`, `dind` and `fabric-tools` are the upstream `amazon/aws-cli`,
+  `docker:<DIND_VERSION>-dind` and `hyperledger/fabric-tools:2.5.6` images with
+  only this step added (for the luthersystems/mars Fabric charts and as the ko
+  base image of luthersystems/fabric-snapshot-archiver). `dind` also upgrades
+  its Alpine packages and clears a legacy BuildKit cache at start
   (`images/dind-entrypoint.sh`), so it starts on a volume Docker 19.03 used.
-  `fabric-tools` is `hyperledger/fabric-tools:2.5.6` with only this step
-  added, as the ko base image of luthersystems/fabric-snapshot-archiver.
-
-- Each Dockerfile runs it in its final stage, after the last package step:
-  a later `apk upgrade` or `apt-get upgrade` of `ca-certificates` can restore
-  the roots. `make check-distrust-emudhra` (CI `script-tests`) enforces this; it also
-  fails on a later COPY or ADD into a trust store path.
-- The script stays in the image at `/usr/local/sbin/distrust-emudhra.sh`. A
-  downstream image that installs or upgrades packages as root runs it again
-  last: `RUN sh /usr/local/sbin/distrust-emudhra.sh`.
-- It also strips the roots from every text file under `/usr/lib`,
-  `/usr/local`, `/az` and `/opt` that holds one, whatever its name: the
-  `cacert.pem` bundles that Python packages carry (azure-cli's certifi, pip's
-  vendored certifi, botocore) and bundles such as google-cloud-cli's grpc
-  `roots.pem` and gsutil `cacerts.txt` (in luthersystems/mars). azure-cli
-  2.91.0 accepts a certifi older than 2026.10.19, which trusts the roots. A
-  binary file (one with a NUL byte) is skipped, not rewritten.
+- `make check-harden` (CI `script-tests`) fails when a Dockerfile's final
+  stage does not run the kit last, or when a later step can undo it (a
+  package step, `update-ca-certificates`, a `COPY --from`, an `ADD`, `curl`,
+  `wget`, `unzip`, `tar`, `npm`, an install script, or a COPY into a trust
+  store path).
+- Each image build in CI (PR and release, amd64 and arm64) then runs
+  `images/harden/check/image.sh` on the built image
+  (`scripts/ci-harden-check.sh`). `make test-harden` (CI `harden-tests`)
+  tests the kit on Debian, Alpine, a JDK and Amazon Linux, and checks that a
+  bundle that still trusts AAA, a broken PEM file, a later step that adds a
+  root back and an image without the kit all fail.
+- The kit is bind-mounted, so it no longer stays in the image: the old
+  `/usr/local/sbin/distrust-emudhra.sh` is gone. A downstream image that
+  installs or upgrades packages as root runs the kit again last (see
+  images/harden/README.md).
 - Not covered: a CA list compiled into a binary, such as Node's built-in
-  list. Node 22.23.4, 24.22.1 and 26.12.1 take Mozilla's NSS 3.131.1 list,
-  which drops emSign ECC Root CA - G3, emSign Root CA - C1 and emSign ECC Root
-  CA - C3 but keeps emSign Root CA - G1. build-js uses Node 24.22.1, so its
-  built-in list keeps G1 (checked with `tls.rootCertificates`). A program
-  started with `node --use-openssl-ca` reads the system bundle, which has no
-  emSign root. Node 20 is past end of life and gets no fix. Go programs
-  built with Go 1.26.10 or later refuse the eight intermediates themselves.
-- `make check-distrust-emudhra` also fails when the script line has a command
-  chained after it, or when a later step can bring a bundle back (a `COPY
-  --from`, an `ADD`, `curl`, `wget`, `unzip`, `tar`, `npm` or an install
-  script).
+  list, is reported, not edited. Node 22.23.4, 24.22.1 and 26.12.1 take
+  Mozilla's NSS 3.131.1 list, which drops emSign ECC Root CA - G3, emSign Root
+  CA - C1 and emSign ECC Root CA - C3 but keeps emSign Root CA - G1. build-js
+  uses Node 24.22.1, so its built-in list keeps G1 (checked with
+  `tls.rootCertificates`). A program started with `node --use-openssl-ca`
+  reads the system bundle, which has no emSign root. Node 20 is past end of
+  life and gets no fix. Go programs built with Go 1.26.10 or later refuse the
+  eight intermediates themselves.
 
 ### Grade-A bill of health (required image list)
 

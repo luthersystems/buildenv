@@ -1,0 +1,5 @@
+# Amazon Linux 2023: the p11-kit store, which takes the listed certificates
+# in its blocklist. The base image has no find.
+FROM amazonlinux:2023
+RUN dnf -q install -y findutils && dnf clean all
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh

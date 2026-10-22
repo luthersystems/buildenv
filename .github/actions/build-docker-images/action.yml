@@ -87,4 +87,21 @@ runs:
       shell: bash
       env:
         BUILDX_CACHE_FLAGS: --cache-from type=gha,scope=${{ inputs.image }}-${{ inputs.arch }} --cache-to type=gha,mode=max,ignore-error=true,scope=${{ inputs.image }}-${{ inputs.arch }}
-      run: cd images && make PLATFORMS=linux/${{ inputs.arch }} TAG_SUFFIX=-${{ inputs.arch }} GIT_TAG=${{ inputs.git_tag }} GIT_REVISION=${{ inputs.git_rev }} ${{ inputs.image }}
+      # A PR build loads the image (a release pushes it), so the check below
+      # can read it.
+      run: cd images && make PLATFORMS=linux/${{ inputs.arch }} TAG_SUFFIX=-${{ inputs.arch }} GIT_TAG=${{ inputs.git_tag }} GIT_REVISION=${{ inputs.git_rev }} ${{ inputs.git_tag == '' && 'DOCKER_BUILDX_OPTS=--load' || '' }} ${{ inputs.image }}
+
+    # Prove the build-harden policy on the built image (images/harden/check):
+    # the kit checks itself during the build, but a later step could undo it.
+    - name: Check the image holds the build-harden policy
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        ARCH: ${{ inputs.arch }}
+      # git_tag and git_rev arrive as shell text ($GITHUB_REF_NAME,
+      # $GITHUB_SHA), as in the build step, so they expand here. The tag
+      # is common.mk's VERSION: the git tag (v included) or the revision.
+      run: |
+        version=${{ inputs.git_tag }}
+        [ -n "$version" ] || version=${{ inputs.git_rev }}
+        bash scripts/ci-harden-check.sh "$IMAGE" "luthersystems/$IMAGE:$version-$ARCH" "linux/$ARCH"

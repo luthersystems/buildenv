@@ -6,6 +6,7 @@ include ${CONFIG_MAKEFILE}
 
 IMAGES= \
 	luthersystems/awscli \
+	luthersystems/build-harden \
 	luthersystems/build-api \
 	luthersystems/build-go \
 	luthersystems/build-go-alpine \
@@ -60,7 +61,10 @@ clean:
 %: $(call IMAGE_DUMMY,luthersystems/%)
 	@
 
-$(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% distrust-emudhra.sh Makefile ${COMMON_MAKEFILE} ${CONFIG_MAKEFILE} $(call DUMMY_TARGET,deps,luthersystems/%)
+# Every image runs the build-harden kit, so a change to it rebuilds them all.
+HARDEN_FILES := $(shell find harden -type f)
+
+$(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% ${HARDEN_FILES} Makefile ${COMMON_MAKEFILE} ${CONFIG_MAKEFILE} $(call DUMMY_TARGET,deps,luthersystems/%)
 	@echo "Building image $*"
 	${DOCKER} buildx inspect --bootstrap
 	${DOCKER} buildx build ${DOCKER_BUILDX_OPTS} ${DOCKER_ATTEST_OPTS} ${BUILDX_CACHE_FLAGS} \

@@ -35,16 +35,24 @@ docker-cli-check:
 scout-cli-install:
 	bash scripts/install-scout-cli.sh
 
-# Check that every image Dockerfile runs images/distrust-emudhra.sh last
-# (CVE-2026-111943). Also run in CI by build.yml's `script-tests` job.
-.PHONY: check-distrust-emudhra
-check-distrust-emudhra:
-	bash scripts/check-distrust-emudhra.sh
+# Check that every image Dockerfile runs the build-harden kit last
+# (images/harden/check/dockerfile.sh). Also run in CI by build.yml's
+# `script-tests` job.
+.PHONY: check-harden
+check-harden:
+	bash images/harden/check/dockerfile.sh images
 
 # Self-test for the check above, with fixture Dockerfiles.
-.PHONY: test-check-distrust-emudhra
-test-check-distrust-emudhra:
-	bash scripts/test-check-distrust-emudhra.sh
+.PHONY: test-check-harden
+test-check-harden:
+	bash scripts/test-harden-dockerfile-check.sh
+
+# Build the kit's fixture images (scripts/testdata/harden) on real base
+# images and check each one (needs docker, network, keytool and certutil).
+# Also run in CI by build.yml's `harden-tests` job. FIXTURES limits the run.
+.PHONY: test-harden
+test-harden:
+	bash scripts/test-harden.sh $(FIXTURES)
 
 # Unit tests for the automation logic in scripts/*.cjs (node:test, no deps;
 # needs Node >= 18). Also run in CI by build.yml's `script-tests` job.

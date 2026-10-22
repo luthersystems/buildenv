@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Self-test for scripts/check-distrust-emudhra.sh: each fixture Dockerfile
-# must pass or fail as expected. Run by `make test-check-distrust-emudhra`
+# shellcheck disable=SC1003,SC2016 # the fixture lines are literal Dockerfile text
+# Self-test for images/harden/check/dockerfile.sh: each fixture Dockerfile
+# must pass, fail or be skipped as expected. Run by `make test-check-harden`
 # and by CI (build.yml `script-tests`).
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-check="$here/check-distrust-emudhra.sh"
+check="$here/../images/harden/check/dockerfile.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 bad=0
@@ -18,12 +19,13 @@ expect() {
 	mkdir -p "$d"
 	{
 		echo 'FROM golang:1 AS build'
-		echo 'RUN sh /usr/local/sbin/distrust-emudhra.sh'
-		echo 'FROM alpine:3'
+		echo 'RUN --mount=type=bind,source=harden,target=/harden sh /harden/harden.sh'
+		if [ "${base:-}" != none ]; then echo "FROM ${base:-alpine:3}"; fi
 		printf '%s\n' "$@"
 	} >"$d/Dockerfile.x"
-	local got=pass
-	bash "$check" "$d" >/dev/null 2>&1 || got=fail
+	local got=pass out
+	out=$(bash "$check" "$d" 2>&1) || got=fail
+	if [ "$got" = pass ] && grep -q '^skip:' <<<"$out"; then got=skip; fi
 	if [ "$got" = "$want" ]; then
 		echo "ok: $name ($want)"
 	else
@@ -32,14 +34,14 @@ expect() {
 	fi
 }
 
-run='RUN sh /usr/local/sbin/distrust-emudhra.sh'
+run='RUN --mount=type=bind,source=harden,target=/harden sh /harden/harden.sh'
 expect pass basic 'RUN apk add --no-cache ca-certificates' "$run" 'USER nobody'
 expect pass later-check "$run" 'RUN set -eux; go version'
 expect pass comment-word "$run" '# adapt this later'
 expect pass word-in-arg "$run" 'RUN echo adapter apkg'
 expect fail missing 'RUN apk add --no-cache ca-certificates' 'USER nobody'
 expect fail only-in-build-stage 'USER nobody'
-expect fail commented-out '# RUN sh /usr/local/sbin/distrust-emudhra.sh' 'USER nobody'
+expect fail commented-out "# $run" 'USER nobody'
 expect fail apk-after "$run" 'RUN apk add --no-cache curl'
 expect fail apt-after "$run" 'RUN apt-get update && apt-get install -y curl'
 expect fail update-ca-eol "$run" 'RUN update-ca-certificates'
@@ -48,10 +50,18 @@ expect fail continued-line "$run" 'RUN set -eux; \' '    apk upgrade'
 expect fail copy-bundle "$run" 'COPY --from=x /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/'
 expect fail copy-cacerts "$run" 'COPY cacerts /opt/java/openjdk/lib/security/cacerts'
 
-expect fail chained-apk 'RUN sh /usr/local/sbin/distrust-emudhra.sh && apk add --no-cache ca-certificates-bundle'
-expect fail continued-run 'RUN sh /usr/local/sbin/distrust-emudhra.sh \' '    && apk upgrade'
-expect fail only-named 'RUN rm -f /usr/local/sbin/distrust-emudhra.sh'
-expect fail echo-named 'RUN echo skip distrust-emudhra.sh'
+expect fail chained-apk "$run && apk add --no-cache ca-certificates-bundle"
+expect fail continued-run "$run \\" '    && apk upgrade'
+expect fail only-named 'RUN rm -f /harden/harden.sh'
+expect fail echo-named 'RUN echo skip sh /harden/harden.sh'
+expect fail no-mount 'RUN sh /harden/harden.sh'
+expect fail other-target 'RUN --mount=type=bind,source=harden,target=/kit sh /harden/harden.sh'
+expect fail update-ca-trust "$run" 'RUN update-ca-trust extract'
+expect pass from-stage 'RUN --mount=type=bind,from=harden,source=/harden,target=/harden sh /harden/harden.sh'
+expect pass continued-mount 'RUN --mount=type=bind,from=harden,source=/harden,target=/harden \' '    sh /harden/harden.sh' 'USER nobody'
+base=scratch expect skip scratch-final 'COPY --from=build /etc/ssl /etc/ssl'
+base='--platform=$BUILDPLATFORM gcr.io/distroless/static' expect skip distroless-final 'COPY --from=build /etc/ssl /etc/ssl'
+base='--platform=$BUILDPLATFORM alpine:3' expect fail platform-missing 'USER nobody'
 expect fail copy-from-az "$run" 'COPY --from=azcli /az /az'
 expect fail copy-from-aws "$run" 'COPY --from=aws /usr/local/aws-cli/ /usr/local/aws-cli/'
 expect fail aws-install "$run" 'RUN unzip awscliv2.zip && ./aws/install'
