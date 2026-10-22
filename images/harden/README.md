@@ -79,6 +79,31 @@ bash .harden/check/dockerfile.sh Dockerfile
 bash .harden/check/image.sh --platform linux/arm64 my-image:arm64
 ```
 
+## Clients with their own roots
+
+A clean trust store does nothing for a client that does not read it. The
+image check fails unless the image's environment points each such client at
+the system store (lessons of connectorhub#262, hyphae#71/#72, mars#306):
+
+| Client | Its own roots | What the image must do |
+|---|---|---|
+| Node.js | a list built into `node` (holds the emSign roots, and AAA in some versions) | `ENV NODE_OPTIONS=--use-openssl-ca` (or `--use-system-ca`) |
+| uv / uvx | a list built into `uv`; uvx installs a fresh certifi when it runs | `ENV SSL_CERT_FILE=<system bundle>` and `ENV REQUESTS_CA_BUNDLE=<system bundle>` (also `CURL_CA_BUNDLE`, `HTTPLIB2_CA_CERTS`, `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` where used) |
+| Chrome / Chromium | the Chrome Root Store built into its binary; distrust only from `$HOME/.pki/nssdb` | ship an NSS database (the kit distrusts the list in it) and copy it to `$HOME/.pki/nssdb` when the program starts, then check that Chrome opens it (hyphae `pdfserv/pdfgen/nssdb.go`) |
+| Any binary with DER roots (Go `x509roots/fallback`, ...) | compiled in | reported; `--strict-binaries` fails |
+
+An image with no system bundle fails the check (node:alpine ships none:
+install `ca-certificates` before the kit); pass `--min-roots 0` for an
+image with no TLS client.
+
+Limits: code that reads a root list directly (`tls.rootCertificates`,
+`certifi.where()`, a vendored `.js` root list) gets past every ENV setting,
+and a package installed at run time is not hardened. The checks are static:
+a repo whose image runs a TLS client should keep a behavioural test (a local
+TLS server with a fresh CA: fails without the CA, passes with it in the
+bundle, fails with the override cleared; and, where the network allows,
+refusal of emSign's test sites `testevg1.emsign.com` / `testevc3.emsign.com`).
+
 ## Add a CA to the list
 
 1. Get the certificate from a source you can check (crt.sh, the CA's

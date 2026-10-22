@@ -23,8 +23,14 @@
 #     lib/security/blocked.certs blocks every one;
 #   - every NSS database distrusts every listed certificate (trust p,p,p).
 #
-# A binary file that holds a listed certificate (a Node.js binary with its CA
-# list compiled in) is reported, and fails with --strict-binaries.
+#   - the image's environment points each client with its own root list at
+#     the system store: Node (NODE_OPTIONS=--use-openssl-ca), uv
+#     (SSL_CERT_FILE, REQUESTS_CA_BUNDLE), and Chrome needs an NSS database;
+#   - an image with no system bundle fails (--min-roots 0 allows it).
+#
+# A binary or program source file that holds a listed certificate, as PEM
+# text or as its public key in DER (a built-in root list), is reported, and
+# fails with --strict-binaries. The DER search needs python3 on the host.
 #
 # Usage: image.sh [--platform P] [--min-roots N] [--strict-binaries]
 #                 [--allow PATH_GLOB]... IMAGE
@@ -231,7 +237,9 @@ if [ -n "$sysb" ]; then
 	echo "$sysb: $c certificate(s)"
 	[ "$c" -ge "$min_roots" ] || bad "$sysb: $c certificate(s), expected at least $min_roots"
 else
-	echo "no system CA bundle"
+	# Every TLS client needs one; an image with none either has no TLS
+	# client (pass --min-roots 0) or one that uses a built-in list.
+	[ "$min_roots" -eq 0 ] || bad "no system CA bundle (node:alpine and others ship none: install ca-certificates before the kit)"
 fi
 
 # Java. A JDK's own keystore (lib/security/cacerts) needs the JDK's
@@ -284,6 +292,97 @@ if [ -s "$work/nss" ]; then
 		done
 		echo "$path: checked"
 	done <"$work/nss"
+fi
+
+# Clients with their own root list. A clean system store does nothing for a
+# client that does not read it, so the image's environment must point each
+# one at the store (lessons of connectorhub#262 and hyphae#71/#72).
+docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$IMAGE" >"$work/env" 2>/dev/null ||
+	{ echo "image.sh: cannot read the environment of $IMAGE" >&2; exit 2; }
+envval() { sed -n "s/^$1=//p" "$work/env" | tail -1; }
+find "$root" -type f -perm -u+x \( -name node -o -name uv -o -name uvx -o -name chrome -o -name chromium -o -name chromium-browser -o -name headless_shell \) -print >"$work/clients"
+while IFS= read -r exe; do
+	path=${exe#"$root"}
+	allowed "$path" && continue
+	case ${exe##*/} in
+	node)
+		# Node trusts its built-in list (it holds the emSign roots and, in
+		# some versions, AAA) unless told to read the system store.
+		case " $(envval NODE_OPTIONS) " in
+		*" --use-openssl-ca "* | *" --use-system-ca "*) echo "$path: NODE_OPTIONS reads the system store" ;;
+		*) bad "$path: Node uses its built-in root list; set ENV NODE_OPTIONS=--use-openssl-ca (or --use-system-ca)" ;;
+		esac
+		;;
+	uv | uvx)
+		# uv trusts its built-in list unless SSL_CERT_FILE (or native TLS)
+		# is set, and uvx installs a fresh certifi when it runs, which no
+		# build step can clean, so requests must read the bundle too.
+		cf=$(envval SSL_CERT_FILE)
+		if [ "$(envval UV_NATIVE_TLS)" != 1 ] && { [ -z "$cf" ] || [ ! -f "$root$cf" ]; }; then
+			bad "$path: uv uses its built-in root list; set ENV SSL_CERT_FILE to the system bundle"
+		fi
+		[ -n "$(envval REQUESTS_CA_BUNDLE)" ] || bad "$path: a certifi that uv installs at run time is not hardened; set ENV REQUESTS_CA_BUNDLE (and SSL_CERT_FILE) to the system bundle"
+		;;
+	*)
+		# Chrome trusts the Chrome Root Store built into its binary and takes
+		# distrust only from an NSS database in $HOME/.pki/nssdb. The kit
+		# distrusts the listed certificates in every NSS database in the
+		# image; the program must copy one to $HOME/.pki/nssdb when it starts
+		# (hyphae pdfserv/pdfgen/nssdb.go) and check that Chrome opens it.
+		[ -s "$work/nss" ] || bad "$path: Chrome uses its built-in roots and the image has no NSS database to distrust them (ship one, made with certutil before the kit, and copy it to \$HOME/.pki/nssdb at start)"
+		echo "WARN: $path: Chrome reads distrust only from \$HOME/.pki/nssdb at run time; the program must install the image's NSS database there" >&2
+		;;
+	esac
+done <"$work/clients"
+
+# Roots compiled into a binary as DER (Go's x509roots/fallback, Node,
+# Chrome, uv): search each binary for each listed certificate's public key,
+# which a cross-signed copy shares (mars#306 searched by name).
+if command -v python3 >/dev/null; then
+	for c in "$CERTS"/*.pem; do
+		printf '%s ' "$(basename "$c")"
+		openssl x509 -in "$c" -noout -pubkey | openssl pkey -pubin -outform der | od -An -v -tx1 | tr -d ' \n'
+		echo
+	done >"$work/spki"
+	cat >"$work/der.py" <<'PY'
+import sys
+keys = {}
+for line in open(sys.argv[1]):
+    name, hexkey = line.split()
+    keys.setdefault(bytes.fromhex(hexkey), []).append(name)
+for path in open(sys.argv[2], "rb").read().split(b"\0"):
+    if not path:
+        continue
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError as e:
+        print("ERROR", path.decode(errors="replace"), e)
+        continue
+    if b"\0" not in data:
+        continue
+    hits = sorted({n for k, ns in keys.items() if k in data for n in ns})
+    if hits:
+        print(path.decode(errors="replace"), " ".join(hits))
+PY
+	python3 -I "$work/der.py" "$work/spki" "$work/all-files" >"$work/der-hits"
+	if grep -q '^ERROR ' "$work/der-hits"; then
+		grep '^ERROR ' "$work/der-hits" >&2
+		echo "image.sh: could not read a file of $IMAGE" >&2
+		exit 2
+	fi
+	while read -r f hits; do
+		path=${f#"$root"}
+		allowed "$path" && continue
+		binaries=$((binaries + 1))
+		if [ "$strict_binaries" = 1 ]; then
+			bad "$path: a binary that holds the key of $hits"
+		else
+			echo "WARN: $path: a binary that holds the key of $hits in DER (a built-in root list: point it at the system store)" >&2
+		fi
+	done <"$work/der-hits"
+else
+	echo "WARN: no python3 on the host: binaries were not searched for DER roots" >&2
 fi
 
 if [ "$fail" -ne 0 ]; then

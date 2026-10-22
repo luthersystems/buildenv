@@ -9,8 +9,10 @@
 #   build fails:         aaa-chain (a listed intermediate still chains to a
 #                        trusted root), malformed (a listed root in a PEM
 #                        block with no END line)
+#   build ok, check ok:  node (NODE_OPTIONS=--use-openssl-ca)
 #   check fails:         undone (a later step adds a root back),
-#                        unhardened (no kit)
+#                        unhardened (no kit), node-unset (Node reads its
+#                        built-in roots)
 #
 # Needs docker with buildx, network access to pull the base images, and on
 # the host openssl, keytool and certutil (image.sh's tools). Run by
@@ -75,6 +77,8 @@ run aaa-chain fail - 'still verifies against /usr/local/lib/oldcertifi/cacert.pe
 run aaa-removed ok ok
 run malformed fail - 'in a layout this module cannot edit'
 run undone ok fail
+run node ok ok
+run node-unset ok fail
 run unhardened ok fail
 
 exit "$bad"
