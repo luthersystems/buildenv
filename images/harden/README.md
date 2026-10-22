@@ -42,8 +42,11 @@ line bumps the kit.
 - An image whose final stage has no shell (`FROM scratch`, distroless) runs
   the kit in a build stage and copies the trust stores from it, then runs the
   image check.
-- `HARDEN_MODULES="ca-distrust"` runs only the modules named.
-  `HARDEN_NSSDB` names more NSS database directories. `HARDEN_STRICT_BINARIES=1`
+- Settings go before `sh` on the same line
+  (`... HARDEN_STRICT_BINARIES=1 sh /harden/harden.sh`), so they do not stay
+  in the image's environment. `HARDEN_MODULES="ca-distrust"` runs only the
+  modules named.
+  The kit finds NSS databases anywhere; `HARDEN_NSSDB` names more. `HARDEN_STRICT_BINARIES=1`
   fails the build on a binary that holds a listed certificate (a Node.js
   binary with its CA list compiled in), which by default is only reported.
 
@@ -52,8 +55,9 @@ line bumps the kit.
 Two checks ship in the kit, under `check/`.
 
 - `check/dockerfile.sh [DIR or FILE ...]` reads each Dockerfile and fails
-  when the final stage does not run the kit last, or when a later step can
-  undo it (a package step, a `COPY --from`, an `ADD`, a COPY into a trust
+  when the final stage does not run the kit last, when the kit is not
+  mounted from a `luthersystems/build-harden` stage pinned by digest, or when
+  a later step can undo it (a package step, a `COPY --from`, an `ADD`, a COPY into a trust
   store).
 - `check/image.sh [--platform P] IMAGE` exports the built image and checks
   it on the host (no emulation is needed for another architecture): no file
