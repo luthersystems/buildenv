@@ -4,7 +4,8 @@
 # consumer repo mounts it (a named build context, as `FROM build-harden AS
 # harden` gives), then checked with images/harden/check/image.sh.
 #
-#   build ok, check ok:  debian-mixed, alpine-appended, temurin, al2023
+#   build ok, check ok:  debian-mixed, alpine-appended, temurin, debian-jdk
+#                        (blocked.certs is a link), al2023
 #   build ok, check ok:  aaa-removed (a bundle with AAA Certificate Services)
 #   build fails:         aaa-chain (a listed intermediate still chains to a
 #                        trusted root), malformed (a listed root in a PEM
@@ -72,6 +73,7 @@ run() { if [ "$only" = "  " ] || [[ $only == *" $1 "* ]]; then expect "$@"; fi; 
 run debian-mixed ok ok
 run alpine-appended ok ok
 run temurin ok ok
+run debian-jdk ok ok
 run al2023 ok ok
 run aaa-chain fail - 'still verifies against /usr/local/lib/oldcertifi/cacert.pem'
 run aaa-removed ok ok

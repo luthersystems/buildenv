@@ -1,0 +1,9 @@
+# A Debian JDK package: lib/security/blocked.certs is a link to
+# /etc/java-17-openjdk/security/blocked.certs, and the kit must edit the
+# link's target (luthersystems/buildenv#166).
+FROM debian:bookworm-slim
+RUN apt-get -qq update && apt-get -qq install -y --no-install-recommends openjdk-17-jre-headless >/dev/null \
+    && test -L /usr/lib/jvm/java-17-openjdk-*/lib/security/blocked.certs
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh
+RUN test -L /usr/lib/jvm/java-17-openjdk-*/lib/security/blocked.certs \
+    && grep -c . /etc/java-17-openjdk/security/blocked.certs
