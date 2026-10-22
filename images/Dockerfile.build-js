@@ -95,6 +95,12 @@ ENV AZCLI_VER=$AZCLI_VER
 
 RUN apt-get update && apt-get install -y azure-cli=${AZCLI_VER}\*
 
+# Node trusts its built-in root list (it holds the emSign roots) unless
+# --use-openssl-ca makes it read only OpenSSL's store, which the kit
+# hardens; SSL_CERT_FILE names that store for Node's own OpenSSL.
+ENV NODE_OPTIONS=--use-openssl-ca \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
 # Default to a non-root user (Docker Scout "default non-root user" policy, #75).
 # All installs above run as root; this only affects runtime. BREAKING for any
 # downstream expecting root at runtime — consumers pass `-u` or add `USER root`.

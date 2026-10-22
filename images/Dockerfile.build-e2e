@@ -98,6 +98,12 @@ COPY --from=pdfserv     /ko-app/pdfserv /usr/local/bin/pdfserv
 COPY --from=pdfserv     /usr/share/fonts /usr/share/fonts
 RUN fc-cache -f
 
+# Node trusts its built-in root list (it holds the emSign roots) unless
+# --use-openssl-ca makes it read only OpenSSL's store, which the kit
+# hardens; SSL_CERT_FILE names that store for Node's own OpenSSL.
+ENV NODE_OPTIONS=--use-openssl-ca \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
 # Harden the image with the build-harden kit (images/harden): today it makes
 # the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
 # and intermediates whose keys leaked, CVE-2026-111943). Keep this after the

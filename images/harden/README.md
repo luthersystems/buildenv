@@ -87,7 +87,7 @@ the system store (lessons of connectorhub#262, hyphae#71/#72, mars#306):
 
 | Client | Its own roots | What the image must do |
 |---|---|---|
-| Node.js | a list built into `node` (holds the emSign roots, and AAA in some versions) | `ENV NODE_OPTIONS=--use-openssl-ca` (or `--use-system-ca`) |
+| Node.js | a list built into `node` (holds the emSign roots, and AAA in some versions) | `ENV NODE_OPTIONS=--use-openssl-ca SSL_CERT_FILE=<system bundle>`. Without `SSL_CERT_FILE` an official Node binary trusts no root (its OpenSSL looks in its own directory). `--use-system-ca` does not count: it adds the system store to the built-in list, which keeps the emSign roots (tested on Node 22.23) |
 | uv / uvx | a list built into `uv`; uvx installs a fresh certifi when it runs | `ENV SSL_CERT_FILE=<system bundle>` and `ENV REQUESTS_CA_BUNDLE=<system bundle>` (also `CURL_CA_BUNDLE`, `HTTPLIB2_CA_CERTS`, `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` where used) |
 | Chrome / Chromium | the Chrome Root Store built into its binary; distrust only from `$HOME/.pki/nssdb` | ship an NSS database (the kit distrusts the list in it) and copy it to `$HOME/.pki/nssdb` when the program starts, then check that Chrome opens it (hyphae `pdfserv/pdfgen/nssdb.go`) |
 | Any binary with DER roots (Go `x509roots/fallback`, ...) | compiled in | reported; `--strict-binaries` fails |

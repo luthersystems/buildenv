@@ -24,7 +24,8 @@
 #   - every NSS database distrusts every listed certificate (trust p,p,p).
 #
 #   - the image's environment points each client with its own root list at
-#     the system store: Node (NODE_OPTIONS=--use-openssl-ca), uv
+#     the system store: Node (NODE_OPTIONS=--use-openssl-ca and
+#     SSL_CERT_FILE), uv
 #     (SSL_CERT_FILE, REQUESTS_CA_BUNDLE), and Chrome needs an NSS database;
 #   - an image with no system bundle fails (--min-roots 0 allows it).
 #
@@ -307,10 +308,22 @@ while IFS= read -r exe; do
 	case ${exe##*/} in
 	node)
 		# Node trusts its built-in list (it holds the emSign roots and, in
-		# some versions, AAA) unless told to read the system store.
+		# some versions, AAA) unless --use-openssl-ca makes it read only
+		# OpenSSL's store. An official Node binary's OpenSSL looks in its own
+		# directory, not the distribution's, so it trusts nothing (and every
+		# TLS call fails) unless SSL_CERT_FILE names the bundle.
+		# --use-system-ca adds the system store to the built-in list, which
+		# keeps the emSign roots: it does not count.
+		cf=$(envval SSL_CERT_FILE)
 		case " $(envval NODE_OPTIONS) " in
-		*" --use-openssl-ca "* | *" --use-system-ca "*) echo "$path: NODE_OPTIONS reads the system store" ;;
-		*) bad "$path: Node uses its built-in root list; set ENV NODE_OPTIONS=--use-openssl-ca (or --use-system-ca)" ;;
+		*" --use-openssl-ca "*)
+			if [ -n "$cf" ] && [ -f "$root$cf" ]; then
+				echo "$path: NODE_OPTIONS=--use-openssl-ca, SSL_CERT_FILE=$cf"
+			else
+				bad "$path: --use-openssl-ca without SSL_CERT_FILE set to the system bundle: an official Node binary then trusts no root"
+			fi
+			;;
+		*) bad "$path: Node uses its built-in root list; set ENV NODE_OPTIONS=--use-openssl-ca and SSL_CERT_FILE=<system bundle> (--use-system-ca keeps the built-in list)" ;;
 		esac
 		;;
 	uv | uvx)
