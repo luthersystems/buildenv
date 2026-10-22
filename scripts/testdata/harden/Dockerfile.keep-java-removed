@@ -1,0 +1,7 @@
+# A step after the kit deletes USERTrust RSA (SHA-256 E7:93:C9:B0...), a root
+# the policy keeps, from the JDK's keystore: the image check must fail.
+FROM eclipse-temurin:21-jdk
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh
+RUN ks=$JAVA_HOME/lib/security/cacerts; \
+    alias=$(keytool -list -keystore "$ks" -storepass changeit | awk -F', ' '/trustedCertEntry/ { a = $1 } /E7:93:C9:B0:2F:D8/ { print a }'); \
+    test -n "$alias" && keytool -delete -alias "$alias" -keystore "$ks" -storepass changeit -noprompt

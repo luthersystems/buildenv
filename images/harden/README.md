@@ -12,7 +12,7 @@ repo then bumps one pinned tag.
 
 | Module | Policy | Data |
 |---|---|---|
-| `ca-distrust` | The image trusts no CA in the list: each listed root is removed from every trust store, and every listed certificate (roots and intermediates) is blocked where the TLS stack has a block list. | `policy/ca-distrust.list`, `policy/ca-distrust/*.pem` |
+| `ca-distrust` | The image trusts no CA in the list: each listed root is removed from every trust store, and every listed certificate (roots and intermediates) is blocked where the TLS stack has a block list. The image still trusts each CA in the keep list (the positive control, below). | `policy/ca-distrust.list`, `policy/ca-distrust/*.pem`, `policy/ca-keep.list`, `policy/ca-keep/*.pem` |
 
 ## Use it in a Dockerfile
 
@@ -64,7 +64,8 @@ Two checks ship in the kit, under `check/`.
   it on the host (no emulation is needed for another architecture): no file
   holds a listed certificate, no listed certificate verifies against any
   trust store in the image, the system bundle is not empty, every Java
-  keystore and `blocked.certs` and every NSS database is right. It needs
+  keystore and `blocked.certs` and every NSS database is right, and each kept
+  CA is still trusted (the positive control, below). It needs
   `docker`, `openssl` and `bash` on the host, plus `keytool` for an image
   with a Java keystore and `certutil` (libnss3-tools) for one with an NSS
   database.
@@ -103,6 +104,30 @@ a repo whose image runs a TLS client should keep a behavioural test (a local
 TLS server with a fresh CA: fails without the CA, passes with it in the
 bundle, fails with the override cleared; and, where the network allows,
 refusal of emSign's test sites `testevg1.emsign.com` / `testevc3.emsign.com`).
+
+## The positive control
+
+The checks of `ca-distrust.list` prove that the listed CAs fail. A trust
+store that lost more than the list (an emptied bundle, a stripped root the
+policy did not name) passes them too, so they alone cannot tell a correct
+block from one that breaks every TLS call. `policy/ca-keep.list` names CAs
+that must stay trusted: the USERTrust RSA and ECC roots, which today's
+Sectigo chains end at, and a Sectigo intermediate that each one issued.
+AAA Certificate Services, the older Sectigo root that cross-signed the leaked
+eMudhra intermediates, is distrusted; these are not.
+
+| Store | Kept root | Kept intermediate | Checked by |
+|---|---|---|---|
+| Every PEM file with 100 or more certificates (the system bundle, certifi, pip), and the file `SSL_CERT_FILE` or `REQUESTS_CA_BUNDLE` names | needed by the intermediate | verifies against the file (`openssl verify`) | the module (when the image has `openssl`) and the image check |
+| Java `cacerts` | still in it | none | the module and the image check |
+| Java `blocked.certs` | not blocked | not blocked | the module and the image check |
+| NSS databases | not distrusted, by certificate or key | not distrusted | the image check |
+
+Go, Node.js (with `--use-openssl-ca`), uv, Python requests, curl and git read
+the system bundle or the file `SSL_CERT_FILE` names, so a chain that verifies
+there verifies for them. A CA in both lists is a broken policy: the module and
+the image check refuse it. `make test-harden` proves each check fails when a
+kept CA is lost (the `keep-*` fixtures).
 
 ## Add a CA to the list
 

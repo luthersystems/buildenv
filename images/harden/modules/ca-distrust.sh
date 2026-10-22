@@ -31,7 +31,8 @@
 # when a listed certificate still verifies against any trust store.
 #
 # The module checks its result and fails the build if a listed certificate is
-# still trusted. A binary file (one with a NUL byte, such as a Node.js binary
+# still trusted, or if a certificate in policy/ca-keep.list (the positive
+# control: CAs the image must still trust, such as USERTrust) is not. A binary file (one with a NUL byte, such as a Node.js binary
 # with its CA list compiled in) cannot be edited; one that holds a listed
 # certificate is reported, and fails the build when HARDEN_STRICT_BINARIES=1.
 # HARDEN_NSSDB (optional) lists more NSS database directories.
@@ -40,6 +41,8 @@ set -eu
 HARDEN_DIR=${HARDEN_DIR:-$(cd "$(dirname "$0")/.." && pwd)}
 LIST=$HARDEN_DIR/policy/ca-distrust.list
 CERTS=$HARDEN_DIR/policy/ca-distrust
+KEEP_LIST=$HARDEN_DIR/policy/ca-keep.list
+KEEP=$HARDEN_DIR/policy/ca-keep
 CONF=/etc/ca-certificates.conf
 PKI=/etc/pki/ca-trust
 
@@ -84,6 +87,27 @@ while read -r fp kind file _; do
 done <"$LIST"
 [ "$n" -gt 0 ] || die "$LIST lists no certificate"
 log "policy: $n certificate(s)"
+
+# The kept certificates (policy/ca-keep.list): the positive control. A kept
+# certificate must still verify after this module runs (step 7), so a kit bug
+# or a policy that blocks too much fails the build, not every TLS call of the
+# image. Record "<fingerprint> <kind> <pem file>" for each one.
+: >"$work/keep"
+if [ -f "$KEEP_LIST" ]; then
+	while read -r fp kind file _; do
+		case $fp in '' | '#'*) continue ;; esac
+		case $kind in root | intermediate) ;; *) die "$KEEP_LIST: $fp: kind must be root or intermediate, not $kind" ;; esac
+		pem=$KEEP/$file
+		[ -f "$pem" ] || die "$KEEP_LIST: no file $pem"
+		got=$(sed -n '/^-----BEGIN CERTIFICATE-----/,/^-----END CERTIFICATE-----/p' "$pem" | sed '/^-----/d' | tr -d ' \t\r\n' | base64 -d | sha256sum | cut -c1-64)
+		[ "$got" = "$fp" ] || die "$pem has sha256 $got, but the list says $fp"
+		# A policy that blocks what it must keep is a broken policy.
+		upper=$(echo "$fp" | tr 'a-f' 'A-F')
+		if grep -qxF "$upper" "$work/fps"; then die "$file is in both $LIST and $KEEP_LIST"; fi
+		echo "$fp $kind $pem" >>"$work/keep"
+	done <"$KEEP_LIST"
+	log "keep: $(wc -l <"$work/keep") certificate(s)"
+fi
 
 # match MODE FILE: read the PEM blocks of FILE (CERTIFICATE or TRUSTED
 # CERTIFICATE, any line width, CRLF too; a block with no END line is left
@@ -385,6 +409,58 @@ if [ -d "$PKI/extracted/pem" ]; then
 	done
 fi
 
+# 7. The positive control: what the policy keeps is still trusted. Each kept
+# intermediate verifies against each public root bundle (a file with 100 or
+# more certificates, such as the system bundle and certifi), and each kept
+# root is still in each Java keystore and in no blocked.certs. Kept
+# certificates and listed ones are separate files, so a stripped bundle that
+# lost a kept root fails here. Only an image with openssl can verify a chain
+# here; the image check always does.
+kept=0
+if [ -s "$work/keep" ]; then
+	keep_ints=
+	while read -r _ kind pem; do
+		if [ "$kind" = intermediate ]; then keep_ints="$keep_ints $pem"; fi
+	done <"$work/keep"
+	if [ -n "$openssl" ] && [ -n "$keep_ints" ]; then
+		# -no_check_time: the kept intermediates expire in 2030, and the
+		# control must not start to fail on that date.
+		keep_flags=$verify_flags
+		# shellcheck disable=SC2086 # verify_flags is a word list
+		"$openssl" verify -no_check_time $verify_flags -CAfile "$control" "$control" >/dev/null 2>&1 &&
+			keep_flags="-no_check_time $verify_flags"
+		: >"$work/stores"
+		while IFS= read -r f; do
+			{ is_binary "$f" || is_source "$f"; } && continue
+			count "$f"
+			if [ "$total" -ge 100 ]; then echo "$f" >>"$work/stores"; fi
+		done <"$work/found"
+		while IFS= read -r f; do
+			for pem in $keep_ints; do
+				# shellcheck disable=SC2086 # keep_flags is a word list
+				"$openssl" verify $keep_flags -CAfile "$f" "$pem" >/dev/null 2>&1 ||
+					die "$(basename "$pem") (kept) no longer verifies against $f: the policy or the kit removed a root it must keep"
+				kept=$((kept + 1))
+			done
+		done <"$work/stores"
+	fi
+	while IFS= read -r ks; do
+		keystore_fps "$ks" >"$work/ks"
+		while read -r fp kind pem; do
+			[ "$kind" = root ] || continue
+			upper=$(echo "$fp" | tr 'a-f' 'A-F')
+			grep -q "^$upper " "$work/ks" || die "$(basename "$pem") (kept) is not in $ks"
+			kept=$((kept + 1))
+		done <"$work/keep"
+	done <"$work/keystores"
+	while IFS= read -r bc; do
+		while read -r fp _ pem; do
+			upper=$(echo "$fp" | tr 'a-f' 'A-F')
+			if grep -qxF "$upper" "$bc"; then die "$(basename "$pem") (kept) is blocked in $bc"; fi
+		done <"$work/keep"
+	done <"$work/blocked"
+fi
+
 while IFS= read -r f; do
 	log "warning: $f (a binary or program source) holds a listed certificate and is not edited"
 done <"$work/binaries"
@@ -392,4 +468,4 @@ if [ "$binaries" -gt 0 ] && [ "${HARDEN_STRICT_BINARIES:-}" = 1 ]; then
 	die "$binaries binary or source file(s) hold a listed certificate (HARDEN_STRICT_BINARIES=1)"
 fi
 
-log "removed $sources source certificate(s), blocked $blocked in p11-kit, stripped $stripped from bundles, removed $aliases keystore alias(es), blocked $n in $jdks JDK(s) and $nssdbs NSS database(s); $binaries binary or source file(s) reported"
+log "removed $sources source certificate(s), blocked $blocked in p11-kit, stripped $stripped from bundles, removed $aliases keystore alias(es), blocked $n in $jdks JDK(s) and $nssdbs NSS database(s); $kept kept-certificate check(s) passed; $binaries binary or source file(s) reported"
