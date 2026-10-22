@@ -196,23 +196,19 @@ if [ -d "$PKI/source" ]; then
 	update-ca-trust extract
 fi
 
-# 3. Every other file that holds a PEM certificate. The prefilter needs a
+# 3. Every other file that holds a PEM certificate, anywhere on the image's
+# root file system (the image check scans all of it too). The prefilter needs a
 # BEGIN line or a probe line, so a certificate in another layout is found too
 # (and fails the check in step 6). Kit files, the p11-kit sources (a
 # .p11-kit file is not plain PEM, and the blocklist above already covers
 # them) and its trust-marked bundle are left alone.
 scan() {
-	: >"$work/found"
-	for dir in /etc /usr /opt /az /root /home /srv /var/lib; do
-		[ -d "$dir" ] || continue
-		find "$dir" -xdev -type f >/dev/null
-		find "$dir" -xdev -type f \
-			! -path "$HARDEN_DIR/*" \
-			! -path "$PKI/source/*" \
-			! -path '/usr/share/pki/ca-trust-source/*' \
-			! -path "$PKI/extracted/openssl/ca-bundle.trust.crt" \
-			-exec grep -laF -e '-----BEGIN CERTIFICATE-----' -e '-----BEGIN TRUSTED CERTIFICATE-----' -f "$work/probes" {} + >>"$work/found" || true
-	done
+	find / -xdev \( -path /proc -o -path /sys -o -path /dev \) -prune -o -type f -print >/dev/null # a walk that fails must fail the build
+	find / -xdev \( -path /proc -o -path /sys -o -path /dev -o -path "$HARDEN_DIR" -o -path "$work" \) -prune -o -type f \
+		! -path "$PKI/source/*" \
+		! -path '/usr/share/pki/ca-trust-source/*' \
+		! -path "$PKI/extracted/openssl/ca-bundle.trust.crt" \
+		-exec grep -laF -e '-----BEGIN CERTIFICATE-----' -e '-----BEGIN TRUSTED CERTIFICATE-----' -f "$work/probes" {} + >"$work/found" || true
 }
 scan
 stripped=0
@@ -287,9 +283,14 @@ if [ -s "$work/keystores" ] && [ "$jdks" -eq 0 ]; then
 	log "warning: a cacerts keystore exists but no JDK blocked.certs was found; listed intermediates are not blocked for Java"
 fi
 
-# 5. NSS databases: mark every listed certificate as explicitly distrusted.
+# 5. NSS databases, wherever they are (and HARDEN_NSSDB): mark every listed
+# certificate as explicitly distrusted.
 nssdbs=0
-for d in /etc/pki/nssdb /root/.pki/nssdb /home/*/.pki/nssdb ${HARDEN_NSSDB:-}; do
+find / -xdev \( -path /proc -o -path /sys -o -path /dev \) -prune -o -type f \( -name cert9.db -o -name cert8.db \) -print 2>/dev/null |
+	sed 's|/[^/]*$||' >"$work/nssdirs" || true
+for d in ${HARDEN_NSSDB:-}; do echo "$d" >>"$work/nssdirs"; done
+sort -u "$work/nssdirs" -o "$work/nssdirs"
+while IFS= read -r d; do
 	if [ -f "$d/cert9.db" ]; then
 		db=sql:$d
 	elif [ -f "$d/cert8.db" ]; then
@@ -303,12 +304,36 @@ for d in /etc/pki/nssdb /root/.pki/nssdb /home/*/.pki/nssdb ${HARDEN_NSSDB:-}; d
 			die "certutil cannot distrust $file in $d: $out"
 	done <"$work/bodies"
 	nssdbs=$((nssdbs + 1))
-done
+done <"$work/nssdirs"
 
 # 6. Check the result.
 openssl=$(command -v openssl 2>/dev/null || true)
 : >"$work/all.pem"
 while read -r _ _ _ file; do cat "$CERTS/$file" >>"$work/all.pem"; done <"$work/bodies"
+# verified FILE: the listed certificates that verify with FILE as the only
+# trust store, one openssl call for all of them. The default store (CApath,
+# and CAstore in OpenSSL 3) is turned off, or a root the image still trusts
+# elsewhere would be blamed on FILE. verify_flags is chosen by a positive
+# control: a listed root must verify against itself, or the test is broken.
+verified() {
+	# shellcheck disable=SC2086 # verify_flags and certs are word lists
+	"$openssl" verify $verify_flags -CAfile "$1" -untrusted "$work/all.pem" $certs 2>/dev/null |
+		sed -n 's|^.*/\([^/]*\.pem\): OK$|\1|p' | tr '\n' ' ' | sed 's/ $//'
+}
+certs=
+while read -r _ _ _ file; do certs="$certs $CERTS/$file"; done <"$work/bodies"
+if [ -n "$openssl" ]; then
+	control=$CERTS/$(awk '$2 == "root" { print $4; exit }' "$work/bodies")
+	verify_flags=
+	for flags in "-no-CApath -no-CAstore" "-no-CApath"; do
+		# shellcheck disable=SC2086 # flags is a word list
+		if "$openssl" verify $flags -CAfile "$control" "$control" >/dev/null 2>&1; then
+			verify_flags=$flags
+			break
+		fi
+	done
+	[ -n "$verify_flags" ] || die "openssl verify cannot verify a listed root against itself ($openssl); fix or remove openssl before this step"
+fi
 scan
 while IFS= read -r f; do
 	is_binary "$f" && continue
@@ -322,11 +347,8 @@ while IFS= read -r f; do
 	# certifi still holds). Only an image with openssl can test it here; the
 	# image check always does.
 	if [ "$total" -gt 0 ] && [ -n "$openssl" ]; then
-		while read -r _ kind _ file; do
-			if "$openssl" verify -CAfile "$f" -untrusted "$work/all.pem" "$CERTS/$file" >/dev/null 2>&1; then
-				die "$file ($kind) still verifies against $f: remove the root that issued it from that file, or upgrade the package that ships it"
-			fi
-		done <"$work/bodies"
+		ok=$(verified "$f")
+		[ -z "$ok" ] || die "$ok still verifies against $f: remove the root that issued it from that file, or upgrade the package that ships it"
 	fi
 done <"$work/found"
 while IFS= read -r ks; do

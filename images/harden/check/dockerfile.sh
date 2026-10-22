@@ -8,9 +8,14 @@
 #
 # For each Dockerfile given (a file, or every Dockerfile* in a directory;
 # default: the current directory), the final stage must have a RUN whose
-# whole command is `sh /harden/harden.sh` with the kit bind-mounted at
-# /harden:
-#   RUN --mount=type=bind,...,target=/harden sh /harden/harden.sh
+# whole command is `sh /harden/harden.sh` (HARDEN_* settings may come
+# first) with the pinned kit bind-mounted at /harden:
+#   FROM luthersystems/build-harden:<version>@sha256:<digest> AS harden
+#   ...
+#   RUN --mount=type=bind,from=harden,source=/harden,target=/harden sh /harden/harden.sh
+# --allow-local-kit (first argument) also accepts source=harden with no
+# from=, a kit in the build context: only buildenv, which builds the kit,
+# uses it.
 # (a line continued with a backslash counts as one line), with nothing chained
 # after it, and no later instruction may undo it:
 #   - a package or install step (apt-get, apt, apk, dpkg, dnf, yum, microdnf,
@@ -29,7 +34,15 @@ set -euo pipefail
 
 pkg_re='(^|[^[:alnum:]_.-])(apt-get|apt|apk|dpkg|dnf|yum|microdnf|rpm|pip|pip3|npm|update-ca-certificates|update-ca-trust|curl|wget|unzip|tar|install)([^[:alnum:]_.-]|$)'
 copy_re='^[[:space:]]*(COPY[[:space:]]+(.*[[:space:]])?--from|ADD[[:space:]])|^[[:space:]]*COPY[[:space:]].*(/etc/ssl|/etc/pki|/usr/share/ca-certificates|/etc/ca-certificates|cacerts|cacert\.pem)'
-run_re='^[[:space:]]*RUN[[:space:]]+--mount=type=bind,([^[:space:]]*,)?target=/harden(,[^[:space:]]*)?[[:space:]]+sh[[:space:]]+/harden/harden\.sh[[:space:]]*$'
+run_re='^[[:space:]]*RUN[[:space:]]+--mount=type=bind,([^[:space:]]*,)?target=/harden(,[^[:space:]]*)?[[:space:]]+(HARDEN_[A-Z_]+=[^[:space:]]+[[:space:]]+)*sh[[:space:]]+/harden/harden\.sh[[:space:]]*$'
+# The kit stage: FROM luthersystems/build-harden:<tag>@sha256:<digest> AS <name>.
+kit_re='^[[:space:]]*FROM[[:space:]]+(--platform=[^[:space:]]+[[:space:]]+)?luthersystems/build-harden:[^[:space:]@]+@sha256:[0-9a-f]{64}[[:space:]]+AS[[:space:]]+'
+
+local_kit=0
+if [ "${1:-}" = --allow-local-kit ]; then
+	local_kit=1
+	shift
+fi
 
 files=()
 for arg in "${@:-.}"; do
@@ -60,6 +73,23 @@ for f in "${files[@]}"; do
 	run_line=$(grep -nE "$run_re" <<<"$stage" | tail -1 | cut -d: -f1 || true)
 	if [ -z "$run_line" ]; then
 		echo "FAIL: $f: the final stage has no 'RUN --mount=type=bind,...,target=/harden sh /harden/harden.sh' with nothing chained after it" >&2
+		fail=1
+		continue
+	fi
+	# The mount must be the pinned kit: from=<a stage that is
+	# luthersystems/build-harden pinned by digest>,source=/harden. buildenv
+	# itself mounts its own kit from the build context (--allow-local-kit).
+	opts=$(sed -n "${run_line}p" <<<"$stage" | sed -E 's/^[[:space:]]*RUN[[:space:]]+--mount=([^[:space:]]+).*/\1/')
+	from=$(tr , '\n' <<<"$opts" | sed -n 's/^from=//p')
+	src=$(tr , '\n' <<<"$opts" | sed -n 's/^source=//p')
+	if [ -n "$from" ]; then
+		if ! grep -qiE "${kit_re}${from}[[:space:]]*\$" <<<"$text" || [ "$src" != /harden ]; then
+			echo "FAIL: $f: mount the pinned kit: 'FROM luthersystems/build-harden:<version>@sha256:<digest> AS $from' and 'from=$from,source=/harden'" >&2
+			fail=1
+			continue
+		fi
+	elif [ "$local_kit" = 0 ] || [ "$src" != harden ]; then
+		echo "FAIL: $f: the kit is not mounted from a pinned luthersystems/build-harden stage (from=<stage>,source=/harden)" >&2
 		fail=1
 		continue
 	fi

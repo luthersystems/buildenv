@@ -40,7 +40,7 @@ scout-cli-install:
 # `script-tests` job.
 .PHONY: check-harden
 check-harden:
-	bash images/harden/check/dockerfile.sh images
+	bash images/harden/check/dockerfile.sh --allow-local-kit images
 
 # Self-test for the check above, with fixture Dockerfiles.
 .PHONY: test-check-harden

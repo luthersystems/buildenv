@@ -89,8 +89,13 @@ echo "policy: ${#listed[@]} listed certificate(s)"
 
 # Export the file system. tar skips device files it cannot create.
 cid=$(docker create ${platform:+--platform "$platform"} "$IMAGE" /nonexistent)
-docker export "$cid" | tar -x -C "$root" --no-same-owner --no-same-permissions --exclude='dev/*' 2>/dev/null || true
-[ -d "$root/etc" ] || [ -d "$root/usr" ] || { echo "image.sh: could not export $IMAGE" >&2; exit 2; }
+# A failed export must not pass as a clean image: any tar error fails.
+if ! docker export "$cid" | tar -x -C "$root" --no-same-owner --no-same-permissions --exclude='dev/*' 2>"$work/tar.err"; then
+	echo "image.sh: could not export $IMAGE:" >&2
+	head -20 "$work/tar.err" >&2
+	exit 2
+fi
+[ -d "$root/etc" ] || [ -d "$root/usr" ] || { echo "image.sh: $IMAGE has no /etc or /usr" >&2; exit 2; }
 
 allowed() {
 	local p
@@ -103,13 +108,36 @@ allowed() {
 
 # Every regular file with a PEM certificate or a probe line. Links are left
 # out: they point at a path in the image, which is scanned as itself.
-find "$root" -type f -print0 2>/dev/null |
-	xargs -0 grep -laF -e '-----BEGIN CERTIFICATE-----' -e '-----BEGIN TRUSTED CERTIFICATE-----' -f "$work/probes" 2>/dev/null |
-	sort >"$work/files" || true
+# A grep error (an unreadable file) fails the check: exit 1 only means no
+# match.
+find "$root" -type f -print0 >"$work/all-files"
+rc=0
+xargs -0 grep -laF -e '-----BEGIN CERTIFICATE-----' -e '-----BEGIN TRUSTED CERTIFICATE-----' -f "$work/probes" <"$work/all-files" >"$work/files.unsorted" || rc=$?
+[ "$rc" -le 1 ] || [ "$rc" -eq 123 ] || { echo "image.sh: grep failed ($rc) while scanning $IMAGE" >&2; exit 2; }
+sort "$work/files.unsorted" >"$work/files"
 
 # Every listed certificate is offered as an untrusted intermediate, so an
 # intermediate whose issuer is listed too still finds its path.
 cat "$CERTS"/*.pem >"$work/all.pem"
+
+# The verify test uses only the bundle given (-no-CApath, and -no-CAstore
+# in OpenSSL 3), or a root the host trusts would be blamed on the image. A
+# listed root must verify against itself, or the test is broken.
+certs=()
+while read -r fp kind file _; do
+	case $fp in '' | '#'*) continue ;; esac
+	certs+=("$CERTS/$file")
+	[ -n "${control:-}" ] || [ "$kind" != root ] || control=$CERTS/$file
+done <"$LIST"
+verify_flags=()
+for flags in "-no-CApath -no-CAstore" "-no-CApath"; do
+	read -r -a try <<<"$flags"
+	if openssl verify "${try[@]}" -CAfile "$control" "$control" >/dev/null 2>&1; then
+		verify_flags=("${try[@]}")
+		break
+	fi
+done
+[ "${#verify_flags[@]}" -gt 0 ] || { echo "image.sh: the host's openssl verify cannot verify a listed root against itself" >&2; exit 2; }
 
 files=0
 bundles=0
@@ -139,12 +167,12 @@ while IFS= read -r f; do
 		/^-----BEGIN (TRUSTED )?CERTIFICATE-----$/ { n++; out = sprintf("%s/%05d.pem", dir, n); inblk = 1 }
 		inblk { print > out }
 		/^-----END (TRUSTED )?CERTIFICATE-----$/ { inblk = 0; close(out) }'
-	certs=0
+	ncerts=0
 	for pem in "$dir"/*.pem; do
 		[ -e "$pem" ] || continue
 		der=$(openssl x509 -in "$pem" -outform der 2>/dev/null | sha256sum | cut -c1-64) || continue
 		[ "$der" = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 ] && continue # openssl could not read it
-		certs=$((certs + 1))
+		ncerts=$((ncerts + 1))
 		cat "$pem" >>"$dir/bundle"
 		[ -n "${listed[$der]:-}" ] || continue
 		if [ "$path" = "$P11_TRUST" ]; then
@@ -156,20 +184,25 @@ while IFS= read -r f; do
 			bad "$path: holds ${listed[$der]#* } (${listed[$der]%% *})"
 		fi
 	done
-	if grep -qF -f "$work/probes" "$f" && [ "$certs" -eq 0 ]; then
+	# A listed certificate's text outside the blocks parsed above (an
+	# indented or quoted PEM, a broken BEGIN line) is still a listed
+	# certificate, even in a file with other certificates.
+	if tr -d '\r' <"$f" | awk '
+		/^-----BEGIN (TRUSTED )?CERTIFICATE-----$/ { inblk = 1; buf = ""; next }
+		inblk && /^-----END (TRUSTED )?CERTIFICATE-----$/ { inblk = 0; next }
+		inblk { buf = buf $0 "\n"; next }
+		{ print }
+		END { if (inblk) printf "%s", buf }' | grep -qF -f "$work/probes"; then
 		bad "$path: holds a listed certificate's text in a layout openssl cannot read"
 	fi
 	# Does a listed certificate verify against this file as a trust store?
 	# P11_TRUST is left out: openssl verify ignores its rejected uses, and
 	# tls-ca-bundle.pem, extracted from the same store, is verified.
-	if [ "$certs" -gt 0 ] && [ "$path" != "$P11_TRUST" ]; then
+	if [ "$ncerts" -gt 0 ] && [ "$path" != "$P11_TRUST" ]; then
 		bundles=$((bundles + 1))
-		while read -r fp kind file _; do
-			case $fp in '' | '#'*) continue ;; esac
-			if openssl verify -CAfile "$dir/bundle" -untrusted "$work/all.pem" "$CERTS/$file" >/dev/null 2>&1; then
-				bad "$path: $file ($kind) verifies against it"
-			fi
-		done <"$LIST"
+		while IFS= read -r ok; do
+			bad "$path: ${ok##*/} verifies against it"
+		done < <(openssl verify "${verify_flags[@]}" -CAfile "$dir/bundle" -untrusted "$work/all.pem" "${certs[@]}" 2>/dev/null | sed -n 's/: OK$//p')
 	fi
 	rm -rf "$dir"
 done <"$work/files"

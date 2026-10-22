@@ -3,7 +3,8 @@
 # image that CI built, for one platform.
 #
 # Why here and not in the workflow: the check needs keytool and certutil on
-# the host for an image with a Java keystore or an NSS database, and the
+# the host for an image with a Java keystore or an NSS database (installed
+# only when the image needs them), and the
 # build-harden image itself is the kit (it holds the listed certificates on
 # purpose), so it gets a check of its own. CLAUDE.md rule 5 keeps that logic
 # out of YAML.
@@ -31,13 +32,19 @@ if [ "$name" = build-harden ]; then
 	exit 0
 fi
 
-need=()
-command -v openssl >/dev/null || need+=(openssl)
-command -v keytool >/dev/null || need+=(default-jre-headless)
-command -v certutil >/dev/null || need+=(libnss3-tools)
-if [ "${#need[@]}" -gt 0 ]; then
+# keytool and certutil are needed only for an image with a Java keystore or
+# an NSS database: image.sh exits 2 and names the tool, and only then is it
+# installed, so most legs skip the apt work.
+command -v openssl >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends openssl >/dev/null; }
+for _ in 1 2 3; do
+	rc=0
+	bash "$kit/check/image.sh" --platform "$platform" "$ref" 2>&1 | tee "${RUNNER_TEMP:-/tmp}/harden-check.log" || rc=${PIPESTATUS[0]}
+	[ "$rc" -eq 2 ] || exit "$rc"
+	need=()
+	grep -q 'install keytool' "${RUNNER_TEMP:-/tmp}/harden-check.log" && need+=(default-jre-headless)
+	grep -q 'install certutil' "${RUNNER_TEMP:-/tmp}/harden-check.log" && need+=(libnss3-tools)
+	[ "${#need[@]}" -gt 0 ] || exit 2
 	sudo apt-get update -qq
 	sudo apt-get install -y -qq --no-install-recommends "${need[@]}" >/dev/null
-fi
-
-bash "$kit/check/image.sh" --platform "$platform" "$ref"
+done
+exit 2

@@ -10,6 +10,7 @@ check="$here/../images/harden/check/dockerfile.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 bad=0
+digest=$(printf 'a%.0s' {1..64})
 
 # expect <pass|fail> <name> <final-stage lines...>
 expect() {
@@ -18,13 +19,16 @@ expect() {
 	local d="$tmp/$name"
 	mkdir -p "$d"
 	{
+		echo "${kit:-FROM luthersystems/build-harden:v1.2.3@sha256:$digest AS harden}"
 		echo 'FROM golang:1 AS build'
 		echo 'RUN --mount=type=bind,source=harden,target=/harden sh /harden/harden.sh'
 		if [ "${base:-}" != none ]; then echo "FROM ${base:-alpine:3}"; fi
 		printf '%s\n' "$@"
 	} >"$d/Dockerfile.x"
 	local got=pass out
-	out=$(bash "$check" "$d" 2>&1) || got=fail
+	local args=(--allow-local-kit)
+	[ "${strict:-}" != 1 ] || args=()
+	out=$(bash "$check" "${args[@]}" "$d" 2>&1) || got=fail
 	if [ "$got" = pass ] && grep -q '^skip:' <<<"$out"; then got=skip; fi
 	if [ "$got" = "$want" ]; then
 		echo "ok: $name ($want)"
@@ -69,5 +73,14 @@ expect fail add-url "$run" 'ADD https://example.com/bundle.tar.gz /opt/'
 expect fail copy-cacert-pem "$run" 'COPY cacert.pem /usr/lib/python3/site-packages/certifi/cacert.pem'
 expect fail npm-after "$run" 'RUN npm install -g newman'
 expect pass copy-config "$run" 'COPY nginx/nginx.conf /etc/nginx/nginx.conf'
+
+pinned='RUN --mount=type=bind,from=harden,source=/harden,target=/harden sh /harden/harden.sh'
+expect pass env-settings 'RUN --mount=type=bind,from=harden,source=/harden,target=/harden HARDEN_STRICT_BINARIES=1 HARDEN_NSSDB=/opt/db sh /harden/harden.sh'
+strict=1 expect pass pinned-kit "$pinned"
+strict=1 expect fail local-kit-not-allowed "$run"
+kit='FROM luthersystems/build-harden:v1.2.3 AS harden' strict=1 expect fail unpinned-kit "$pinned"
+kit='FROM example/other@sha256:'"$digest"' AS harden' strict=1 expect fail other-kit-image "$pinned"
+strict=1 expect fail other-stage 'RUN --mount=type=bind,from=build,source=/harden,target=/harden sh /harden/harden.sh'
+strict=1 expect fail other-source 'RUN --mount=type=bind,from=harden,source=/old,target=/harden sh /harden/harden.sh'
 
 exit "$bad"
