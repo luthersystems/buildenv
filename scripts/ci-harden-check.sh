@@ -25,7 +25,7 @@ if [ "$name" = build-harden ]; then
 	# The kit image: it must hold the kit exactly as committed.
 	work=$(mktemp -d)
 	cid=$(docker create --platform "$platform" "$ref" /nonexistent)
-	trap 'docker rm -f "$cid" >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
+	trap 'docker rm -f "$cid" >/dev/null 2>&1 || true; chmod -R u+rwX "$work" 2>/dev/null || true; rm -rf "$work" || true' EXIT
 	docker export "$cid" | tar -x -C "$work"
 	diff -r "$kit" "$work/harden"
 	echo "OK: $ref holds the build-harden kit"

@@ -60,8 +60,13 @@ done
 work=$(mktemp -d)
 cid=
 cleanup() {
+	local rc=$?
 	[ -z "$cid" ] || docker rm -f "$cid" >/dev/null 2>&1 || true
-	rm -rf "$work"
+	# An image can hold read-only directories; make them writable to remove
+	# them, and never let the cleanup change the result.
+	chmod -R u+rwX "$work" 2>/dev/null || true
+	rm -rf "$work" || true
+	exit "$rc"
 }
 trap cleanup EXIT
 root=$work/root
