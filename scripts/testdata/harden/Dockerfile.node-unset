@@ -1,0 +1,3 @@
+# The same image without NODE_OPTIONS: the image check must fail.
+FROM node:22-bookworm
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh

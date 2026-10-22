@@ -1,0 +1,6 @@
+# The same bundle with the real list, which holds AAA: the module removes it.
+FROM debian:bookworm-slim
+RUN apt-get -qq update && apt-get -qq install -y --no-install-recommends ca-certificates openssl >/dev/null
+RUN --mount=type=bind,from=certs,target=/fx mkdir -p /usr/local/lib/oldcertifi && cat /usr/share/ca-certificates/mozilla/ISRG_Root_X1.crt /fx/comodo-aaa-certificate-services.pem >/usr/local/lib/oldcertifi/cacert.pem
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh
+RUN test "$(grep -c BEGIN /usr/local/lib/oldcertifi/cacert.pem)" -eq 1

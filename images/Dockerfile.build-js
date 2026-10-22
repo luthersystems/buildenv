@@ -95,6 +95,12 @@ ENV AZCLI_VER=$AZCLI_VER
 
 RUN apt-get update && apt-get install -y azure-cli=${AZCLI_VER}\*
 
+# Node trusts its built-in root list (it holds the emSign roots) unless
+# --use-openssl-ca makes it read only OpenSSL's store, which the kit
+# hardens; SSL_CERT_FILE names that store for Node's own OpenSSL.
+ENV NODE_OPTIONS=--use-openssl-ca \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
 # Default to a non-root user (Docker Scout "default non-root user" policy, #75).
 # All installs above run as root; this only affects runtime. BREAKING for any
 # downstream expecting root at runtime — consumers pass `-u` or add `USER root`.
@@ -104,9 +110,10 @@ RUN apt-get update && apt-get install -y azure-cli=${AZCLI_VER}\*
 # auto-assign a free uid (still non-root).
 RUN useradd --create-home --user-group build
 ENV HOME=/home/build
-# Remove the eMudhra (emSign) roots: eight eMudhra intermediates were
-# compromised (CVE-2026-111943). Keep this after the last package install.
-COPY distrust-emudhra.sh /usr/local/sbin/distrust-emudhra.sh
-RUN sh /usr/local/sbin/distrust-emudhra.sh
+# Harden the image with the build-harden kit (images/harden): today it makes
+# the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
+# and intermediates whose keys leaked, CVE-2026-111943). Keep this after the
+# last package install; the kit is bind-mounted, so no kit file stays.
+RUN --mount=type=bind,source=harden,target=/harden sh /harden/harden.sh
 
 USER build

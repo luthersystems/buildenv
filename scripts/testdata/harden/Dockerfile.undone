@@ -1,0 +1,4 @@
+# A step after the kit adds a listed root back: the image check must fail.
+FROM alpine:3.20
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh
+RUN --mount=type=bind,from=certs,target=/fx cat /fx/emsign-root-ca-g1.pem >>/etc/ssl/certs/ca-certificates.crt

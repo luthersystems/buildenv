@@ -31,6 +31,7 @@ jobs:
           - build-go
           - build-go-alpine
           - build-godynamic
+          - build-harden
           - build-e2e
           - build-java
           - build-js
@@ -259,6 +260,7 @@ jobs:
           - build-go
           - build-go-alpine
           - build-godynamic
+          - build-harden
           - build-e2e
           - build-java
           - build-js

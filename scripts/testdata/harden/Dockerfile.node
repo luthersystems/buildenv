@@ -1,0 +1,6 @@
+# Node trusts its built-in roots unless NODE_OPTIONS points it at the
+# system store: with it set, the image check passes (the DER roots in the
+# node binary are only reported).
+FROM node:22-bookworm
+ENV NODE_OPTIONS=--use-openssl-ca SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh

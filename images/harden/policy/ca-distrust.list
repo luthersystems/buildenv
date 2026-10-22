@@ -1,0 +1,54 @@
+# CA certificates that images built with luthersystems/build-harden must not
+# trust. One certificate per line:
+#
+#   <sha256 of the DER> <root|intermediate> <PEM file in ca-distrust/> <source> <name>
+#
+# A root is removed from every trust store. An intermediate is not in a trust
+# store; it is blocked where the TLS stack has a block list (Java
+# blocked.certs, NSS, the Red Hat p11-kit blocklist), and the image check
+# fails if one still verifies against any trust store in the image. List each
+# certificate a key has (a cross-signed copy is another certificate), so a
+# chain through another root is blocked too.
+#
+# modules/ca-distrust.sh checks each PEM against its fingerprint before it
+# uses it. Add an incident's certificates at the end, under a comment that
+# names it.
+
+# CVE-2026-111943 (October 2026): the keys of eight eMudhra intermediates leaked
+# (EM DV/OV/EV TLS CA and EM OV CS CA, G3B and G3C). Each has an
+# emSign-issued and a Sectigo "AAA Certificate Services" cross-signed copy
+# with the same key (Bugzilla 2083449). The emSign roots above them go too:
+# the four in Mozilla's set before NSS 3.131.1 and the two G3 roots that
+# issued the intermediates, with their cross-signs from ECC Root CA - G3.
+bc4d809b15189d78db3e1d8cf4f9726a795da1643ca5f1358e1ddb0edc0d7eb3 root emsign-ecc-root-ca-c3.pem crt.sh/?id=713606976 emSign ECC Root CA - C3 (issuer: emSign ECC Root CA - C3)
+86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b root emsign-ecc-root-ca-g3.pem crt.sh/?id=713604941 emSign ECC Root CA - G3 (issuer: emSign ECC Root CA - G3)
+125609aa301da0a249b97a8239cb6a34216f44dcac9f3954b14292f2e8c8608f root emsign-root-ca-c1.pem crt.sh/?id=713593222 emSign Root CA - C1 (issuer: emSign Root CA - C1)
+40f6af0346a99aa1cd1d555a4e9cce62c7f9634603ee406615833dc8c8d00367 root emsign-root-ca-g1.pem crt.sh/?id=713599963 emSign Root CA - G1 (issuer: emSign Root CA - G1)
+f2edaaff3d9b701fb4d14c9f285f8c0bad90fc3bcc1fa07d47f4718edaba34a5 root emsign-root-cs-ca-g3.pem crt.sh/?id=12478656987 emSign Root CS CA - G3 (issuer: emSign Root CS CA - G3)
+7dd78d5f4f13459a83dff9abbba62edbaf6f2d102bf257fd712f4d9f2746ed8d root emsign-root-tls-ca-g3.pem crt.sh/?id=12478656984 emSign Root TLS CA - G3 (issuer: emSign Root TLS CA - G3)
+45a883f349aedfd5f3a649b5498ffb121712ba8b448f3f2a91dbc5a766fcddbe intermediate em-dv-tls-ca-g3b.by-aaa.pem crt.sh/?id=18519019583 EM DV TLS CA - G3B (issuer: AAA Certificate Services)
+42c4accd12c4f59597925e1a08a7a90102608543809308d50ec427e118ba1493 intermediate em-dv-tls-ca-g3b.by-emsign-root-tls-ca-g3.pem crt.sh/?id=18286207191 EM DV TLS CA - G3B (issuer: emSign Root TLS CA - G3)
+62b7f9868263f72f6911fc78ceaf72c1979158b7368bf648683bb2aa39b02e72 intermediate em-dv-tls-ca-g3c.by-aaa.pem crt.sh/?id=18518842463 EM DV TLS CA - G3C (issuer: AAA Certificate Services)
+0164d7ceae5bb909c272af151ff44b1177ae9b47d9424b94f1d9558c30934d19 intermediate em-dv-tls-ca-g3c.by-emsign-root-tls-ca-g3.pem crt.sh/?id=18286207186 EM DV TLS CA - G3C (issuer: emSign Root TLS CA - G3)
+579480aea166290bd3c643589e795fc0d0e54e86505d180f1dff99efd3199512 intermediate em-ev-tls-ca-g3b.by-aaa.pem crt.sh/?id=18518841942 EM EV TLS CA - G3B (issuer: AAA Certificate Services)
+e7568fe6e12331f4fd7de61da4c7559d0f8eb192a218d4741a3ba75184333838 intermediate em-ev-tls-ca-g3b.by-emsign-root-tls-ca-g3.pem crt.sh/?id=18286207187 EM EV TLS CA - G3B (issuer: emSign Root TLS CA - G3)
+fd9d5c2dbbd4995ab69b8d50c439d9527b00529199c2fd01b2174eb58f07021f intermediate em-ev-tls-ca-g3c.by-aaa.pem crt.sh/?id=18518842538 EM EV TLS CA - G3C (issuer: AAA Certificate Services)
+432ec25f0d28de9006d97bf752f17bbb2cd41f669933fcb072d9a1148d0261f3 intermediate em-ev-tls-ca-g3c.by-emsign-root-tls-ca-g3.pem crt.sh/?id=18286207182 EM EV TLS CA - G3C (issuer: emSign Root TLS CA - G3)
+a496e23ac0cab8155fc9b117b97eae368efcbb9041aec8804d5a308d2d01c2d8 intermediate em-ov-cs-ca-g3b.by-aaa.pem crt.sh/?id=18519019578 EM OV CS CA - G3B (issuer: AAA Certificate Services)
+9e39de2881273acc225a149c72ba3e0f51424963669ab633ee1dc7df5db067b4 intermediate em-ov-cs-ca-g3b.by-emsign-root-cs-ca-g3.pem crt.sh/?id=18286207189 EM OV CS CA - G3B (issuer: emSign Root CS CA - G3)
+84112972b8e59d14560ae7e7119654474aad119990cf3722bfc1e3b91615e1fd intermediate em-ov-cs-ca-g3c.by-aaa.pem crt.sh/?id=18519019579 EM OV CS CA - G3C (issuer: AAA Certificate Services)
+4b2460a466f95fd40113bcdcca2ceb29b3b093921de45474da7df48874c630b1 intermediate em-ov-cs-ca-g3c.by-emsign-root-cs-ca-g3.pem crt.sh/?id=18286207185 EM OV CS CA - G3C (issuer: emSign Root CS CA - G3)
+5f1ded4dd590af74631290cf073b122a2aac6a1fa479778a0bd43579bd832699 intermediate em-ov-tls-ca-g3b.by-aaa.pem crt.sh/?id=18519019580 EM OV TLS CA - G3B (issuer: AAA Certificate Services)
+98b896625c0c230adeec3eb2cf6aad5001ecf9156a68644e82374ce5833bc25b intermediate em-ov-tls-ca-g3b.by-emsign-root-tls-ca-g3.pem crt.sh/?id=18286207195 EM OV TLS CA - G3B (issuer: emSign Root TLS CA - G3)
+7485b51c0ed192878fa1d2f948fb529ae1842cc5086c4b67f7be5b2039de9489 intermediate em-ov-tls-ca-g3c.by-aaa.pem crt.sh/?id=18518875953 EM OV TLS CA - G3C (issuer: AAA Certificate Services)
+cb6e15165ac802e9b3f993f16c25d41f4e81c21ebde71ae1b012ac00bf9c7c3f intermediate em-ov-tls-ca-g3c.by-emsign-root-tls-ca-g3.pem crt.sh/?id=18286207177 EM OV TLS CA - G3C (issuer: emSign Root TLS CA - G3)
+7137fa71ad46ba686f746d1014ac57e8e6c6e9af4aa2f73c0c44a5cf27debb59 intermediate emsign-root-cs-ca-g3.by-emsign-ecc-root-ca-g3.pem crt.sh/?id=14658191774 emSign Root CS CA - G3 (issuer: emSign ECC Root CA - G3)
+3094025792039a68af6e553686410bdab7c0d4a36b9084cba64202e35d6ebbdd intermediate emsign-root-tls-ca-g3.by-emsign-ecc-root-ca-g3.pem crt.sh/?id=14658191778 emSign Root TLS CA - G3 (issuer: emSign ECC Root CA - G3)
+
+# Sectigo (Comodo) AAA Certificate Services, the root that cross-signed the
+# eMudhra intermediates above. Mozilla no longer trusts it (current Debian
+# 20250419 and Ubuntu 20260816 bundles do not hold it), but older bundles
+# still do (Ubuntu 20.04 in hyperledger/fabric-tools 2.5.6, pip's vendored
+# certifi in python:3.12-bookworm), so the cross-signed copies would chain to
+# it there. Current Sectigo chains end at the USERTrust roots, which stay.
+d7a7a0fb5d7e2731d771e9484ebcdef71d5f0c3e0a2948782bc83ee0ea699ef4 root comodo-aaa-certificate-services.pem crt.sh/?id=331986 AAA Certificate Services (issuer: AAA Certificate Services)

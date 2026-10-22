@@ -1,0 +1,13 @@
+# Debian with every store the module edits: the system bundle and its
+# sources, an NSS database, and a certifi-like bundle that mixes a good root
+# with listed ones, in CRLF, at a 76-column width and as a TRUSTED CERTIFICATE.
+FROM debian:bookworm-slim
+RUN apt-get -qq update && apt-get -qq install -y --no-install-recommends ca-certificates openssl libnss3-tools >/dev/null \
+    && mkdir -p /root/.pki/nssdb && certutil -N -d sql:/root/.pki/nssdb --empty-password
+RUN --mount=type=bind,from=certs,target=/fx \
+    mkdir -p /opt/venv/certifi /usr/local/lib/x \
+    && cat /usr/share/ca-certificates/mozilla/ISRG_Root_X1.crt /fx/emsign-root-ca-g1.pem /fx/emsign-ecc-root-ca-g3.pem /fx/em-dv-tls-ca-g3b.by-aaa.pem | sed 's/$/\r/' >/opt/venv/certifi/cacert.pem \
+    && { echo '-----BEGIN CERTIFICATE-----'; openssl x509 -in /fx/emsign-root-ca-c1.pem -outform der | base64 -w 76; echo '-----END CERTIFICATE-----'; } >/usr/local/lib/x/wide.pem \
+    && openssl x509 -in /fx/emsign-root-ca-c1.pem -trustout -addtrust serverAuth >/usr/local/lib/x/trusted.pem
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh
+RUN test "$(grep -c BEGIN /opt/venv/certifi/cacert.pem)" -eq 1

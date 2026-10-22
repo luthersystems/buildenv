@@ -1,0 +1,4 @@
+# A JDK: its cacerts holds the four legacy emSign roots, and blocked.certs
+# must block every listed certificate.
+FROM eclipse-temurin:21-jdk
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh

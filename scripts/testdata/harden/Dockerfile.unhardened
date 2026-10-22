@@ -1,0 +1,4 @@
+# No kit at all, and a leaked intermediate in a bundle: the image check must fail.
+FROM debian:bookworm-slim
+RUN apt-get -qq update && apt-get -qq install -y --no-install-recommends ca-certificates >/dev/null
+RUN --mount=type=bind,from=certs,target=/fx mkdir -p /usr/lib/x && cp /fx/em-ov-tls-ca-g3b.by-aaa.pem /usr/lib/x/
