@@ -108,6 +108,9 @@ if ! docker export "$cid" | tar -x -C "$root" --no-same-owner --no-same-permissi
 	exit 2
 fi
 [ -d "$root/etc" ] || [ -d "$root/usr" ] || { echo "image.sh: $IMAGE has no /etc or /usr" >&2; exit 2; }
+# A host that is not root cannot read a file the image keeps mode 000
+# (/etc/shadow): make every file readable, so no file is skipped.
+chmod -R u+rwX "$root"
 
 allowed() {
 	local p
@@ -124,8 +127,14 @@ allowed() {
 # match.
 find "$root" -type f -print0 >"$work/all-files"
 rc=0
-xargs -0 grep -laF -e '-----BEGIN CERTIFICATE-----' -e '-----BEGIN TRUSTED CERTIFICATE-----' -f "$work/probes" <"$work/all-files" >"$work/files.unsorted" || rc=$?
-[ "$rc" -le 1 ] || [ "$rc" -eq 123 ] || { echo "image.sh: grep failed ($rc) while scanning $IMAGE" >&2; exit 2; }
+xargs -0 grep -laF -e '-----BEGIN CERTIFICATE-----' -e '-----BEGIN TRUSTED CERTIFICATE-----' -f "$work/probes" <"$work/all-files" >"$work/files.unsorted" 2>"$work/grep.err" || rc=$?
+# xargs exits 123 when a grep finds nothing, so a grep error shows only on
+# stderr.
+if [ -s "$work/grep.err" ] || { [ "$rc" -gt 1 ] && [ "$rc" -ne 123 ]; }; then
+	echo "image.sh: grep failed ($rc) while scanning $IMAGE:" >&2
+	head -20 "$work/grep.err" >&2
+	exit 2
+fi
 sort "$work/files.unsorted" >"$work/files"
 
 # Every listed certificate is offered as an untrusted intermediate, so an
