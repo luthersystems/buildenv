@@ -121,6 +121,23 @@ allowed() {
 	return 1
 }
 
+# image_path FILE: print the host path of the file that FILE (a path under
+# $root) is, following links as the image would: an absolute target is
+# under $root. Fails after 40 links.
+image_path() {
+	local p=$1 t n=0
+	while [ -L "$p" ]; do
+		n=$((n + 1))
+		[ "$n" -le 40 ] || return 1
+		t=$(readlink "$p") || return 1
+		case $t in
+		/*) p=$root$t ;;
+		*) p=$(dirname "$p")/$t ;;
+		esac
+	done
+	printf '%s\n' "$p"
+}
+
 # Every regular file with a PEM certificate or a probe line. Links are left
 # out: they point at a path in the image, which is scanned as itself.
 # A grep error (an unreadable file) fails the check: exit 1 only means no
@@ -275,7 +292,16 @@ if [ -s "$work/keystores" ]; then
 		done < <(sed -n 's/.*fingerprint (SHA-256): //p' <<<"$out")
 		echo "$path: checked"
 	done <"$work/keystores"
-	find "$root" -type f -name blocked.certs -path '*/lib/security/*' -print0 >"$work/blocked" 2>/dev/null || true
+	# Debian and Ubuntu JDKs ship lib/security/blocked.certs as a link to
+	# /etc/java-*-openjdk/security/blocked.certs; check each target once
+	# (luthersystems/buildenv#166).
+	: >"$work/blocked"
+	while IFS= read -r -d '' bc; do
+		target=$(image_path "$bc") && [ -f "$target" ] && [ ! -L "$target" ] ||
+			{ bad "${bc#"$root"}: is a link to no file in the image"; continue; }
+		printf '%s\0' "$target" >>"$work/blocked"
+	done < <(find "$root" \( -type f -o -type l \) -name blocked.certs -path '*/lib/security/*' -print0 2>/dev/null)
+	sort -zu "$work/blocked" -o "$work/blocked"
 	[ -s "$work/blocked" ] || [ "$jdk_keystore" = 0 ] || bad "a Java keystore is in the image in a JDK but no JDK blocked.certs blocks the listed certificates"
 	while IFS= read -r -d '' bc; do
 		for fp in "${!listed[@]}"; do

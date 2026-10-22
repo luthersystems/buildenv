@@ -282,7 +282,16 @@ while IFS= read -r ks; do
 	done <"$work/ks"
 done <"$work/keystores"
 jdks=0
-find / -xdev \( -path /proc -o -path /sys \) -prune -o -type f -name blocked.certs -path '*/lib/security/*' -print 2>/dev/null >"$work/blocked" || true
+# Debian and Ubuntu JDK packages ship lib/security/blocked.certs as a link
+# to /etc/java-*-openjdk/security/blocked.certs, so find links too and edit
+# each target once (luthersystems/buildenv#166).
+find / -xdev \( -path /proc -o -path /sys \) -prune -o \( -type f -o -type l \) -name blocked.certs -path '*/lib/security/*' -print 2>/dev/null >"$work/found" || true
+: >"$work/blocked"
+while IFS= read -r bc; do
+	target=$(readlink -f "$bc") && [ -f "$target" ] || die "$bc is a link to no file"
+	echo "$target" >>"$work/blocked"
+done <"$work/found"
+sort -u "$work/blocked" -o "$work/blocked"
 while IFS= read -r bc; do
 	head -1 "$bc" | grep -qx 'Algorithm=SHA-256' || die "$bc does not start with Algorithm=SHA-256"
 	while IFS= read -r fp; do
