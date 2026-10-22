@@ -146,6 +146,17 @@ is_binary() {
 	[ "$(tr -d '\000' <"$1" | wc -c)" -ne "$(wc -c <"$1")" ]
 }
 
+# Program source (a Go module cache's test data, x509roots, a vendored
+# library) is reported like a binary, never edited: editing it breaks a
+# module checksum, and it is not a trust store until a program is built
+# from it, which the image check of that program's image covers.
+is_source() {
+	case $1 in
+	*.go | *.c | *.h | *.cc | *.cpp | *.java | *.rs | *.js | *.mjs | *.cjs | *.ts | *.rb | *.py) return 0 ;;
+	esac
+	return 1
+}
+
 # 1. CA sources of update-ca-certificates (Debian, Ubuntu, Alpine). A file
 # that holds only listed certificates is removed and deselected; a mixed one
 # is stripped.
@@ -215,7 +226,7 @@ stripped=0
 binaries=0
 : >"$work/binaries"
 while IFS= read -r f; do
-	if is_binary "$f"; then
+	if is_binary "$f" || is_source "$f"; then
 		if grep -qaF -f "$work/probes" "$f"; then
 			echo "$f" >>"$work/binaries"
 			binaries=$((binaries + 1))
@@ -336,7 +347,7 @@ if [ -n "$openssl" ]; then
 fi
 scan
 while IFS= read -r f; do
-	is_binary "$f" && continue
+	{ is_binary "$f" || is_source "$f"; } && continue
 	count "$f"
 	[ "$listed" -eq 0 ] || die "a listed certificate is still in $f"
 	if grep -qF -f "$work/probes" "$f"; then
@@ -366,10 +377,10 @@ if [ -d "$PKI/extracted/pem" ]; then
 fi
 
 while IFS= read -r f; do
-	log "warning: binary $f holds a listed certificate and cannot be edited"
+	log "warning: $f (a binary or program source) holds a listed certificate and is not edited"
 done <"$work/binaries"
 if [ "$binaries" -gt 0 ] && [ "${HARDEN_STRICT_BINARIES:-}" = 1 ]; then
-	die "$binaries binary file(s) hold a listed certificate (HARDEN_STRICT_BINARIES=1)"
+	die "$binaries binary or source file(s) hold a listed certificate (HARDEN_STRICT_BINARIES=1)"
 fi
 
-log "removed $sources source certificate(s), blocked $blocked in p11-kit, stripped $stripped from bundles, removed $aliases keystore alias(es), blocked $n in $jdks JDK(s) and $nssdbs NSS database(s); $binaries binary file(s) skipped"
+log "removed $sources source certificate(s), blocked $blocked in p11-kit, stripped $stripped from bundles, removed $aliases keystore alias(es), blocked $n in $jdks JDK(s) and $nssdbs NSS database(s); $binaries binary or source file(s) reported"

@@ -154,13 +154,18 @@ while IFS= read -r f; do
 	# blocklist entry beside them overrides them, and the extracted stores
 	# below are what clients read.
 	case $path in /usr/share/pki/ca-trust-source/* | /etc/pki/ca-trust/source/*) continue ;; esac
-	if [ "$(tr -d '\000' <"$f" | wc -c)" -ne "$(wc -c <"$f")" ]; then
+	# A binary, or program source (Go module cache test data, a vendored
+	# library), is reported, not failed: it is not a trust store until a
+	# program is built from it. Keep this list the same as the module's.
+	is_src=0
+	case $path in *.go | *.c | *.h | *.cc | *.cpp | *.java | *.rs | *.js | *.mjs | *.cjs | *.ts | *.rb | *.py) is_src=1 ;; esac
+	if [ "$is_src" = 1 ] || [ "$(tr -d '\000' <"$f" | wc -c)" -ne "$(wc -c <"$f")" ]; then
 		if grep -qaF -f "$work/probes" "$f"; then
 			binaries=$((binaries + 1))
 			if [ "$strict_binaries" = 1 ]; then
-				bad "$path: a binary that holds a listed certificate"
+				bad "$path: a binary or source file that holds a listed certificate"
 			else
-				echo "WARN: $path: a binary that holds a listed certificate (it cannot be edited)" >&2
+				echo "WARN: $path: a binary or source file that holds a listed certificate (not edited)" >&2
 			fi
 		fi
 		continue
@@ -285,4 +290,4 @@ if [ "$fail" -ne 0 ]; then
 	echo "FAIL: $IMAGE does not hold the build-harden policy" >&2
 	exit 1
 fi
-echo "OK: $IMAGE holds the build-harden policy ($binaries binary file(s) warned)"
+echo "OK: $IMAGE holds the build-harden policy ($binaries binary or source file(s) warned)"

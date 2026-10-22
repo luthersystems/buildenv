@@ -47,8 +47,9 @@ line bumps the kit.
   in the image's environment. `HARDEN_MODULES="ca-distrust"` runs only the
   modules named.
   The kit finds NSS databases anywhere; `HARDEN_NSSDB` names more. `HARDEN_STRICT_BINARIES=1`
-  fails the build on a binary that holds a listed certificate (a Node.js
-  binary with its CA list compiled in), which by default is only reported.
+  fails the build on a binary or program source file that holds a listed
+  certificate (a Node.js binary with its CA list compiled in, a `.js` root
+  list in `node_modules`), which by default is only reported.
 
 ## Check it in CI
 
@@ -101,7 +102,7 @@ bash .harden/check/image.sh --platform linux/arm64 my-image:arm64
 | Java `cacerts` | removed | none |
 | Java `lib/security/blocked.certs` | blocked | blocked |
 | NSS databases (`/etc/pki/nssdb`, `~/.pki/nssdb`, `HARDEN_NSSDB`) | trust `p,p,p` | trust `p,p,p` |
-| A binary with a compiled-in CA list | reported | reported |
+| A binary with a compiled-in CA list, or program source (`.go`, `.js`, `.py`, ...: a Go module cache, a vendored library) | reported, not edited | reported, not edited |
 
 A client with no block list (curl, git or Python on Debian or Alpine) is safe
 while no trust store in the image holds the root that issued a listed
