@@ -1,0 +1,6 @@
+# Run with a kit whose ca-distrust.list also lists USERTrust RSA, a root that
+# ca-keep.list keeps (scripts/test-harden.sh makes that kit): the build must
+# fail, because the policy blocks what it must keep.
+FROM debian:bookworm-slim
+RUN apt-get -qq update && apt-get -qq install -y --no-install-recommends ca-certificates >/dev/null
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh

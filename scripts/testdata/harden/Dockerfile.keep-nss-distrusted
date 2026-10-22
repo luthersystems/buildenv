@@ -1,0 +1,7 @@
+# A step after the kit distrusts USERTrust RSA, a root the policy keeps, in an
+# NSS database (as Chrome reads it): the image check must fail.
+FROM debian:bookworm-slim
+RUN apt-get -qq update && apt-get -qq install -y --no-install-recommends ca-certificates libnss3-tools >/dev/null \
+    && mkdir -p /root/.pki/nssdb && certutil -N -d sql:/root/.pki/nssdb --empty-password
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh
+RUN --mount=type=bind,from=keep,target=/keep certutil -A -d sql:/root/.pki/nssdb -n usertrust -t p,p,p -i /keep/usertrust-rsa-certification-authority.pem

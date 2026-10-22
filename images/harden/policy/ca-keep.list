@@ -1,0 +1,22 @@
+# CA certificates that every image built with luthersystems/build-harden must
+# still trust: the positive control of ca-distrust.list. Same format:
+#
+#   <sha256 of the DER> <root|intermediate> <PEM file in ca-keep/> <source> <name>
+#
+# Why: the checks of ca-distrust.list prove that the listed CAs fail. An
+# empty or over-edited trust store fails them too, so those checks alone
+# cannot tell a correct block from one that breaks every TLS client. Each
+# kept intermediate must verify against each public root bundle, and each
+# kept root must stay in each Java keystore and must not be distrusted in an
+# NSS database or a Java blocked.certs.
+#
+# The roots are the ones today's Sectigo chains end at. AAA Certificate
+# Services, which cross-signed the leaked eMudhra intermediates, is in
+# ca-distrust.list; USERTrust RSA and ECC are not, and must stay trusted. Do
+# not list a certificate here that ca-distrust.list lists, or one with a key
+# that it lists: the kit and the check refuse that policy.
+
+e793c9b02fd8aa13e21c31228accb08119643b749c898964b1746d46c3d4cbd2 root usertrust-rsa-certification-authority.pem Mozilla-CA-list USERTrust RSA Certification Authority (issuer: USERTrust RSA Certification Authority)
+4ff460d54b9c86dabfbcfc5712e0400d2bed3fbc4d4fbdaa86e06adcd2a9ad7a root usertrust-ecc-certification-authority.pem Mozilla-CA-list USERTrust ECC Certification Authority (issuer: USERTrust ECC Certification Authority)
+7fa4ff68ec04a99d7528d5085f94907f4d1dd1c5381bacdc832ed5c960214676 intermediate sectigo-rsa-dv-secure-server-ca.pem http://crt.sectigo.com/SectigoRSADomainValidationSecureServerCA.crt Sectigo RSA Domain Validation Secure Server CA (issuer: USERTrust RSA Certification Authority)
+61e97375e9f6da982ff5c19e2f94e66c4e35b6837ce3b914d2245c7f5f65825f intermediate sectigo-ecc-dv-secure-server-ca.pem http://crt.sectigo.com/SectigoECCDomainValidationSecureServerCA.crt Sectigo ECC Domain Validation Secure Server CA (issuer: USERTrust ECC Certification Authority)

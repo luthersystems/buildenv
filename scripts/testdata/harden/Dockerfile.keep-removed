@@ -1,0 +1,7 @@
+# A step after the kit removes USERTrust RSA, a root the policy keeps
+# (ca-keep.list): the image check must fail, because a current Sectigo chain
+# no longer verifies against the system bundle.
+FROM debian:bookworm-slim
+RUN apt-get -qq update && apt-get -qq install -y --no-install-recommends ca-certificates >/dev/null
+RUN --mount=type=bind,from=harden,target=/harden sh /harden/harden.sh
+RUN rm /usr/share/ca-certificates/mozilla/USERTrust_RSA_Certification_Authority.crt && update-ca-certificates --fresh >/dev/null
