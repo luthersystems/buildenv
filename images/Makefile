@@ -28,9 +28,11 @@ ALL_IMAGES=${IMAGES}
 # ccenv, its own Go), so one tag per minor lets a peer swap
 # hyperledger/fabric-baseos:2.2 for luthersystems/fabric-baseos:2.2.
 # The target fabric-baseos-2.2 builds luthersystems/fabric-baseos with tags
-# 2.2-<version>[-<arch>], and push-manifests also moves the tag 2.2 (the
-# upstream form, like latest for the other images). There is no
-# fabric-baseos-2.5: that image has no CA bundle to harden.
+# 2.2-<version>[-<arch>]. There is no moving tag (no latest, no bare 2.2): a
+# peer runs these images in production, and an automation-cut patch release
+# must not reach a peer that has not chosen it, so peers pin
+# <minor>-<version>. There is no fabric-baseos-2.5: that image has no CA
+# bundle to harden.
 FABRIC_WRAPPERS=fabric-baseos-2.2 fabric-baseos-2.4 fabric-ccenv-2.2 fabric-ccenv-2.4 fabric-ccenv-2.5
 # Upstream publishes 2.2 and 2.4 for amd64 only. Keep the arm64 excludes in
 # .github/workflows/build.yml and publish.yml in step with this list.
@@ -46,12 +48,14 @@ fabric_minor=$(lastword $(subst -, ,$1))
 # fabric-baseos; any other target is its own repository).
 repo=$(if $(call is_fabric_wrapper,$1),$(1:%-$(call fabric_minor,$1)=%),$1)
 # ref IMAGE,TAG: the reference of an image target at a tag. For a Fabric
-# wrapper the tag is prefixed with the minor, and latest is the bare minor.
-ref=luthersystems/$(call repo,$1):$(if $(call is_fabric_wrapper,$1),$(if $(filter latest,$2),$(call fabric_minor,$1),$(call fabric_minor,$1)-$2),$2)
+# wrapper the tag is prefixed with the minor.
+ref=luthersystems/$(call repo,$1):$(if $(call is_fabric_wrapper,$1),$(call fabric_minor,$1)-)$2
 arches=$(or ${ARCHES_$1},arm64 amd64)
 # The platforms to build: PLATFORMS, less those upstream does not publish.
 platforms=$(subst $() ,$(comma),$(strip $(filter $(addprefix linux/,$(call arches,$1)),$(subst $(comma), ,${PLATFORMS}))))
-fabric_version=$(if $(call is_fabric_wrapper,$1),${FABRIC_$(subst .,_,$(call fabric_minor,$1))_VERSION})
+# A wrapper with no pinned version must not build: the Dockerfile's ARG
+# default would give it another minor's base under this minor's tag.
+fabric_version=$(if $(call is_fabric_wrapper,$1),$(or ${FABRIC_$(subst .,_,$(call fabric_minor,$1))_VERSION},$(error $1: set FABRIC_$(subst .,_,$(call fabric_minor,$1))_VERSION in common.config.mk)))
 
 TAG_SUFFIX=
 DOCKER_BUILDX_OPTS=$(if $(GIT_TAG),--push,)
@@ -76,7 +80,11 @@ DOCKER_ATTEST_OPTS=$(if $(GIT_TAG),--provenance=mode=max --sbom=true,)
 .SECONDARY:
 
 .PHONY:
-IMAGE_DUMMYS := $(foreach I,$(IMAGES),$(call IMAGE_DUMMY,$I))
+# The default build skips an image that upstream does not publish for
+# PLATFORMS (the Fabric 2.2 and 2.4 wrappers on an arm64-only build), so an
+# all-images build on an arm64 host still builds every other image. Naming
+# such an image fails, below.
+IMAGE_DUMMYS := $(foreach I,$(IMAGES),$(if $(call platforms,$(I:luthersystems/%=%)),$(call IMAGE_DUMMY,$I)))
 PUSH_DUMMYS := $(foreach I,$(ALL_IMAGES),$(call PUSH_DUMMY,$I))
 
 .PHONY: default
@@ -92,6 +100,13 @@ clean:
 
 %: $(call IMAGE_DUMMY,luthersystems/%)
 	@
+
+# The kinds of the Fabric wrappers are not images: each Fabric minor is.
+# Without this, `%:` would build them from the Dockerfile's ARG default.
+.PHONY: fabric-baseos fabric-ccenv
+fabric-baseos fabric-ccenv:
+	@echo "$@ has one image per Fabric minor; build one of: $(filter $@-%,${FABRIC_WRAPPERS})" >&2
+	@exit 1
 
 # Print the reference that a build of an image target is tagged with, for CI
 # (the build action checks the image it built): make -s print-ref-<image>.
@@ -145,9 +160,9 @@ $(call DUMMY_TARGET,deps,luthersystems/build-swaggercodegen): build-swaggercodeg
 	@
 
 $(call PUSH_DUMMY,luthersystems/%):
-	${DOCKER} buildx imagetools create \
+	$(if $(call is_fabric_wrapper,$*),,${DOCKER} buildx imagetools create \
 		--tag $(call ref,$*,latest) \
-		$(foreach A,$(call arches,$*),$(call ref,$*,${VERSION}-$A))
+		$(foreach A,$(call arches,$*),$(call ref,$*,${VERSION}-$A)))
 	${DOCKER} buildx imagetools create \
 		--tag $(call ref,$*,${VERSION}) \
 		$(foreach A,$(call arches,$*),$(call ref,$*,${VERSION}-$A))
