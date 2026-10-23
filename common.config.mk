@@ -16,6 +16,13 @@ DIND_VERSION=28.5.2
 # fabric-tools base: hyperledger/fabric-tools:${FABRIC_TOOLS_VERSION} (see
 # images/Dockerfile.fabric-tools). The fabric-snapshot-archiver base.
 FABRIC_TOOLS_VERSION=2.5.6
+# fabric-baseos and fabric-ccenv bases, one per Fabric minor:
+# hyperledger/fabric-{baseos,ccenv}:${FABRIC_<minor>_VERSION} (see
+# images/Dockerfile.fabric-baseos and images/Dockerfile.fabric-ccenv). 2.2 and
+# 2.4 are the last releases of those minors, amd64 only upstream.
+FABRIC_2_2_VERSION=2.2.15
+FABRIC_2_4_VERSION=2.4.9
+FABRIC_2_5_VERSION=2.5.16
 NODE_VERSION=24.22.1
 # nginx-frontend base: nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine${ALPINE_VERSION}
 NGINX_VERSION=1.30

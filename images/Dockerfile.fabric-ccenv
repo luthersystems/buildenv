@@ -1,0 +1,31 @@
+# The image that a Fabric peer builds Docker chaincode in (core.yaml
+# chaincode.builder, by default hyperledger/fabric-ccenv:<two-digit Fabric
+# version>; the mars fabric-peer chart sets it as buildImage).
+#
+# It is hyperledger/fabric-ccenv with the eMudhra (emSign) roots removed and
+# the leaked intermediates blocked (CVE-2026-111943). The upstream bundle
+# still trusts them: on Fabric 2.2 and 2.4 (Alpine) the AAA cross-signs of
+# the eight leaked intermediates verify, and on 2.5 (Debian) the emSign roots
+# do. The build runs `go build` and can fetch modules over HTTPS, and the
+# chaincode builds with the image's Go, so the build must not trust them.
+# Fabric no longer releases 2.2 or 2.4, so the fix can only come from a
+# wrapper.
+#
+# Each Fabric minor has its own Go (2.2.15: 1.21, 2.4.9: 1.18, 2.5.16: 1.26.4;
+# none has Go 1.26.10's block of the leaked intermediates), and a
+# chaincode built with another Go may not build or behave the same, so
+# images/Makefile builds one image per minor (fabric-ccenv-2.2, -2.4, -2.5)
+# from this file, with the upstream release that common.config.mk pins. It
+# keeps the upstream user (chaincode), PATH, Go settings and working
+# directory.
+ARG FABRIC_VERSION=2.5.16
+FROM hyperledger/fabric-ccenv:${FABRIC_VERSION}
+
+# Harden the image with the build-harden kit (images/harden): today it makes
+# the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
+# and intermediates whose keys leaked, CVE-2026-111943). The kit must run as
+# root, and the upstream image runs as chaincode, so switch for the one step.
+# The kit is bind-mounted, so no kit file stays.
+USER root
+RUN --mount=type=bind,source=harden,target=/harden sh /harden/harden.sh
+USER chaincode

@@ -59,6 +59,20 @@ not enough.
   base image of luthersystems/fabric-snapshot-archiver). `dind` also upgrades
   its Alpine packages and clears a legacy BuildKit cache at start
   (`images/dind-entrypoint.sh`), so it starts on a volume Docker 19.03 used.
+- `fabric-baseos` and `fabric-ccenv` are the upstream
+  `hyperledger/fabric-baseos` and `hyperledger/fabric-ccenv` images with only
+  this step added, one image per Fabric minor, tagged
+  `<minor>-<buildenv version>`: `luthersystems/fabric-baseos:2.2-vX.Y.Z` and
+  `2.4-vX.Y.Z`, and `luthersystems/fabric-ccenv:2.2-vX.Y.Z`, `2.4-vX.Y.Z` and
+  `2.5-vX.Y.Z`. There is no moving tag: a peer pins a release, so an
+  automation-cut patch release does not reach it unchosen. A Docker chaincode peer runs its
+  chaincode in fabric-baseos and builds it in fabric-ccenv. The 2.2 and 2.4
+  bases are Alpine, which still trusts the emSign roots and the AAA
+  cross-signs of the leaked intermediates, and Fabric no longer releases
+  them. Point the peer at the wrappers in core.yaml (`chaincode.golang.runtime`
+  and `chaincode.builder`, or `CORE_CHAINCODE_GOLANG_RUNTIME` and
+  `CORE_CHAINCODE_BUILDER`). There is no 2.5 fabric-baseos: upstream has no CA
+  bundle. 2.2 and 2.4 are amd64 only, as upstream.
 - `make check-harden` (CI `script-tests`) fails when a Dockerfile's final
   stage does not run the kit last, or when a later step can undo it (a
   package step, `update-ca-certificates`, a `COPY --from`, an `ADD`, `curl`,
