@@ -99,9 +99,10 @@ runs:
         IMAGE: ${{ inputs.image }}
         ARCH: ${{ inputs.arch }}
       # git_tag and git_rev arrive as shell text ($GITHUB_REF_NAME,
-      # $GITHUB_SHA), as in the build step, so they expand here. The tag
-      # is common.mk's VERSION: the git tag (v included) or the revision.
+      # $GITHUB_SHA), as in the build step, so they expand here. The
+      # Makefile names the tag it built (a Fabric wrapper such as
+      # fabric-baseos-2.2 is luthersystems/fabric-baseos:2.2-<version>), so
+      # ask it rather than build the name here.
       run: |
-        version=${{ inputs.git_tag }}
-        [ -n "$version" ] || version=${{ inputs.git_rev }}
-        bash scripts/ci-harden-check.sh "$IMAGE" "luthersystems/$IMAGE:$version-$ARCH" "linux/$ARCH"
+        ref=$(make -s -C images "print-ref-$IMAGE" TAG_SUFFIX="-$ARCH" GIT_TAG=${{ inputs.git_tag }} GIT_REVISION=${{ inputs.git_rev }})
+        bash scripts/ci-harden-check.sh "$IMAGE" "$ref" "linux/$ARCH"

@@ -38,8 +38,24 @@ jobs:
           - build-swaggercodegen
           - dind
           - fabric-tools
+          - fabric-baseos-2.2
+          - fabric-baseos-2.4
+          - fabric-ccenv-2.2
+          - fabric-ccenv-2.4
+          - fabric-ccenv-2.5
           - nginx-frontend
           - service-base-alpine
+        # Upstream publishes Fabric 2.2 and 2.4 for amd64 only (ARCHES_* in
+        # images/Makefile).
+        exclude:
+          - arch: arm64
+            image: fabric-baseos-2.2
+          - arch: arm64
+            image: fabric-baseos-2.4
+          - arch: arm64
+            image: fabric-ccenv-2.2
+          - arch: arm64
+            image: fabric-ccenv-2.4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Build & push container

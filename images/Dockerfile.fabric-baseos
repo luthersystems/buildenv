@@ -1,0 +1,31 @@
+# The image that a Fabric 2.2 or 2.4 peer runs Docker chaincode in
+# (core.yaml chaincode.golang.runtime, by default
+# hyperledger/fabric-baseos:<two-digit Fabric version>).
+#
+# It is hyperledger/fabric-baseos with the eMudhra (emSign) roots removed and
+# the leaked intermediates blocked. Fabric 2.2 and 2.4 build it on Alpine,
+# whose ca-certificates still trusts the emSign roots and Comodo AAA
+# Certificate Services. Eight eMudhra intermediates were compromised
+# (CVE-2026-111943), and their AAA cross-signs verify against that bundle, so
+# a chaincode built with an older Go (which has no block list) trusts them on
+# an outbound HTTPS call. Fabric no longer releases 2.2 or 2.4, so the fix
+# can only come from a wrapper. Fabric 2.5's fabric-baseos has no CA bundle,
+# so there is no 2.5 wrapper.
+#
+# The image is not tied to one Fabric patch release: it holds only Alpine,
+# tzdata and the chaincode user, and the chaincode binary brings its own
+# code. images/Makefile builds one image per Fabric minor (fabric-baseos-2.2,
+# fabric-baseos-2.4) from this file, with the upstream release that
+# common.config.mk pins. It keeps the upstream user (chaincode), PATH and
+# command.
+ARG FABRIC_VERSION=2.2.15
+FROM hyperledger/fabric-baseos:${FABRIC_VERSION}
+
+# Harden the image with the build-harden kit (images/harden): today it makes
+# the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
+# and intermediates whose keys leaked, CVE-2026-111943). The kit must run as
+# root, and the upstream image runs as chaincode, so switch for the one step.
+# The kit is bind-mounted, so no kit file stays.
+USER root
+RUN --mount=type=bind,source=harden,target=/harden sh /harden/harden.sh
+USER chaincode

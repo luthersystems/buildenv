@@ -21,6 +21,7 @@ consume these as `docker run` tools or as `FROM` bases in multi-stage builds.
 | `service-base-alpine` | Minimal **prod runtime** base (runs as `nobody`) |
 | `build-harden` | The hardening kit (scripts and policy data, FROM scratch) that every image, here and in other repos, bind-mounts and runs last (exempt from grade A) |
 | `awscli`, `dind`, `fabric-tools` | Upstream `amazon/aws-cli`, `docker:dind` and `hyperledger/fabric-tools` with only the build-harden kit run, for the mars Fabric charts and the fabric-snapshot-archiver base (exempt from grade A) |
+| `fabric-baseos`, `fabric-ccenv` | Upstream `hyperledger/fabric-baseos` (2.2, 2.4) and `hyperledger/fabric-ccenv` (2.2, 2.4, 2.5) with only the build-harden kit run, one tag per Fabric minor, for Docker chaincode peers (exempt from grade A; make targets `fabric-baseos-2.2` and so on) |
 
 ## Build & test
 
@@ -53,7 +54,7 @@ drifts (CI builds use the central value regardless).
 
 Seven images **must** stay at Docker Scout grade A: `build-api`, `build-go`,
 `build-go-alpine`, `build-godynamic`, `build-java`, `nginx-frontend`,
-`service-base-alpine`. The wrappers `awscli`, `dind` and `fabric-tools` are **exempt**
+`service-base-alpine`. The wrappers `awscli`, `dind`, `fabric-tools`, `fabric-baseos` and `fabric-ccenv` are **exempt**
 (upstream images with only the emSign roots removed; their CVEs are
 upstream's). The other three (`build-e2e`, `build-js`,
 `build-swaggercodegen`) are **exempt** — each fails only on third-party-bundled,

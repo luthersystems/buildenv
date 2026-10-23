@@ -17,9 +17,41 @@ IMAGES= \
 	luthersystems/build-swaggercodegen \
 	luthersystems/dind \
 	luthersystems/fabric-tools \
+	$(addprefix luthersystems/,${FABRIC_WRAPPERS}) \
 	luthersystems/nginx-frontend \
 	luthersystems/service-base-alpine
 ALL_IMAGES=${IMAGES}
+
+# The Fabric chaincode images, one per Fabric minor, built from one Dockerfile
+# per kind (Dockerfile.fabric-baseos, Dockerfile.fabric-ccenv). A peer chooses
+# the image by its Fabric version, and each minor has its own base (and, for
+# ccenv, its own Go), so one tag per minor lets a peer swap
+# hyperledger/fabric-baseos:2.2 for luthersystems/fabric-baseos:2.2.
+# The target fabric-baseos-2.2 builds luthersystems/fabric-baseos with tags
+# 2.2-<version>[-<arch>], and push-manifests also moves the tag 2.2 (the
+# upstream form, like latest for the other images). There is no
+# fabric-baseos-2.5: that image has no CA bundle to harden.
+FABRIC_WRAPPERS=fabric-baseos-2.2 fabric-baseos-2.4 fabric-ccenv-2.2 fabric-ccenv-2.4 fabric-ccenv-2.5
+# Upstream publishes 2.2 and 2.4 for amd64 only. Keep the arm64 excludes in
+# .github/workflows/build.yml and publish.yml in step with this list.
+ARCHES_fabric-baseos-2.2=amd64
+ARCHES_fabric-baseos-2.4=amd64
+ARCHES_fabric-ccenv-2.2=amd64
+ARCHES_fabric-ccenv-2.4=amd64
+
+comma=,
+is_fabric_wrapper=$(filter $1,${FABRIC_WRAPPERS})
+fabric_minor=$(lastword $(subst -, ,$1))
+# repo: the Docker Hub repository of an image target (fabric-baseos-2.2 ->
+# fabric-baseos; any other target is its own repository).
+repo=$(if $(call is_fabric_wrapper,$1),$(1:%-$(call fabric_minor,$1)=%),$1)
+# ref IMAGE,TAG: the reference of an image target at a tag. For a Fabric
+# wrapper the tag is prefixed with the minor, and latest is the bare minor.
+ref=luthersystems/$(call repo,$1):$(if $(call is_fabric_wrapper,$1),$(if $(filter latest,$2),$(call fabric_minor,$1),$(call fabric_minor,$1)-$2),$2)
+arches=$(or ${ARCHES_$1},arm64 amd64)
+# The platforms to build: PLATFORMS, less those upstream does not publish.
+platforms=$(subst $() ,$(comma),$(strip $(filter $(addprefix linux/,$(call arches,$1)),$(subst $(comma), ,${PLATFORMS}))))
+fabric_version=$(if $(call is_fabric_wrapper,$1),${FABRIC_$(subst .,_,$(call fabric_minor,$1))_VERSION})
 
 TAG_SUFFIX=
 DOCKER_BUILDX_OPTS=$(if $(GIT_TAG),--push,)
@@ -61,14 +93,22 @@ clean:
 %: $(call IMAGE_DUMMY,luthersystems/%)
 	@
 
+# Print the reference that a build of an image target is tagged with, for CI
+# (the build action checks the image it built): make -s print-ref-<image>.
+print-ref-%:
+	@echo $(call ref,$*,${VERSION}${TAG_SUFFIX})
+
 # Every image runs the build-harden kit, so a change to it rebuilds them all.
 HARDEN_FILES := $(shell find harden -type f)
 
-$(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% ${HARDEN_FILES} Makefile ${COMMON_MAKEFILE} ${CONFIG_MAKEFILE} $(call DUMMY_TARGET,deps,luthersystems/%)
+# Secondary expansion lets a Fabric wrapper target name its kind's Dockerfile.
+.SECONDEXPANSION:
+$(call IMAGE_DUMMY,luthersystems/%): Dockerfile.$$(call repo,$$*) ${HARDEN_FILES} Makefile ${COMMON_MAKEFILE} ${CONFIG_MAKEFILE} $(call DUMMY_TARGET,deps,luthersystems/%)
 	@echo "Building image $*"
+	$(if $(call platforms,$*),,$(error $* is not published upstream for ${PLATFORMS}; it is built for $(call arches,$*)))
 	${DOCKER} buildx inspect --bootstrap
 	${DOCKER} buildx build ${DOCKER_BUILDX_OPTS} ${DOCKER_ATTEST_OPTS} ${BUILDX_CACHE_FLAGS} \
-		--platform ${PLATFORMS} \
+		--platform $(call platforms,$*) \
 		--progress plain \
 		--build-arg GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION} \
 		--build-arg NODE_VERSION=${NODE_VERSION} \
@@ -86,7 +126,8 @@ $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.% ${HARDEN_FILES} Makefile ${COM
 		--build-arg AWSCLI_VER=${AWSCLI_VER} \
 		--build-arg DIND_VERSION=${DIND_VERSION} \
 		--build-arg FABRIC_TOOLS_VERSION=${FABRIC_TOOLS_VERSION} \
-		-t luthersystems/$*:${VERSION}${TAG_SUFFIX} \
+		$(if $(call fabric_version,$*),--build-arg FABRIC_VERSION=$(call fabric_version,$*)) \
+		-t $(call ref,$*,${VERSION}${TAG_SUFFIX}) \
 		-f $< .
 	${MKDIR_P} $(dir $@)
 	${TOUCH} $@
@@ -105,10 +146,8 @@ $(call DUMMY_TARGET,deps,luthersystems/build-swaggercodegen): build-swaggercodeg
 
 $(call PUSH_DUMMY,luthersystems/%):
 	${DOCKER} buildx imagetools create \
-		--tag luthersystems/$*:latest \
-		luthersystems/$*:${VERSION}-arm64 \
-		luthersystems/$*:${VERSION}-amd64
+		--tag $(call ref,$*,latest) \
+		$(foreach A,$(call arches,$*),$(call ref,$*,${VERSION}-$A))
 	${DOCKER} buildx imagetools create \
-		--tag luthersystems/$*:${VERSION} \
-		luthersystems/$*:${VERSION}-arm64 \
-		luthersystems/$*:${VERSION}-amd64
+		--tag $(call ref,$*,${VERSION}) \
+		$(foreach A,$(call arches,$*),$(call ref,$*,${VERSION}-$A))
