@@ -51,9 +51,8 @@ FROM node:${NODE_VERSION}-bookworm
 # Scout severity-CVE policy); added when build-js joined the grade-A set (#75).
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
-    apt-get install --no-install-recommends -y libltdl-dev rsync zip tini ca-certificates curl apt-transport-https lsb-release gnupg python3 python3-dev groff && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y libltdl-dev rsync zip tini ca-certificates curl apt-transport-https lsb-release gnupg python3 python3-dev groff tzdata && \
     rm -rf /var/lib/apt/lists/*
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
 
 # git-lfs: install the official release binary (built by the git-lfs project on a
 # current Go toolchain) instead of Debian's apt package. Debian's git-lfs is built
