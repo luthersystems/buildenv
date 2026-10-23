@@ -92,7 +92,8 @@ RUN echo "deb [arch=$(dpkg --print-architecture)] https://packages.microsoft.com
 ARG AZCLI_VER
 ENV AZCLI_VER=$AZCLI_VER
 
-RUN apt-get update && apt-get install -y azure-cli=${AZCLI_VER}\*
+RUN apt-get update && apt-get install -y --no-install-recommends azure-cli=${AZCLI_VER}\* && \
+    rm -rf /var/lib/apt/lists/*
 
 # certifi 2026.10.19 in azure-cli's own Python (/opt/az): the package ships
 # certifi 2024.7.4, whose bundle trusts the emSign roots (GHSA-6q48-6c7w-9gw2,
