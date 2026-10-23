@@ -31,8 +31,7 @@ RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
 
 FROM ubuntu:24.04 AS aws
 
-RUN apt-get update
-RUN apt-get install --no-install-recommends -y gnupg curl ca-certificates
+RUN apt-get update && apt-get install --no-install-recommends -y gnupg curl ca-certificates
 COPY aws-cli-pkg-key.asc /tmp/aws-cli-pkg-key.asc
 RUN gpg --import /tmp/aws-cli-pkg-key.asc
 
