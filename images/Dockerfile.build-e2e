@@ -104,14 +104,10 @@ RUN fc-cache -f
 ENV NODE_OPTIONS=--use-openssl-ca \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
-# Harden the image with the build-harden kit (images/harden): today it makes
-# the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
-# and intermediates whose keys leaked, CVE-2026-111943). Keep this after the
-# last package install; the kit is bind-mounted, so no kit file stays.
-RUN --mount=type=bind,source=harden,target=/harden sh /harden/harden.sh
-
 # Fail the build if the assembly is wrong. (substratehcp is a go-plugin binary
-# that expects a handshake, so we only check it's present/executable.)
+# that expects a handshake, so we only check it's present/executable.) It runs
+# before the harden step, which must stay the last step that can change files
+# (CLAUDE.md rule 6).
 RUN set -eux; \
     go version; node --version; newman --version; \
     shirotester --help >/dev/null; \
@@ -120,6 +116,12 @@ RUN set -eux; \
     wkhtmltopdf --version; \
     test -x /usr/local/bin/substratehcp; \
     test "$(fc-list | wc -l)" -gt 100   # fonts from pdfserv image present
+
+# Harden the image with the build-harden kit (images/harden): today it makes
+# the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
+# and intermediates whose keys leaked, CVE-2026-111943). Keep this after the
+# last package install; the kit is bind-mounted, so no kit file stays.
+RUN --mount=type=bind,source=harden,target=/harden sh /harden/harden.sh
 
 # NOTE: build-e2e is intentionally NOT in the grade-A required set (see
 # .github/scout-required-images.json `exempt`). It's an assembly image that COPYs

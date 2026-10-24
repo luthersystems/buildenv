@@ -31,8 +31,7 @@ RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
 
 FROM ubuntu:24.04 AS aws
 
-RUN apt-get update
-RUN apt-get install --no-install-recommends -y gnupg curl ca-certificates
+RUN apt-get update && apt-get install --no-install-recommends -y gnupg curl ca-certificates
 COPY aws-cli-pkg-key.asc /tmp/aws-cli-pkg-key.asc
 RUN gpg --import /tmp/aws-cli-pkg-key.asc
 
@@ -52,9 +51,8 @@ FROM node:${NODE_VERSION}-bookworm
 # Scout severity-CVE policy); added when build-js joined the grade-A set (#75).
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
-    apt-get install --no-install-recommends -y libltdl-dev rsync zip tini ca-certificates curl apt-transport-https lsb-release gnupg python3 python3-dev groff && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y libltdl-dev rsync zip tini ca-certificates curl apt-transport-https lsb-release gnupg python3 python3-dev groff tzdata && \
     rm -rf /var/lib/apt/lists/*
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata
 
 # git-lfs: install the official release binary (built by the git-lfs project on a
 # current Go toolchain) instead of Debian's apt package. Debian's git-lfs is built
@@ -93,7 +91,8 @@ RUN echo "deb [arch=$(dpkg --print-architecture)] https://packages.microsoft.com
 ARG AZCLI_VER
 ENV AZCLI_VER=$AZCLI_VER
 
-RUN apt-get update && apt-get install -y azure-cli=${AZCLI_VER}\*
+RUN apt-get update && apt-get install -y --no-install-recommends azure-cli=${AZCLI_VER}\* && \
+    rm -rf /var/lib/apt/lists/*
 
 # certifi 2026.10.19 in azure-cli's own Python (/opt/az): the package ships
 # certifi 2024.7.4, whose bundle trusts the emSign roots (GHSA-6q48-6c7w-9gw2,
