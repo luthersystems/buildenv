@@ -34,7 +34,7 @@ jobs:
     # Run even when `changes` failed: its output is then empty, and every
     # step runs (fail closed).
     if: ${{ !cancelled() }}
-    runs-on: ${{ fromJSON('{"arm64":"2vcpu-ubuntu-2204-arm","amd64":"ubuntu-22.04"}')[matrix.arch] }}
+    runs-on: ${{ fromJSON('{"arm64":"ubuntu-22.04-arm","amd64":"ubuntu-22.04"}')[matrix.arch] }}
     permissions:
       contents: read
       id-token: write # Docker Hub OIDC login
