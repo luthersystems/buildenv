@@ -216,7 +216,7 @@ jobs:
       # tracking would mean feeding the SARIF to the code-scanning Security tab.
       - name: Record total CVE breakdown (all severities, non-blocking)
         if: needs.changes.outputs.full != 'false'
-        uses: docker/scout-action@221e7f4860634eeb1579e3bd7ca232e577bd1864  # v1.26.0
+        uses: docker/scout-action@a4119c5a8c5076236a54e4ce99531f7e4dd2ef84  # v1.27.0
         continue-on-error: true
         with:
           command: quickview
@@ -226,7 +226,7 @@ jobs:
           write-comment: false
       - name: Generate full CVE SARIF (all severities, non-blocking)
         if: needs.changes.outputs.full != 'false'
-        uses: docker/scout-action@221e7f4860634eeb1579e3bd7ca232e577bd1864  # v1.26.0
+        uses: docker/scout-action@a4119c5a8c5076236a54e4ce99531f7e4dd2ef84  # v1.27.0
         continue-on-error: true
         with:
           command: cves
