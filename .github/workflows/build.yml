@@ -1,5 +1,7 @@
 name: Build docker images
 on:
+  # The merge queue runs the required checks on the merged result.
+  merge_group:
   pull_request:
     branches:
       - main
@@ -24,8 +26,8 @@ jobs:
           persist-credentials: false
       - id: diff
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
         run: bash scripts/ci-changes.sh "$BASE" "$HEAD"
 
   build:
