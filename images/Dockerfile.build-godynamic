@@ -186,11 +186,16 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
 # curl: the patched libcurl (>= 8.23.0-r0, fixes CVE-2026-92392) is only in
 # alpine edge; 3.24 stable still ships the vulnerable 8.22.0-r0. Pull curl +
 # libcurl (only) from edge via a tagged repo until the fix is backported to 3.24
-# stable, then drop this. The @edge tag scopes edge to those two packages;
+# stable, then drop this. The @edge tag scopes edge to the tagged packages;
 # everything else stays stable. (jq >= 1.8.2-r0 and libexpat >= 2.9.0-r0 have
 # reached 3.24 stable, so they no longer come from edge.)
+# python3: likewise, the patched python3 (>= 3.14.10-r0, fixes CRITICAL
+# CVE-2026-115557) is only in edge; 3.24 stable ships 3.14.8-r0. Pull python3,
+# python3-dev and pyc (same origin; Scout reports pyc as python3) from edge --
+# same 3.14 minor/ABI, so the /az venv is unaffected -- and drop these once
+# 3.24 stable has the fix.
 RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache jq curl@edge libcurl@edge
+  apk add --no-cache jq curl@edge libcurl@edge python3@edge python3-dev@edge pyc@edge
 
 # Docker CLI, built from source in the go-alpine-downloader stage above --
 # the published static tarball carries an unpatched Go stdlib (#115).
