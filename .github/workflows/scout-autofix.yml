@@ -9,7 +9,13 @@ name: Scout autofix
 #     in review; skips a rebuild that would change nothing.
 #   * opens a PR for any fix needing a NEW source change (human merges within the
 #     SLA; the next daily cycle then ships it as a patch release).
-#   * comments when the only findings are unfixable.
+#   * opens a VEX waiver PR (OpenVEX not_affected + a .github/vex-ttl.json
+#     expiry, default 90 days) when Scout lists a fix that no upstream release
+#     ships yet. Owner policy 2026-10-28 (#180): without it the run could only
+#     comment, and the finding stayed red until upstream shipped. The TTL makes
+#     the gate fail again so someone re-checks upstream.
+#   * comments when the only findings have no fix anywhere, or a waiver would
+#     be false (the vulnerable code is reachable).
 # The customer remediation SLA (15d fixable Critical / 30d High) lives in
 # .github/scout-sla.json and is tracked + escalated by scout-drift.yml.
 #
@@ -99,6 +105,13 @@ jobs:
       - name: Run /scout-fix
         uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
         with:
+          # A from-source image build takes ~20 minutes (build-godynamic), past
+          # Claude Code's default 10-minute ceiling on a foreground Bash call.
+          # With that ceiling the agent backgrounds the build and waits for a
+          # notification that a headless run never delivers (run 40644785612,
+          # #180). Raise the ceiling so it can wait in the foreground.
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "600000", "BASH_MAX_TIMEOUT_MS": "3600000"}}
           # Official-app auth (claude-code-action mints the app token via OIDC,
           # using id-token: write above). Do NOT add a `github_token:` here — that
           # makes the action skip the official-app exchange, and a default
@@ -127,8 +140,21 @@ jobs:
                self-check with /verify-scout, and open a PR. Do NOT merge — a human
                reviews within the SLA. The next daily cycle ships it via a patch release
                once merged.
-            3. If the only findings are UNFIXABLE (no upstream fix yet): comment that on
-               the scout-drift issue; open nothing, cut nothing.
+            3. If Scout lists a fixed version but NO upstream release the image
+               consumes ships it yet (for example the fix is only on an unreleased
+               branch): do not force a bump or hand-swap a jar. Open ONE PR that adds,
+               per finding, an OpenVEX `not_affected` statement under .github/vex/
+               (with the matching GHSA alias), an entry in .github/vex-ttl.json that
+               expires 90 days from today and names the scout-drift issue as "#N"
+               (check it with `make vex-ttl-check`), and a docs/upstream-cve-backlog.md entry
+               naming the source path, why the code is not reachable, and the drop
+               trigger (the upstream release to wait for). Follow the skill's
+               "No upstream fix released yet" rule. Do NOT merge — a person reviews
+               a waiver. If the vulnerable code IS reachable with attacker input, a
+               waiver would be false: comment on the scout-drift issue and escalate
+               instead.
+            4. If the only findings have no fix anywhere (no fixed version at all):
+               comment that on the scout-drift issue; open nothing, cut nothing.
 
             Docker Hub auth: the runner is logged in with a Docker Hub OIDC token
             that expires 60 minutes after the job's "Configure DockerHub" step,
@@ -137,11 +163,23 @@ jobs:
             `bash scripts/dockerhub-oidc-login.sh` once and retry. Do not ask for
             or use any other Docker Hub credential.
 
+            This run is one-shot and headless: when you end your turn the job ends,
+            and nothing ever re-invokes you. Do not run commands in the background,
+            schedule a wakeup or wait on a monitor. Run each build and scan in the
+            foreground with a Bash timeout up to 3600000 ms, and finish (release, PR,
+            issue comment) before you end your turn. A run that ends with work
+            deferred fails the job.
+
             Steps 1 and 2 are NOT mutually exclusive — ship the rebuild now AND open the
             PR for the deeper fix. Never weaken posture to go green; when unsure,
             escalate on the issue.
           claude_args: |
             --allowedTools Bash,Edit,Write,Read,Grep,Glob,MultiEdit
+            # These tools only work when something re-invokes the agent later,
+            # and a headless run is never re-invoked: on 2026-10-28 (run
+            # 40644785612) the agent called Monitor and ScheduleWakeup, ended its
+            # turn with nothing done, and the job went green.
+            --disallowedTools ScheduleWakeup,CronCreate,CronDelete,CronList,Monitor
             # Raised 50 -> 150 after five consecutive daily failures (2026-08-14
             # through 08-18) on issue #115, every one of them
             # "error_max_turns ... Reached maximum number of turns (50)" at
@@ -154,6 +192,16 @@ jobs:
             --max-turns 150
             --model ${{ steps.auth.outputs.model }}
             ${{ steps.auth.outputs.fallback_args }}
+      # A run that defers work (a wakeup, cron or monitor) ends with is_error
+      # false, so the job was green and the failure comment and Slack alert
+      # below never fired (run 40644785612, #180: nothing shipped for the open
+      # Critical, and nobody was told). Fail it here so they do.
+      - name: Verify the agent finished its pass
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { verifyCompleted } = require('./scripts/scout-autofix-failure-comment.cjs');
+            verifyCompleted({ core });
       # Capture the agent's full stream-json conversation log for troubleshooting.
       # claude-code-action hides the transcript from the job log ("full output
       # hidden for security") and writes it to

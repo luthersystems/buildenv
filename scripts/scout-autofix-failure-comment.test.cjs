@@ -9,7 +9,7 @@ const os = require('os');
 const path = require('path');
 
 const run = require('./scout-autofix-failure-comment.cjs');
-const { readTrace, classifyFailure, buildBody, buildSlackText } = run;
+const { readTrace, classifyFailure, findDeferral, verifyCompleted, buildBody, buildSlackText } = run;
 
 // Trimmed from the real trace of run 35316086178 (2026-09-18), the first of the
 // four consecutive 429 failures on #126.
@@ -199,4 +199,98 @@ test('entrypoint: never throws, and still emits slack_text, when the API fails',
   assert.equal(env.calls.comments.length, 0);
   assert.ok(env.calls.outputs.slack_text);
   assert.equal(env.calls.warnings.length, 1);
+});
+
+// Trimmed from the real trace of run 40644785612 (2026-10-28, issue #180). The
+// agent started two ~20-minute image builds in the background, armed a
+// Monitor, called ScheduleWakeup, and ended its turn with "Nothing is
+// published or opened yet ... I'll check back in about 30 minutes". A headless
+// `claude -p` run has nobody to wake it: the session ended there, the step
+// reported success, and the rebuild that would have cleared the Critical on
+// #180 was never cut, nor the fix PR opened, nor a comment posted.
+const DEFERRED_TRACE = [
+  { type: 'system', subtype: 'init', model: 'us.anthropic.claude-opus-5-5' },
+  {
+    type: 'assistant',
+    message: {
+      content: [
+        {
+          type: 'tool_use',
+          name: 'Bash',
+          input: {
+            command: 'cd images && make PLATFORMS=linux/amd64 DOCKER_BUILDX_OPTS=--load build-godynamic',
+            run_in_background: true,
+          },
+        },
+      ],
+    },
+  },
+  {
+    type: 'assistant',
+    message: { content: [{ type: 'tool_use', name: 'Monitor', input: { description: 'builds finishing' } }] },
+  },
+  {
+    type: 'assistant',
+    message: {
+      content: [
+        { type: 'tool_use', name: 'ScheduleWakeup', input: { delaySeconds: 1800, prompt: 'Continue the scout-fix remediation' } },
+      ],
+    },
+  },
+  {
+    type: 'result',
+    subtype: 'success',
+    is_error: false,
+    num_turns: 34,
+    terminal_reason: 'completed',
+    result: "Nothing is published or opened yet. Two local builds are running, and I'll check back in about 30 minutes.",
+  },
+];
+
+test('findDeferral: the real 2026-10-28 trace deferred work past the end of the run', () => {
+  const d = findDeferral(DEFERRED_TRACE);
+  assert.ok(d, 'expected a deferral');
+  assert.deepEqual(d.tools, ['ScheduleWakeup', 'Monitor', 'Bash(run_in_background)']);
+});
+
+test('findDeferral: a run that waits in the foreground is not a deferral', () => {
+  const t = [
+    {
+      type: 'assistant',
+      message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'make build-godynamic', timeout: 3600000 } }] },
+    },
+    { type: 'result', subtype: 'success', is_error: false, result: 'Cut v0.1.50 and commented on #180.' },
+  ];
+  assert.equal(findDeferral(t), null);
+  assert.equal(findDeferral(null), null);
+  // A background Bash alone is not proof: the agent may have read its result
+  // before ending. Only a wakeup, cron or monitor proves it meant to come back.
+  const bgOnly = [
+    { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'make', run_in_background: true } }] } },
+  ];
+  assert.equal(findDeferral(bgOnly), null);
+});
+
+test('classifies a successful-looking run that deferred work as deferred, not outside_agent', () => {
+  const f = classifyFailure(DEFERRED_TRACE);
+  assert.equal(f.kind, 'deferred');
+  assert.match(f.summary, /ScheduleWakeup/);
+  assert.match(f.summary, /nothing re-invokes/);
+  assert.match(f.humanAction, /scout-fix/);
+});
+
+test('verify entrypoint: fails the step on a deferred trace, passes a clean one', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'autofix-verify-'));
+  const file = path.join(dir, 'claude-execution-output.json');
+  const failed = [];
+  const core = { setFailed: (m) => failed.push(m), info: () => {} };
+
+  fs.writeFileSync(file, JSON.stringify(DEFERRED_TRACE));
+  verifyCompleted({ core, tracePath: file });
+  assert.equal(failed.length, 1);
+  assert.match(failed[0], /ended its run with work deferred/);
+
+  fs.writeFileSync(file, JSON.stringify([{ type: 'result', subtype: 'success', is_error: false }]));
+  verifyCompleted({ core, tracePath: file });
+  assert.equal(failed.length, 1, 'a clean trace must not fail the step');
 });
