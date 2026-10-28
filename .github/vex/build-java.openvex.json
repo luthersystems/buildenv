@@ -15,7 +15,7 @@
           "@id": "pkg:docker/luthersystems/build-java",
           "subcomponents": [
             {
-              "@id": "pkg:maven/com.google.guava/guava"
+              "@id": "pkg:maven/com.google.guava/guava@33.6.0-jre"
             }
           ]
         }
@@ -34,7 +34,7 @@
           "@id": "pkg:docker/luthersystems/build-java",
           "subcomponents": [
             {
-              "@id": "pkg:maven/com.google.guava/guava"
+              "@id": "pkg:maven/com.google.guava/guava@33.6.0-jre"
             }
           ]
         }

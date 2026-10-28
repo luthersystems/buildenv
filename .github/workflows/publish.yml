@@ -220,9 +220,13 @@ jobs:
           for f in ".github/vex/${IMAGE}.openvex.json" ".github/vex/${IMAGE}-"*.openvex.json; do
             [ -e "$f" ] || continue
             found=1
-            echo "Attaching OpenVEX $f to luthersystems/${IMAGE}:${REF}"
+            # Attach only the live waivers (unexpired TTL), so Docker Hub's
+            # grade drops a waiver when the CI gate does.
+            live="$(mktemp)"
+            bash scripts/vex-live.sh "$f" "$IMAGE" > "$live"
+            echo "Attaching OpenVEX $f (live waivers only) to luthersystems/${IMAGE}:${REF}"
             docker scout attestation add \
-              --file "$f" \
+              --file "$live" \
               --predicate-type https://openvex.dev/ns/v0.2.0 \
               --org luthersystems \
               --referrer \

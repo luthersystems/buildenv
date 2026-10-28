@@ -129,14 +129,14 @@
           "@id": "pkg:docker/luthersystems/build-godynamic",
           "subcomponents": [
             {
-              "@id": "pkg:pypi/msgpack"
+              "@id": "pkg:pypi/msgpack@1.1.2"
             }
           ]
         }
       ],
       "status": "not_affected",
       "justification": "vulnerable_code_not_present",
-      "impact_statement": "The vulnerable code is not in the image. CVE-2026-114613 is a memory leak in msgpack's C extension (msgpack._cmsgpack) on a strict_map_key validation failure; the advisory states the pure-Python fallback does not have the leak. pip vendors only the pure-Python msgpack: the pip 26.2.2 wheel (py3-none-any) holds pip/_vendor/msgpack/{__init__,exceptions,ext,fallback}.py and no _cmsgpack extension module (verified by listing the wheel). So pip's vendored msgpack always runs fallback.py. This is an absence claim, like CVE-2025-47273 above. Even if it were present, the reachability argument of CVE-2026-57585 applies: pip only deserializes its own local HTTP cache via cachecontrol. SOURCE: the finding resolves to pip's OWN vendored msgpack 1.1.2 at /az/venv/lib/python3.14/site-packages/pip/_vendor/msgpack, reported via pip/_vendor/bom.cdx.json -- the same location as the CVE-2026-57585 statement above. NO UPSTREAM FIX EXISTS: pip 26.2.2 (latest at time of writing) still pins msgpack==1.1.2 in pip/_vendor/vendor.txt; pip main has 1.2.3, unreleased. DROP TRIGGER: a pip release that vendors msgpack>=1.2.3; then rebuild and delete this statement and GHSA-j586-36cw-2gc2. TTL: .github/vex-ttl.json. Tracked in #180."
+      "impact_statement": "The vulnerable code is not in the image. CVE-2026-114613 is a memory leak in msgpack's C extension (msgpack._cmsgpack) on a strict_map_key validation failure; the advisory states the pure-Python fallback does not have the leak. pip vendors only the pure-Python msgpack: the pip 26.2.2 wheel (py3-none-any) holds pip/_vendor/msgpack/{__init__,exceptions,ext,fallback}.py and no _cmsgpack extension module (verified by listing the wheel). So pip's vendored msgpack always runs fallback.py. This is an absence claim, like CVE-2025-47273 above. Even if it were present, the reachability argument of CVE-2026-57585 applies: pip only deserializes its own local HTTP cache via cachecontrol. SOURCE: the finding resolves to pip's OWN vendored msgpack 1.1.2 at /az/venv/lib/python3.14/site-packages/pip/_vendor/msgpack, reported via pip/_vendor/bom.cdx.json -- the same location as the CVE-2026-57585 statement above. SCOPE: this covers only pip's vendored pure-Python copy (msgpack 1.1.2). If a msgpack wheel with _cmsgpack is ever installed in the image (for example as an azure-cli or aws-cli dependency), this absence claim no longer holds: delete this statement and fix that copy. NO UPSTREAM FIX EXISTS: pip 26.2.2 (latest at time of writing) still pins msgpack==1.1.2 in pip/_vendor/vendor.txt; pip main has 1.2.3, unreleased. DROP TRIGGER: a pip release that vendors msgpack>=1.2.3; then rebuild and delete this statement and GHSA-j586-36cw-2gc2. TTL: .github/vex-ttl.json. Tracked in #180."
     },
     {
       "vulnerability": {
@@ -148,7 +148,7 @@
           "@id": "pkg:docker/luthersystems/build-godynamic",
           "subcomponents": [
             {
-              "@id": "pkg:pypi/msgpack"
+              "@id": "pkg:pypi/msgpack@1.1.2"
             }
           ]
         }
