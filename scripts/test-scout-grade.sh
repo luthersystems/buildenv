@@ -68,7 +68,7 @@ fails=0
 check() {
   local name="$1" want_rc="$2"; shift 2
   local rc=0
-  SCOUT_GRADE_OUT="$work/out" VEX_DIR="$FIX/vex" \
+  SCOUT_GRADE_OUT="$work/out" VEX_DIR="$FIX/vex" VEX_TTL="$FIX/vex-ttl.json" SCOUT_TODAY=2026-10-28 \
     bash "$here/scout-grade.sh" luthersystems/img:v1 img > "$work/log" 2>&1 || rc=$?
   local bad=""
   [ "$rc" = "$want_rc" ] || bad="exit $rc, want $want_rc"
@@ -126,7 +126,17 @@ echo "  ✗ HIGH CVE-2026-1111" > "$FIX/cves-high.txt"
 cat > "$FIX/vex/img.openvex.json" <<'EOF'
 {"statements":[{"vulnerability":{"name":"CVE-2026-1111"},"status":"not_affected","products":[{"@id":"pkg:docker/luthersystems/img"}]}]}
 EOF
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-10-28"}}}' > "$FIX/vex-ttl.json"
 check "VEX-waived high passes" 0 high=no grade=pass
+
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-10-27"}}}' > "$FIX/vex-ttl.json"
+check "expired VEX waiver fails" 1 high=yes
+
+echo '{"other":{"CVE-2026-1111":{"expires":"2027-01-01"}}}' > "$FIX/vex-ttl.json"
+check "VEX waiver without a TTL fails" 1 high=yes
+
+rm "$FIX/vex-ttl.json"
+check "missing TTL file fails closed" 1 high=yes
 
 base_fixture "$FIX"
 echo "  ✗ CRITICAL (no id printed)" > "$FIX/cves-critical.txt"

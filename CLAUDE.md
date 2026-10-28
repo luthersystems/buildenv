@@ -68,7 +68,9 @@ the bundled artifact goes clean. `build-godynamic` stays grade-A via an OpenVEX
 moby finding (CVE-2026-34040 — a daemon AuthZ bug not reachable from the compose
 client it ships): the PR gate ([`scripts/scout-cve-gate.sh`](scripts/scout-cve-gate.sh))
 lists fixable C/H findings and drops VEX-waived ones, fail-closed (Scout's own
-`cves --exit-code` can't honor VEX). The
+`cves --exit-code` can't honor VEX). Each waiver needs an unexpired
+entry in [`.github/vex-ttl.json`](.github/vex-ttl.json) (default 90 days); a
+fixable CVE with no released upstream fix gets a VEX waiver PR by default (`/scout-fix`). The
 required + exempt sets are the single source of truth in
 [`.github/scout-required-images.json`](.github/scout-required-images.json), gated
 in CI four ways:

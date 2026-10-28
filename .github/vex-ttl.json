@@ -1,0 +1,47 @@
+{
+  "_comment": "Expiry date (UTC, inclusive) for each OpenVEX not_affected waiver under .github/vex/. scripts/scout-cve-gate.sh ignores a waiver past its date or with no entry here, so the finding fails the gate again and someone re-checks upstream. Default TTL 90 days. Renew by re-checking the drop trigger, then moving the date.",
+  "build-godynamic": {
+    "CVE-2026-34040": {
+      "expires": "2027-01-26",
+      "issue": "docs/upstream-cve-backlog.md"
+    },
+    "CVE-2025-47273": {
+      "expires": "2027-01-26",
+      "issue": "docs/upstream-cve-backlog.md"
+    },
+    "CVE-2026-57585": {
+      "expires": "2027-01-26",
+      "issue": "docs/upstream-cve-backlog.md"
+    },
+    "GHSA-6v7p-g79w-8964": {
+      "expires": "2027-01-26",
+      "issue": "docs/upstream-cve-backlog.md"
+    },
+    "CVE-2026-97689": {
+      "expires": "2027-01-26",
+      "issue": "docs/upstream-cve-backlog.md"
+    },
+    "CVE-2026-97687": {
+      "expires": "2027-01-26",
+      "issue": "docs/upstream-cve-backlog.md"
+    },
+    "CVE-2026-114613": {
+      "expires": "2027-01-26",
+      "issue": "#180"
+    },
+    "GHSA-j586-36cw-2gc2": {
+      "expires": "2027-01-26",
+      "issue": "#180"
+    }
+  },
+  "build-java": {
+    "CVE-2026-102554": {
+      "expires": "2027-01-26",
+      "issue": "#180"
+    },
+    "GHSA-xxph-c9ww-hj94": {
+      "expires": "2027-01-26",
+      "issue": "#180"
+    }
+  }
+}
