@@ -1,7 +1,7 @@
 # Root operator entry points — thin wrappers over scripts/ so repo logic is
 # callable from make (image builds stay in images/Makefile: `cd images && make …`).
 
-.PHONY: slack-test next-patch-version scout-setup scout-check docker-cli-check test-scripts scout-cli-install test-scout-grade test-ci-changes
+.PHONY: slack-test next-patch-version scout-setup scout-check docker-cli-check test-scripts scout-cli-install test-scout-grade vex-ttl-check test-ci-changes
 
 # Send a test alert through scripts/slack-alert.sh to verify the Slack #alerts
 # webhook wiring end-to-end. No-op (prints a skip) if SLACK_ALERT_WEBHOOK_URL
@@ -63,6 +63,12 @@ test-scripts:
 # with a fake docker; no network. Also run in CI by build.yml's `script-tests` job.
 test-scout-grade:
 	bash scripts/test-scout-grade.sh
+
+# Check .github/vex-ttl.json against the OpenVEX statements: one live TTL entry
+# per waiver, real dates at most 120 days out, an issue on each. Run by
+# build.yml's `script-tests` job.
+vex-ttl-check:
+	bash scripts/vex-ttl-check.sh
 
 # Unit-test the docs-only CI skip (scripts/ci-changes.sh). Also run in CI by
 # build.yml's `script-tests` job.

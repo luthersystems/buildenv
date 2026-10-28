@@ -102,6 +102,8 @@ jobs:
         run: make test-scripts
       - name: make test-scout-grade
         run: make test-scout-grade # CI grade + VEX-aware CVE gate (#150)
+      - name: make vex-ttl-check
+        run: make vex-ttl-check # every VEX waiver has a live TTL (#180)
       - name: make test-ci-changes
         run: make test-ci-changes # docs-only CI skip
       - name: make check-harden

@@ -284,7 +284,18 @@ note the tag on the issue. Done.
   Section F may ship a not-yet-pristine image while an A–C fix is in review, but
   only if `docker scout compare` shows it's strictly better than the last release.
   Never publish a rebuild that *adds* a fixable C/H or drops the grade.
-- **Unfixable CVE (no `--only-fixed` hit, no upstream fix yet):** there's no
+- **No upstream fix released yet (Scout lists a fixed version, but no release
+  the image consumes ships it):** don't force a bump or a hand-swapped jar. By
+  default, open a PR that adds an OpenVEX `not_affected` statement (with the
+  matching GHSA alias) and a TTL entry in `.github/vex-ttl.json` (default 90
+  days). The statement names the source path, the reachability or absence
+  argument, and the drop trigger, and the PR adds a `docs/upstream-cve-backlog.md`
+  entry. `scripts/scout-cve-gate.sh` ignores a waiver past its TTL or with no
+  TTL entry, so the finding returns until someone re-checks upstream. A person
+  reviews the PR, since a waiver is a judgment, not a bump. If the vulnerable code
+  is reachable with attacker input, a waiver would be false: escalate instead.
+  (Owner policy, 2026-10-28, #180.)
+- **Unfixable CVE (no `--only-fixed` hit at all):** there's no
   clean bump. Don't force one. Record it (the non-blocking SARIF/quickview steps
   already track totals) and, if it blocks a release policy, surface it to a human
   with the CVE id and why no fix exists — don't broaden `--only-policy` silently.

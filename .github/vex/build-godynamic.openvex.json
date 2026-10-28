@@ -2,8 +2,8 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://luthersystems.com/vex/buildenv/build-godynamic",
   "author": "Luther Systems (buildenv CI)",
-  "timestamp": "2026-10-10T00:00:00Z",
-  "version": 7,
+  "timestamp": "2026-10-28T00:00:00Z",
+  "version": 8,
   "statements": [
     {
       "vulnerability": {
@@ -118,6 +118,44 @@
       "status": "not_affected",
       "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
       "impact_statement": "Same SOURCE and same pip-vendored root as CVE-2026-97689 (read that statement for the full source/upstream analysis): the finding is pip's OWN vendored urllib3 at /az/venv/lib/python3.14/site-packages/pip/_vendor/urllib3 (reported via pip/_vendor/bom.cdx.json), NOT the azure-cli dependency -- the top-level urllib3 azure-cli installs is already the fixed 2.8.0. REACHABILITY for THIS CVE: CVE-2026-97687 misapplies target-specific TLS identity/credentials to an HTTPS PROXY connection, so it can only be triggered when the client is configured to reach the index through an attacker-controlled HTTPS proxy. pip in this image is configured with no HTTPS proxy, and the proxy configuration (HTTPS_PROXY / pip's --proxy) is operator-controlled, not adversary-controlled; a remote attacker cannot inject a malicious proxy into pip's build-time index fetches. pip's vendored urllib3 is exercised only for pip's own package-index traffic (image build / explicit `az extension add`), never as a network-facing service handling attacker-routed connections, so the vulnerable proxy-cert-validation path is not reachable with adversary-controlled input. NO UPSTREAM FIX EXISTS: pip 26.2.1 (latest) still vendors urllib3 2.7.0; upgrading pip does not clear it, and deleting pip from /az/venv breaks `az extension add`. DROP TRIGGER: a pip release that refreshes pip/_vendor/vendor.txt to urllib3>=2.8.0; then rebuild and delete this statement (together with CVE-2026-97689). Tracked in docs/upstream-cve-backlog.md."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-114613",
+        "description": "msgpack C extension (msgpack._cmsgpack) leaks a decoded map value when strict_map_key rejects a key; repeated malformed input grows memory (DoS). Affects <1.2.3; fixed in 1.2.3. The pure-Python fallback is not affected."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-godynamic",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/msgpack@1.1.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The vulnerable code is not in the image. CVE-2026-114613 is a memory leak in msgpack's C extension (msgpack._cmsgpack) on a strict_map_key validation failure; the advisory states the pure-Python fallback does not have the leak. pip vendors only the pure-Python msgpack: the pip 26.2.2 wheel (py3-none-any) holds pip/_vendor/msgpack/{__init__,exceptions,ext,fallback}.py and no _cmsgpack extension module (verified by listing the wheel). So pip's vendored msgpack always runs fallback.py. This is an absence claim, like CVE-2025-47273 above. Even if it were present, the reachability argument of CVE-2026-57585 applies: pip only deserializes its own local HTTP cache via cachecontrol. SOURCE: the finding resolves to pip's OWN vendored msgpack 1.1.2 at /az/venv/lib/python3.14/site-packages/pip/_vendor/msgpack, reported via pip/_vendor/bom.cdx.json -- the same location as the CVE-2026-57585 statement above. SCOPE: this covers only pip's vendored pure-Python copy (msgpack 1.1.2). If a msgpack wheel with _cmsgpack is ever installed in the image (for example as an azure-cli or aws-cli dependency), this absence claim no longer holds: delete this statement and fix that copy. NO UPSTREAM FIX EXISTS: pip 26.2.2 (latest at time of writing) still pins msgpack==1.1.2 in pip/_vendor/vendor.txt; pip main has 1.2.3, unreleased. DROP TRIGGER: a pip release that vendors msgpack>=1.2.3; then rebuild and delete this statement and GHSA-j586-36cw-2gc2. TTL: .github/vex-ttl.json. Tracked in #180."
+    },
+    {
+      "vulnerability": {
+        "name": "GHSA-j586-36cw-2gc2",
+        "description": "GitHub advisory for the same defect as CVE-2026-114613."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-godynamic",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/msgpack@1.1.2"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Duplicate identifier for CVE-2026-114613; the analysis and drop trigger are the same as that statement. Remove both together."
     }
   ]
 }

@@ -68,7 +68,7 @@ fails=0
 check() {
   local name="$1" want_rc="$2"; shift 2
   local rc=0
-  SCOUT_GRADE_OUT="$work/out" VEX_DIR="$FIX/vex" \
+  SCOUT_GRADE_OUT="$work/out" VEX_DIR="$FIX/vex" VEX_TTL="$FIX/vex-ttl.json" SCOUT_TODAY=2026-10-28 \
     bash "$here/scout-grade.sh" luthersystems/img:v1 img > "$work/log" 2>&1 || rc=$?
   local bad=""
   [ "$rc" = "$want_rc" ] || bad="exit $rc, want $want_rc"
@@ -126,7 +126,71 @@ echo "  ✗ HIGH CVE-2026-1111" > "$FIX/cves-high.txt"
 cat > "$FIX/vex/img.openvex.json" <<'EOF'
 {"statements":[{"vulnerability":{"name":"CVE-2026-1111"},"status":"not_affected","products":[{"@id":"pkg:docker/luthersystems/img"}]}]}
 EOF
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-10-28"}}}' > "$FIX/vex-ttl.json"
 check "VEX-waived high passes" 0 high=no grade=pass
+
+# logged <name> <regex>: the last check's log names the reason.
+logged() {
+  if ! grep -Eq "$2" "$work/log"; then
+    echo "FAIL $1: log lacks /$2/"; sed 's/^/    /' "$work/log"; fails=$((fails + 1))
+  fi
+}
+
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-11-05"}}}' > "$FIX/vex-ttl.json"
+check "VEX waiver near its TTL passes with a warning" 0 high=no
+logged "near TTL warns" "CVE-2026-1111 for img expires on 2026-11-05"
+
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-10-27"}}}' > "$FIX/vex-ttl.json"
+check "expired VEX waiver fails" 1 high=yes
+logged "expired is the reason" "CVE-2026-1111 for img expired on 2026-10-27"
+
+echo '{"other":{"CVE-2026-1111":{"expires":"2027-01-01"}}}' > "$FIX/vex-ttl.json"
+check "VEX waiver without a TTL fails" 1 high=yes
+logged "missing TTL is the reason" "CVE-2026-1111 for img has no TTL"
+
+for bad in '"2027-2-01"' '"2027-02-30"' '["2027-01-26"]' '20270126' '"9999-12-31"'; do
+  echo "{\"img\":{\"CVE-2026-1111\":{\"expires\":$bad}}}" > "$FIX/vex-ttl.json"
+  check "invalid TTL $bad fails" 1 high=yes
+  logged "invalid TTL $bad is the reason" "CVE-2026-1111 for img has an invalid TTL"
+done
+
+echo 'not json' > "$FIX/vex-ttl.json"
+check "malformed TTL file fails closed" 1
+logged "malformed TTL file is the reason" "failed to parse VEX TTL file"
+
+rm "$FIX/vex-ttl.json"
+check "missing TTL file fails closed" 1 high=yes
+logged "missing TTL file is the reason" "no VEX TTL file"
+
+# vex-live.sh: the attested doc keeps only live waivers.
+cat > "$FIX/vex/img.openvex.json" <<'EOF2'
+{"statements":[
+ {"vulnerability":{"name":"CVE-2026-1111"},"status":"not_affected","products":[{"@id":"pkg:docker/luthersystems/img"}]},
+ {"vulnerability":{"name":"CVE-2026-2222"},"status":"not_affected","products":[{"@id":"pkg:docker/luthersystems/img"}]}]}
+EOF2
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-12-01"},"CVE-2026-2222":{"expires":"2026-10-01"}}}' > "$FIX/vex-ttl.json"
+got="$(VEX_TTL="$FIX/vex-ttl.json" SCOUT_TODAY=2026-10-28 bash "$here/vex-live.sh" "$FIX/vex/img.openvex.json" img | jq -c '[.statements[].vulnerability.name]')"
+if [ "$got" = '["CVE-2026-1111"]' ]; then echo "ok   vex-live drops expired waivers"
+else echo "FAIL vex-live drops expired waivers: got $got"; fails=$((fails + 1)); fi
+
+# vex-ttl-check.sh: statements and TTL entries stay in step.
+ttlcheck() {
+  local name="$1" want="$2" rc=0
+  VEX_DIR="$FIX/vex" VEX_TTL="$FIX/vex-ttl.json" SCOUT_TODAY=2026-10-28 \
+    bash "$here/vex-ttl-check.sh" > "$work/log" 2>&1 || rc=$?
+  if [ "$rc" = "$want" ]; then echo "ok   $name"
+  else echo "FAIL $name: exit $rc, want $want"; sed 's/^/    /' "$work/log"; fails=$((fails + 1)); fi
+}
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-12-01","issue":"#1"},"CVE-2026-2222":{"expires":"2026-10-01","issue":"o/r#2"}}}' > "$FIX/vex-ttl.json"
+ttlcheck "ttl-check passes (a past date is only the gate's business)" 0
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-12-01","issue":"#1"}}}' > "$FIX/vex-ttl.json"
+ttlcheck "ttl-check fails on a statement with no entry" 1
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-12-01","issue":"#1"},"CVE-2026-2222":{"expires":"2026-12-01","issue":"#2"},"CVE-2026-3333":{"expires":"2026-12-01","issue":"#3"}}}' > "$FIX/vex-ttl.json"
+ttlcheck "ttl-check fails on an entry with no statement" 1
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-12-01","issue":"docs/x.md"},"CVE-2026-2222":{"expires":"2026-12-01","issue":"#2"}}}' > "$FIX/vex-ttl.json"
+ttlcheck "ttl-check fails on an issue that is not #N" 1
+echo '{"img":{"CVE-2026-1111":{"expires":"2027-12-01","issue":"#1"},"CVE-2026-2222":{"expires":"2026-12-01","issue":"#2"}}}' > "$FIX/vex-ttl.json"
+ttlcheck "ttl-check fails on a date past the 120-day cap" 1
 
 base_fixture "$FIX"
 echo "  ✗ CRITICAL (no id printed)" > "$FIX/cves-critical.txt"
