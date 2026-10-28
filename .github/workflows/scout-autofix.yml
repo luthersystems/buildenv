@@ -145,7 +145,8 @@ jobs:
                branch): do not force a bump or hand-swap a jar. Open ONE PR that adds,
                per finding, an OpenVEX `not_affected` statement under .github/vex/
                (with the matching GHSA alias), an entry in .github/vex-ttl.json that
-               expires 90 days from today, and a docs/upstream-cve-backlog.md entry
+               expires 90 days from today and names the scout-drift issue as "#N"
+               (check it with `make vex-ttl-check`), and a docs/upstream-cve-backlog.md entry
                naming the source path, why the code is not reachable, and the drop
                trigger (the upstream release to wait for). Follow the skill's
                "No upstream fix released yet" rule. Do NOT merge — a person reviews
