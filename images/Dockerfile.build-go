@@ -70,9 +70,12 @@ ARG DOCKER_CLI_VERSION
 # golang.org/x/net 0.60.0: CVE-2026-78663 (CRITICAL) and CVE-2026-78659 /
 # CVE-2026-78660 / CVE-2026-78669 (HIGH), all fixed in 0.60.0 (#144). x/net
 # 0.60.0 requires x/crypto >= 0.57.0, x/sys >= 0.48.0 and x/text >= 0.42.0.
+# github.com/go-jose/go-jose/v4 4.1.6: docker/cli pulls 4.1.4, vulnerable to
+# CVE-2026-116587 (HIGH, fixed in 4.1.6; #180). Drop the pin once docker/cli
+# requires it.
 RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
     go mod init _dockercli && \
-    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v1.83.2 golang.org/x/net@v0.60.0 && \
+    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v1.83.2 golang.org/x/net@v0.60.0 github.com/go-jose/go-jose/v4@v4.1.6 && \
     CGO_ENABLED=0 go build -tags "grpcnotrace,osusergo,netgo" \
       -ldflags "-X github.com/docker/cli/cli/version.Version=${DOCKER_CLI_VERSION} -X github.com/docker/cli/cli/version.GitCommit=unknown -X github.com/docker/cli/cli/version.BuildTime=unknown -X github.com/docker/cli/cli/version.PlatformName=Docker" \
       -o /go/bin/docker "github.com/docker/cli/cmd/docker" && \
