@@ -63,12 +63,18 @@ path (azure-cli's vendored crypto, the swagger-codegen JAR's libs, build-e2e's
 bundled binaries), so there's no buildenv-side fix and a VEX `not_affected` would
 be false; tracked in
 [`docs/upstream-cve-backlog.md`](docs/upstream-cve-backlog.md), re-promoted once
-the bundled artifact goes clean. `build-godynamic` stays grade-A via an OpenVEX
-`not_affected` waiver ([`.github/vex/`](.github/vex/)) for one upstream-frozen
-moby finding (CVE-2026-34040 — a daemon AuthZ bug not reachable from the compose
-client it ships): the PR gate ([`scripts/scout-cve-gate.sh`](scripts/scout-cve-gate.sh))
-lists fixable C/H findings and drops VEX-waived ones, fail-closed (Scout's own
-`cves --exit-code` can't honor VEX). The
+the bundled artifact goes clean. `build-godynamic` and `build-java` stay grade-A
+via OpenVEX `not_affected` waivers ([`.github/vex/`](.github/vex/)) for
+upstream-frozen findings (build-godynamic: moby CVE-2026-34040 and pip's
+vendored setuptools, msgpack and urllib3; build-java: Maven's guava), each
+listed in the backlog with its drop trigger. The PR gate
+([`scripts/scout-cve-gate.sh`](scripts/scout-cve-gate.sh)) lists fixable C/H
+findings and drops VEX-waived ones, fail-closed (Scout's own `cves --exit-code`
+can't honor VEX). Each waiver needs a live entry in
+[`.github/vex-ttl.json`](.github/vex-ttl.json) (default 90 days, at most 120,
+checked by `make vex-ttl-check`); publish attaches only live waivers
+(`scripts/vex-live.sh`). A fixable CVE whose fix no upstream release ships gets
+a VEX waiver PR with a TTL by default (`/scout-fix`). The
 required + exempt sets are the single source of truth in
 [`.github/scout-required-images.json`](.github/scout-required-images.json), gated
 in CI four ways:
