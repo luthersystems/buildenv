@@ -99,6 +99,13 @@ jobs:
       - name: Run /scout-fix
         uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
         with:
+          # A from-source image build takes ~20 minutes (build-godynamic), past
+          # Claude Code's default 10-minute ceiling on a foreground Bash call.
+          # With that ceiling the agent backgrounds the build and waits for a
+          # notification that a headless run never delivers (run 40644785612,
+          # #180). Raise the ceiling so it can wait in the foreground.
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "600000", "BASH_MAX_TIMEOUT_MS": "3600000"}}
           # Official-app auth (claude-code-action mints the app token via OIDC,
           # using id-token: write above). Do NOT add a `github_token:` here — that
           # makes the action skip the official-app exchange, and a default
@@ -137,11 +144,23 @@ jobs:
             `bash scripts/dockerhub-oidc-login.sh` once and retry. Do not ask for
             or use any other Docker Hub credential.
 
+            This run is one-shot and headless: when you end your turn the job ends,
+            and nothing ever re-invokes you. Do not run commands in the background,
+            schedule a wakeup or wait on a monitor. Run each build and scan in the
+            foreground with a Bash timeout up to 3600000 ms, and finish (release, PR,
+            issue comment) before you end your turn. A run that ends with work
+            deferred fails the job.
+
             Steps 1 and 2 are NOT mutually exclusive — ship the rebuild now AND open the
             PR for the deeper fix. Never weaken posture to go green; when unsure,
             escalate on the issue.
           claude_args: |
             --allowedTools Bash,Edit,Write,Read,Grep,Glob,MultiEdit
+            # These tools only work when something re-invokes the agent later,
+            # and a headless run is never re-invoked: on 2026-10-28 (run
+            # 40644785612) the agent called Monitor and ScheduleWakeup, ended its
+            # turn with nothing done, and the job went green.
+            --disallowedTools ScheduleWakeup,CronCreate,CronDelete,CronList,Monitor
             # Raised 50 -> 150 after five consecutive daily failures (2026-08-14
             # through 08-18) on issue #115, every one of them
             # "error_max_turns ... Reached maximum number of turns (50)" at
@@ -154,6 +173,16 @@ jobs:
             --max-turns 150
             --model ${{ steps.auth.outputs.model }}
             ${{ steps.auth.outputs.fallback_args }}
+      # A run that defers work (a wakeup, cron or monitor) ends with is_error
+      # false, so the job was green and the failure comment and Slack alert
+      # below never fired (run 40644785612, #180: nothing shipped for the open
+      # Critical, and nobody was told). Fail it here so they do.
+      - name: Verify the agent finished its pass
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { verifyCompleted } = require('./scripts/scout-autofix-failure-comment.cjs');
+            verifyCompleted({ core });
       # Capture the agent's full stream-json conversation log for troubleshooting.
       # claude-code-action hides the transcript from the job log ("full output
       # hidden for security") and writes it to

@@ -19,6 +19,12 @@
 //     drift" — false (PR #127 was open) AND unhelpful (it didn't say the cause
 //     was a quota nobody in the repo can fix, or that the new Critical was
 //     never looked at).
+//   * 2026-10-28 — the agent backgrounded two image builds, armed a Monitor,
+//     called ScheduleWakeup and ended its turn with nothing done (run
+//     40644785612, #180). Its result was not an error, so the job was green
+//     and this script never ran. The workflow now fails such a run in a
+//     "Verify the agent finished its pass" step (verifyCompleted below), and
+//     classifyFailure names it `deferred`.
 //
 // So the comment now:
 //   1. names the concrete cause, parsed from the agent trace that
@@ -82,9 +88,39 @@ function readTrace(file) {
 const iso = (epochSeconds) =>
   Number.isFinite(epochSeconds) ? new Date(epochSeconds * 1000).toISOString().replace('.000Z', 'Z') : null;
 
+// Tools that only make sense when something re-invokes the agent later. The
+// autofix agent runs once, headless (`claude -p` under claude-code-action):
+// when it ends its turn the session exits, so a scheduled wakeup or a monitor
+// event never arrives and background tasks die with the runner. On
+// 2026-10-28 (run 40644785612, #180) the agent backgrounded two ~20-minute
+// image builds, armed a Monitor, called ScheduleWakeup and ended its turn
+// with "Nothing is published or opened yet". The step reported success, so
+// neither this script nor Slack fired, and the rebuild that would have
+// cleared the open Critical waited for a human.
+const DEFERRAL_TOOLS = ['ScheduleWakeup', 'CronCreate', 'Monitor'];
+
+// Returns { tools } naming what the agent deferred, or null. A deferral needs
+// one of DEFERRAL_TOOLS: a background Bash on its own may have been waited on
+// before the run ended, so it is only listed as context, never the trigger.
+function findDeferral(trace) {
+  if (!trace || !trace.length) return null;
+  const used = new Set();
+  const background = new Set();
+  for (const m of trace) {
+    if (!m || m.type !== 'assistant' || !m.message || !Array.isArray(m.message.content)) continue;
+    for (const c of m.message.content) {
+      if (!c || c.type !== 'tool_use') continue;
+      if (DEFERRAL_TOOLS.includes(c.name)) used.add(c.name);
+      if (c.input && c.input.run_in_background === true) background.add(`${c.name}(run_in_background)`);
+    }
+  }
+  if (!used.size) return null;
+  return { tools: [...DEFERRAL_TOOLS.filter((t) => used.has(t)), ...background] };
+}
+
 // Classify why the agent step failed. Returns
 //   { kind, summary, humanAction }
-// kind ∈ 'quota' | 'max_turns' | 'api_error' | 'agent_error' | 'outside_agent'
+// kind ∈ 'quota' | 'max_turns' | 'api_error' | 'agent_error' | 'deferred' | 'outside_agent'
 function classifyFailure(trace) {
   if (!trace || !trace.length) {
     return {
@@ -153,11 +189,44 @@ function classifyFailure(trace) {
     };
   }
 
+  const deferral = findDeferral(trace);
+  if (deferral) {
+    return {
+      kind: 'deferred',
+      summary:
+        `the agent ended its run with work deferred (${deferral.tools.map((t) => `\`${t}\``).join(', ')}), ` +
+        'but nothing re-invokes a headless run, so that work never happened' +
+        (result && result.result ? ` (its last words: "${String(result.result).slice(0, 200)}")` : ''),
+      humanAction:
+        'Read the trace to see what it was waiting on, then finish the remediation by hand (`/scout-fix`) ' +
+        'or re-run the workflow. If it recurs, the prompt or `--disallowedTools` in scout-autofix.yml let a ' +
+        'deferral tool through.',
+    };
+  }
+
   return {
     kind: 'outside_agent',
     summary: 'the agent finished, but a step outside it failed',
     humanAction: 'Read the failed step in the run log.',
   };
+}
+
+// Entry point for the "Verify the agent finished its pass" step, which runs
+// right after the agent step. A deferred run ends with is_error false, so
+// without this check the job is green and the failure comment and Slack
+// alert never fire. Failing here hands the run to those if: failure() steps,
+// which classify it as `deferred` from the same trace.
+function verifyCompleted({ core, tracePath }) {
+  const file = tracePath || path.join(process.env.RUNNER_TEMP || '', TRACE_FILE);
+  const deferral = findDeferral(readTrace(file));
+  if (deferral) {
+    core.setFailed(
+      `The agent ended its run with work deferred (${deferral.tools.join(', ')}); a headless run is never ` +
+        're-invoked, so that work did not happen.',
+    );
+    return;
+  }
+  core.info('The agent finished its pass without deferring work.');
 }
 
 function buildBody({ runUrl, runId, failure, inflightPRs, slaLabels }) {
@@ -263,5 +332,7 @@ module.exports = async ({ github, context, core }) => {
 
 module.exports.readTrace = readTrace;
 module.exports.classifyFailure = classifyFailure;
+module.exports.findDeferral = findDeferral;
+module.exports.verifyCompleted = verifyCompleted;
 module.exports.buildBody = buildBody;
 module.exports.buildSlackText = buildSlackText;
