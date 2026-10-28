@@ -9,7 +9,13 @@ name: Scout autofix
 #     in review; skips a rebuild that would change nothing.
 #   * opens a PR for any fix needing a NEW source change (human merges within the
 #     SLA; the next daily cycle then ships it as a patch release).
-#   * comments when the only findings are unfixable.
+#   * opens a VEX waiver PR (OpenVEX not_affected + a .github/vex-ttl.json
+#     expiry, default 90 days) when Scout lists a fix that no upstream release
+#     ships yet. Owner policy 2026-10-28 (#180): without it the run could only
+#     comment, and the finding stayed red until upstream shipped. The TTL makes
+#     the gate fail again so someone re-checks upstream.
+#   * comments when the only findings have no fix anywhere, or a waiver would
+#     be false (the vulnerable code is reachable).
 # The customer remediation SLA (15d fixable Critical / 30d High) lives in
 # .github/scout-sla.json and is tracked + escalated by scout-drift.yml.
 #
@@ -134,8 +140,20 @@ jobs:
                self-check with /verify-scout, and open a PR. Do NOT merge — a human
                reviews within the SLA. The next daily cycle ships it via a patch release
                once merged.
-            3. If the only findings are UNFIXABLE (no upstream fix yet): comment that on
-               the scout-drift issue; open nothing, cut nothing.
+            3. If Scout lists a fixed version but NO upstream release the image
+               consumes ships it yet (for example the fix is only on an unreleased
+               branch): do not force a bump or hand-swap a jar. Open ONE PR that adds,
+               per finding, an OpenVEX `not_affected` statement under .github/vex/
+               (with the matching GHSA alias), an entry in .github/vex-ttl.json that
+               expires 90 days from today, and a docs/upstream-cve-backlog.md entry
+               naming the source path, why the code is not reachable, and the drop
+               trigger (the upstream release to wait for). Follow the skill's
+               "No upstream fix released yet" rule. Do NOT merge — a person reviews
+               a waiver. If the vulnerable code IS reachable with attacker input, a
+               waiver would be false: comment on the scout-drift issue and escalate
+               instead.
+            4. If the only findings have no fix anywhere (no fixed version at all):
+               comment that on the scout-drift issue; open nothing, cut nothing.
 
             Docker Hub auth: the runner is logged in with a Docker Hub OIDC token
             that expires 60 minutes after the job's "Configure DockerHub" step,
