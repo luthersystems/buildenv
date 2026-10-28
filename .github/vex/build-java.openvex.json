@@ -1,0 +1,47 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://luthersystems.com/vex/buildenv/build-java",
+  "author": "Luther Systems (buildenv CI)",
+  "timestamp": "2026-10-28T00:00:00Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "CVE-2026-102554",
+        "description": "Guava eagerly allocates an array sized from the stream when deserializing CompactHashMap, CompactHashSet or MapMakerInternalMap, so a crafted Java serialization stream causes OutOfMemoryError (DoS). Affects 4.0 through 33.7.1; fixed in 33.7.2."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-java",
+          "subcomponents": [
+            {
+              "@id": "pkg:maven/com.google.guava/guava"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
+      "impact_statement": "SOURCE: the finding is guava 33.6.0-jre in Maven's own lib directory (/usr/share/maven/lib), which comes with the base image maven:3.9-eclipse-temurin-17. It is not a dependency of any project buildenv builds. REACHABILITY: CVE-2026-102554 is a denial of service (OutOfMemoryError) that needs Java object deserialization (ObjectInputStream) of a crafted stream holding a Guava CompactHashMap, CompactHashSet or MapMakerInternalMap. Maven uses guava internally (Sisu/Guice wiring, the resolver) and does not deserialize Java serialization streams from network or project input: POMs, settings and repository metadata are XML, and artifacts are read as files. So no adversary-controlled serialized stream reaches the vulnerable readObject path. Impact would be availability-only (a crash of the Maven process during a build). NO UPSTREAM FIX EXISTS: Maven 3.9.16 (latest release at time of writing) ships guava 33.6.0; guava 33.7.2 is only on Maven's unreleased 3.9.x branch (3.9.17-SNAPSHOT). Replacing the jar in Maven's lib dir by hand changes the base image's tested contents. DROP TRIGGER: a maven:3.9 image with Maven 3.9.17 or later (guava >= 33.7.2); then rebuild and delete this statement and GHSA-xxph-c9ww-hj94. TTL: .github/vex-ttl.json. Tracked in #180."
+    },
+    {
+      "vulnerability": {
+        "name": "GHSA-xxph-c9ww-hj94",
+        "description": "GitHub advisory for the same defect as CVE-2026-102554."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-java",
+          "subcomponents": [
+            {
+              "@id": "pkg:maven/com.google.guava/guava"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
+      "impact_statement": "Duplicate identifier for CVE-2026-102554; the analysis and drop trigger are the same as that statement. Remove both together."
+    }
+  ]
+}
