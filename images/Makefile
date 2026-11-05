@@ -4,6 +4,9 @@ include ${COMMON_MAKEFILE}
 CONFIG_MAKEFILE=${PROJECT_DIR}/common.config.mk
 include ${CONFIG_MAKEFILE}
 
+# Every GO_PIN_* in common.config.mk, passed to every build as a build arg.
+GO_PINS=$(sort $(filter GO_PIN_%,$(.VARIABLES)))
+
 IMAGES= \
 	luthersystems/awscli \
 	luthersystems/build-harden \
@@ -141,6 +144,7 @@ $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.$$(call repo,$$*) ${HARDEN_FILES
 		--build-arg AWSCLI_VER=${AWSCLI_VER} \
 		--build-arg DIND_VERSION=${DIND_VERSION} \
 		--build-arg FABRIC_TOOLS_VERSION=${FABRIC_TOOLS_VERSION} \
+		$(foreach V,${GO_PINS},--build-arg $V=${$V}) \
 		$(if $(call fabric_version,$*),--build-arg FABRIC_VERSION=$(call fabric_version,$*)) \
 		-t $(call ref,$*,${VERSION}${TAG_SUFFIX}) \
 		-f $< .

@@ -117,17 +117,26 @@ gotestsum, go-bindata) from Go modules. A released tool often bundles a
 or `quic-go`). The fix is to build the tool **from source in a throwaway module**
 and `go get` a **patched** version of the transitive dep before building.
 
-Pattern (mirror the existing blocks in `Dockerfile.build-api` /
-`Dockerfile.build-go-alpine`):
+**Every pinned version lives in `common.config.mk`** (section "Go module security
+pins", one `GO_PIN_*` per module, with the CVEs it clears). To clear a CVE in a
+module that is already pinned, **bump its `GO_PIN_*` value there and touch no
+Dockerfile** — `images/Makefile` passes every `GO_PIN_*` to every build.
+`make check-go-pins` (CI) fails on a literal `module@vX.Y.Z` in a Dockerfile.
+
+Only a module that is not pinned yet needs a Dockerfile edit. Pattern (mirror the
+existing blocks in `Dockerfile.build-api` / `Dockerfile.build-go-alpine`):
 ```dockerfile
 ARG GOLANGCI_LINT_VERSION
+# GO_PIN_* versions, and the CVEs each one clears: common.config.mk.
+ARG GO_PIN_X_SYS
 RUN mkdir /tmp/golangci && cd /tmp/golangci && \
     go mod init _golangci && \
-    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/sys@v0.45.0 && \
+    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/sys@v${GO_PIN_X_SYS} && \
     go build -ldflags "-X main.version=${GOLANGCI_LINT_VERSION} -X main.commit=unknown -X main.date=unknown" \
       -o /go/bin/golangci-lint "github.com/golangci/golangci-lint/v2/cmd/golangci-lint" && \
     cd / && rm -rf /tmp/golangci
 ```
+plus a `GO_PIN_X_SYS=<version>` line, with its CVE comment, in `common.config.mk`.
 
 Rules learned the hard way (#77):
 
@@ -146,9 +155,12 @@ Rules learned the hard way (#77):
    module, so from-source it reports `(devel)` — cosmetic, leave a comment.
 4. **Apply across every gated image that ships the tool** (build-api, build-go,
    build-go-alpine, build-godynamic). `service-base-alpine` bundles no Go tools.
-5. **Leave a comment with the CVE id** next to the pin (e.g. `# CVE-2026-39824`,
-   `quic-go@v0.59.1 # CVE-2026-40898`) so the next reader knows why it's pinned
-   and when it can be dropped.
+5. **Leave a comment with the CVE id** above the `GO_PIN_*` line in
+   `common.config.mk` (e.g. `# github.com/quic-go/quic-go (buf): CVE-2026-40898.`)
+   so the next reader knows why it's pinned and when it can be dropped.
+6. **Bump the x/ family together.** A new `x/net` raises the floors of `x/crypto`,
+   `x/sys` and `x/text`; set those `GO_PIN_*` values to at least the floors it
+   requires, or the `go get` fails on a downgrade.
 
 ---
 

@@ -50,6 +50,13 @@ Dockerfile `ARG <X>=<default>` lines are fallbacks only — when you bump a
 version, bump `common.config.mk`, and update the matching `ARG` default if it
 drifts (CI builds use the central value regardless).
 
+**Go module security pins** (the transitive modules the from-source Go tools
+`go get` at patched versions: x/net, x/crypto, grpc, …) live there too, one
+`GO_PIN_*` per module with the CVEs it clears. `images/Makefile` passes every
+`GO_PIN_*` to every build, so clearing a CVE in a pinned module is a one-line
+bump in `common.config.mk` with no Dockerfile edit. `make check-go-pins` (CI)
+fails on a literal `module@vX.Y.Z` in a Dockerfile.
+
 ## Docker Scout grade-A bill of health
 
 Seven images **must** stay at Docker Scout grade A: `build-api`, `build-go`,
@@ -168,8 +175,8 @@ the strictly-better republish (section F) and the SLA.** Verify with
    change, stay human.** Required-checks list + apply command:
    [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md).
 2. **Pin, don't float, security-driven dep bumps in from-source tool builds.**
-   The `go get …@vX` transitive pins in the Dockerfiles exist to clear specific
-   CVEs; keep them explicit and annotated. See `/scout-fix`.
+   The `GO_PIN_*` transitive pins in `common.config.mk` exist to clear specific
+   CVEs; keep them explicit and annotated there. See `/scout-fix`.
 3. **Keep published-image changes non-breaking.** Regular security upkeep is
    version bumps that don't change an image's runtime contract. Changing a
    published image's default `USER`, entrypoint, or base ABI can break downstream
