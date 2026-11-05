@@ -48,10 +48,12 @@ ARG GIT_LFS_VERSION
 # golang.org/x/net 0.60.0: CVE-2026-78663 (CRITICAL) and CVE-2026-78659 /
 # CVE-2026-78660 / CVE-2026-78669 (HIGH), all fixed in 0.60.0 (#144). x/net
 # 0.60.0 requires x/crypto >= 0.57.0, x/sys >= 0.48.0 and x/text >= 0.42.0.
+# golang.org/x/net 0.62.0: CVE-2026-78661 (HIGH, fixed in 0.62.0; #187). x/net
+# 0.62.0 requires x/crypto >= 0.58.0, x/sys >= 0.49.0 and x/text >= 0.43.0.
 RUN apk add --no-cache gcc musl-dev && \
     mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.57.0 golang.org/x/net@v0.60.0 golang.org/x/sys@v0.48.0 && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.58.0 golang.org/x/net@v0.62.0 golang.org/x/sys@v0.49.0 && \
     go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
