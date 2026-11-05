@@ -15,45 +15,45 @@ ENV GOPROXY="https://proxy.golang.org|https://proxy.golang.org|https://proxy.gol
 ARG GO_BINDATA_VERSION
 RUN go install "github.com/go-bindata/go-bindata/v3/go-bindata@v${GO_BINDATA_VERSION}"
 ARG GO_TESTSUM_VERSION
-# Built from source (not `go install`) so we can pin patched golang.org/x/sys
-# (CVE-2026-39824) and golang.org/x/mod (CVE-2026-56864 / CVE-2026-56865, pulled
-# in transitively via x/tools); gotestsum otherwise bundles vulnerable versions.
-# Trade-off: `gotestsum --version` reports "(devel)" — it has no version ldflag
-# and derives its version from the main module.
-# golang.org/x/text: pinned for CVE-2026-56851 (HIGH, fixed in 0.41.0).
+# Built from source (not `go install`) so the go get below can raise transitive
+# deps gotestsum would otherwise bundle at vulnerable versions. Trade-off:
+# `gotestsum --version` reports "(devel)" -- it has no version ldflag and
+# derives its version from the main module.
+# GO_PIN_* versions, and the CVEs each one clears: common.config.mk.
+ARG GO_PIN_X_MOD
+ARG GO_PIN_X_SYS
+ARG GO_PIN_X_TEXT
 RUN mkdir /tmp/gotestsum && cd /tmp/gotestsum && \
     go mod init _gotestsum && \
-    go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 golang.org/x/text@v0.41.0 && \
+    go get "gotest.tools/gotestsum@v${GO_TESTSUM_VERSION}" golang.org/x/mod@v${GO_PIN_X_MOD} golang.org/x/sys@v${GO_PIN_X_SYS} golang.org/x/text@v${GO_PIN_X_TEXT} && \
     go build -o /go/bin/gotestsum "gotest.tools/gotestsum" && \
     cd / && rm -rf /tmp/gotestsum
 ARG GOLANGCI_LINT_VERSION
-# Built from source (not `go install`) so we can pin patched golang.org/x/sys
-# (CVE-2026-39824) and golang.org/x/mod (CVE-2026-56864 / CVE-2026-56865, via
-# x/tools); golangci-lint otherwise bundles x/sys 0.42.0 and a vulnerable x/mod.
-# The ldflags preserve `--version` (golangci-lint uses build-info only when
-# main.date is empty).
-# golang.org/x/text: pinned for CVE-2026-56851 (HIGH, fixed in 0.41.0).
+# Built from source (not `go install`) so the go get below can raise transitive
+# deps golangci-lint would otherwise bundle at vulnerable versions. The ldflags
+# preserve `--version` (golangci-lint uses build-info only when main.date is
+# empty).
+# GO_PIN_* versions, and the CVEs each one clears: common.config.mk.
+ARG GO_PIN_X_MOD
+ARG GO_PIN_X_SYS
+ARG GO_PIN_X_TEXT
 RUN mkdir /tmp/golangci && cd /tmp/golangci && \
     go mod init _golangci && \
-    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/mod@v0.40.0 golang.org/x/sys@v0.47.0 golang.org/x/text@v0.41.0 && \
+    go get "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}" golang.org/x/mod@v${GO_PIN_X_MOD} golang.org/x/sys@v${GO_PIN_X_SYS} golang.org/x/text@v${GO_PIN_X_TEXT} && \
     go build -ldflags "-X main.version=${GOLANGCI_LINT_VERSION} -X main.commit=unknown -X main.date=unknown" \
       -o /go/bin/golangci-lint "github.com/golangci/golangci-lint/v2/cmd/golangci-lint" && \
     cd / && rm -rf /tmp/golangci
 ARG GIT_LFS_VERSION
-# git-lfs bundles a vulnerable golang.org/x/net and x/crypto; pin the patched
-# x/net (CVE-2026-46600, fixed in 0.56.0) and x/crypto (CVE-2026-56854 /
-# CVE-2026-78662 / CVE-2026-56855, fixed in 0.56.0), plus the x/sys they
-# coordinate with. x/crypto@0.56.0 requires
-# x/net >= 0.57.0, so x/net is pinned to that floor.
-# golang.org/x/net 0.60.0: CVE-2026-78663 (CRITICAL) and CVE-2026-78659 /
-# CVE-2026-78660 / CVE-2026-78669 (HIGH), all fixed in 0.60.0 (#144). x/net
-# 0.60.0 requires x/crypto >= 0.57.0, x/sys >= 0.48.0 and x/text >= 0.42.0.
-# golang.org/x/net 0.62.0: CVE-2026-78661 (HIGH, fixed in 0.62.0; #187). x/net
-# 0.62.0 requires x/crypto >= 0.58.0, x/sys >= 0.49.0 and x/text >= 0.43.0.
+# Built from source so the go get below can raise transitive deps the tool
+# would otherwise bundle at vulnerable versions.
+# GO_PIN_* versions, and the CVEs each one clears: common.config.mk.
+ARG GO_PIN_X_CRYPTO
+ARG GO_PIN_X_NET
+ARG GO_PIN_X_SYS
 RUN apk add --no-cache gcc musl-dev && \
     mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.58.0 golang.org/x/net@v0.62.0 golang.org/x/sys@v0.49.0 && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v${GO_PIN_X_CRYPTO} golang.org/x/net@v${GO_PIN_X_NET} golang.org/x/sys@v${GO_PIN_X_SYS} && \
     go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 

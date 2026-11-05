@@ -59,6 +59,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
 RUN curl -fsSL "https://go.dev/dl/go${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz" | tar -C /usr/local -xz
 ENV PATH=/usr/local/go/bin:/go/bin:$PATH GOPATH=/go
 
+# GO_PIN_* versions, and the CVEs each one clears: common.config.mk.
+ARG GO_PIN_X_CRYPTO
+ARG GO_PIN_X_NET
 # export (not ENV): build-e2e's go commands run in the FINAL stage, and a
 # stage-level ENV GOPROXY would ship to downstream consumers of the published
 # image, silently dropping their default `direct` fallback -- a runtime-contract
@@ -69,7 +72,7 @@ ENV PATH=/usr/local/go/bin:/go/bin:$PATH GOPATH=/go
 RUN export GOPROXY="https://proxy.golang.org|https://proxy.golang.org|https://proxy.golang.org" && \
     mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v${GO_PIN_X_CRYPTO} golang.org/x/net@v${GO_PIN_X_NET} && \
     go build -o /usr/local/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 

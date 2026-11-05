@@ -42,6 +42,16 @@ scout-cli-install:
 check-harden:
 	bash images/harden/check/dockerfile.sh --allow-local-kit images
 
+# Every Go module security pin in the Dockerfiles comes from a GO_PIN_* in
+# common.config.mk (no literal module@vX.Y.Z in a go get). CI runs it.
+.PHONY: check-go-pins
+check-go-pins:
+	bash scripts/check-go-pins.sh
+
+.PHONY: test-check-go-pins
+test-check-go-pins:
+	bash scripts/test-check-go-pins.sh
+
 # Self-test for the check above, with fixture Dockerfiles.
 .PHONY: test-check-harden
 test-check-harden:

@@ -110,6 +110,10 @@ jobs:
         run: make check-harden # every image runs the build-harden kit last
       - name: make test-check-harden
         run: make test-check-harden
+      - name: make check-go-pins
+        run: make check-go-pins # Go module pins live in common.config.mk
+      - name: make test-check-go-pins
+        run: make test-check-go-pins
 
   # The build-harden kit on real base images (scripts/test-harden.sh): it must
   # harden Debian, Alpine, a JDK and Amazon Linux, and the build or the image
