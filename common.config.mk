@@ -8,7 +8,10 @@ GO_SWAGGER_VERSION=0.33.2
 GIT_LFS_VERSION=3.7.1
 DOCKER_CLI_VERSION=29.6.1
 DOCKER_COMPOSE_VERSION=5.2.0
-AZCLI_VER=2.91.0
+# azure-cli (build-godynamic: pip; build-js: Microsoft apt package). 2.92.0 is
+# the first release whose bundled certifi (2026.10.19) drops the eMudhra
+# (emSign) roots, so build-js no longer has to replace it (#174).
+AZCLI_VER=2.92.0
 AWSCLI_VER=2.35.11
 # dind base: docker:${DIND_VERSION}-dind. Not Docker 29: see
 # images/Dockerfile.dind
@@ -19,11 +22,25 @@ FABRIC_TOOLS_VERSION=2.5.6
 # fabric-baseos and fabric-ccenv bases, one per Fabric minor:
 # hyperledger/fabric-{baseos,ccenv}:${FABRIC_<minor>_VERSION} (see
 # images/Dockerfile.fabric-baseos and images/Dockerfile.fabric-ccenv). 2.2 and
-# 2.4 are the last releases of those minors, amd64 only upstream.
+# 2.4 are the last releases of those minors, amd64 only upstream. 2.5 and 3.1
+# have fabric-ccenv only (#189).
 FABRIC_2_2_VERSION=2.2.15
 FABRIC_2_4_VERSION=2.4.9
 FABRIC_2_5_VERSION=2.5.16
+FABRIC_3_1_VERSION=3.1.5
 NODE_VERSION=24.22.1
+# build-java and build-swaggercodegen base:
+# maven:${MAVEN_VERSION}-eclipse-temurin-17-noble. The -noble suffix keeps the
+# Ubuntu 24.04 base: the bare tag moved to Ubuntu 26.04 (resolute) with Maven
+# 3.10. Maven 3.9 images stopped at JDK 17.0.20.1, and 3.10 is the first line
+# that carries JDK 17.0.21 (#174). A minor, not a patch release, so a rebuild
+# picks up Maven patch releases and fresh JDK builds (a guava fix clears the
+# build-java VEX waiver that way); JAVA_17_MIN_VERSION stops a JDK rollback.
+MAVEN_VERSION=3.10
+# The oldest JDK 17 build-java and build-swaggercodegen accept. 17.0.21 is the
+# first whose cacerts drops the eMudhra (emSign) roots (#174); the build fails
+# on an older one, so a retagged base cannot quietly bring the old roots back.
+JAVA_17_MIN_VERSION=17.0.21
 # nginx-frontend base: nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine${ALPINE_VERSION}
 NGINX_VERSION=1.30
 # Docker Scout CLI used by the CI gates (scripts/install-scout-cli.sh). Bump the
@@ -68,8 +85,9 @@ GO_PIN_GRPC=1.83.2
 GO_PIN_GO_JOSE=4.1.6
 # github.com/quic-go/quic-go (buf): CVE-2026-40898.
 GO_PIN_QUIC_GO=0.59.1
-# github.com/klauspost/compress (buf): CVE-2026-63209 (1.18.7).
-GO_PIN_KLAUSPOST_COMPRESS=1.18.7
+# github.com/klauspost/compress (buf, docker CLI, compose): CVE-2026-63209
+# (1.18.7), CVE-2026-116591 (1.20.2).
+GO_PIN_KLAUSPOST_COMPRESS=1.20.2
 # github.com/moby/go-archive (compose): CVE-2026-17106 (0.3.0); 0.3.3 matches
 # the docker CLI build.
 GO_PIN_MOBY_GO_ARCHIVE=0.3.3

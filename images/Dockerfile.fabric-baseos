@@ -9,8 +9,9 @@
 # (CVE-2026-111943), and their AAA cross-signs verify against that bundle, so
 # a chaincode built with an older Go (which has no block list) trusts them on
 # an outbound HTTPS call. Fabric no longer releases 2.2 or 2.4, so the fix
-# can only come from a wrapper. Fabric 2.5's fabric-baseos has no CA bundle,
-# so there is no 2.5 wrapper.
+# can only come from a wrapper. The fabric-baseos of Fabric 2.5 and 3.1 has no
+# CA bundle (3.1.5: Ubuntu 24.04 with only tzdata added), so there is no 2.5
+# or 3.1 wrapper (#189).
 #
 # The image is not tied to one Fabric patch release: it holds only Alpine,
 # tzdata and the chaincode user, and the chaincode binary brings its own

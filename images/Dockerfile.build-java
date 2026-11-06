@@ -1,4 +1,6 @@
 ARG GOLANG_VERSION=1.27.3
+# Maven base: MAVEN_VERSION in common.config.mk (images/Makefile passes it).
+ARG MAVEN_VERSION=3.10
 FROM golang:$GOLANG_VERSION AS docker-cli-builder
 # A transient stream reset from proxy.golang.org must cost a re-request, not
 # the whole publish (three v0.1.16 attempts died that way -- run 32405801237).
@@ -22,15 +24,26 @@ ARG DOCKER_CLI_VERSION
 ARG GO_PIN_GRPC
 ARG GO_PIN_X_NET
 ARG GO_PIN_GO_JOSE
+ARG GO_PIN_KLAUSPOST_COMPRESS
 RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
     go mod init _dockercli && \
-    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v${GO_PIN_GRPC} golang.org/x/net@v${GO_PIN_X_NET} github.com/go-jose/go-jose/v4@v${GO_PIN_GO_JOSE} && \
+    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v${GO_PIN_GRPC} golang.org/x/net@v${GO_PIN_X_NET} github.com/go-jose/go-jose/v4@v${GO_PIN_GO_JOSE} github.com/klauspost/compress@v${GO_PIN_KLAUSPOST_COMPRESS} && \
     CGO_ENABLED=0 go build -tags "grpcnotrace,osusergo,netgo" \
       -ldflags "-X github.com/docker/cli/cli/version.Version=${DOCKER_CLI_VERSION} -X github.com/docker/cli/cli/version.GitCommit=unknown -X github.com/docker/cli/cli/version.BuildTime=unknown -X github.com/docker/cli/cli/version.PlatformName=Docker" \
       -o /go/bin/docker "github.com/docker/cli/cmd/docker" && \
     cd / && rm -rf /tmp/dockercli
 
-FROM maven:3.9-eclipse-temurin-17
+FROM maven:${MAVEN_VERSION}-eclipse-temurin-17-noble
+
+# Refuse a JDK older than JAVA_17_MIN_VERSION (common.config.mk). The Maven
+# tag names no JDK release, so this guards against a base-image rollback to a
+# JDK before the eMudhra (emSign) cacerts fix (#174). The trust store itself is
+# made safe by the build-harden kit below and checked by
+# images/harden/check/image.sh; this check only keeps the base current.
+ARG JAVA_17_MIN_VERSION=17.0.21
+RUN v="$(java -XshowSettings:properties -version 2>&1 | sed -n 's/^ *java\.version = //p')" && \
+    echo "java ${v}, need ${JAVA_17_MIN_VERSION} or later" && \
+    [ "$(printf '%s\n' "${JAVA_17_MIN_VERSION}" "${v}" | sort -V | head -n 1)" = "${JAVA_17_MIN_VERSION}" ]
 
 # apt-get upgrade clears fixable OS-package CVEs the base image carries (Docker
 # Scout severity-CVE policy); added when build-java joined the grade-A set (#75).
