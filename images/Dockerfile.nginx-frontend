@@ -11,9 +11,12 @@ USER root
 # libcurl (only) from edge until backported to 3.24 stable, then drop the edge
 # lines. (libexpat >= 2.9.0-r0 and libx11 >= 1.8.14-r0, which fixes
 # CVE-2026-88806, have reached 3.24 stable; `apk upgrade` picks them up.)
+# musl: the patched musl (>= 1.2.6-r6, fixes CVE-2026-107891) is only in alpine
+# edge; 3.24 stable still ships 1.2.6-r3. Pull musl from edge until the fix is
+# backported to 3.24 stable, then drop it.
 RUN apk update && apk upgrade --no-cache && \
   echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache curl@edge libcurl@edge
+  apk add --no-cache curl@edge libcurl@edge musl@edge
 # Harden the image with the build-harden kit (images/harden): today it makes
 # the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
 # and intermediates whose keys leaked, CVE-2026-111943). Keep this after the

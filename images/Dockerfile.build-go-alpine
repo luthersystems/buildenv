@@ -76,9 +76,16 @@ RUN apk update && apk upgrade --no-cache && apk add --no-cache \
 # jq: the patched jq (>= 1.8.2-r0, fixes CVE-2026-32316 / CVE-2026-40164) is only
 # in alpine edge; 3.24 stable still ships the vulnerable 1.8.1-r0. Pull jq (only)
 # from edge via a tagged repo until the fix is backported to 3.24 stable, then
-# drop this. The @edge tag scopes edge to jq alone; everything else stays stable.
+# drop this. The @edge tag scopes edge to the named packages; everything else
+# stays stable.
+# musl: the patched musl (>= 1.2.6-r6, fixes CVE-2026-107891) is only in alpine
+# edge; 3.24 stable still ships 1.2.6-r3. Pull musl (with musl-dev, which pins
+# the same musl release) from edge until the fix is backported to 3.24 stable,
+# then drop it.
+# rsync: the patched rsync (>= 3.5.2-r0, fixes CVE-2026-119741) is only in alpine
+# edge; 3.24 stable still ships 3.5.0-r0. Same rule: drop it once backported.
 RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache jq@edge
+  apk add --no-cache jq@edge musl@edge musl-dev@edge rsync@edge
 
 COPY --from=go-alpine-downloader /go/bin/go-bindata /go/bin/go-bindata
 COPY --from=go-alpine-downloader /go/bin/gotestsum /go/bin/gotestsum
