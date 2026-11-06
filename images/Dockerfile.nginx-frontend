@@ -17,9 +17,11 @@ USER root
 # still reads as the vulnerable musl) until the fix is backported to 3.24
 # stable, then drop it. The version floor is needed: a bare musl@edge only
 # allows edge, and in this image apk kept the stable r3 without an error.
+# zlib: the patched zlib (>= 1.4-r0, fixes CVE-2026-4738) is only in alpine
+# edge; 3.24 stable still ships 1.3.2-r1. Same rule: drop it once backported.
 RUN apk update && apk upgrade --no-cache && \
   echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6'
+  apk add --no-cache curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'zlib@edge>=1.4-r0'
 # Harden the image with the build-harden kit (images/harden): today it makes
 # the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
 # and intermediates whose keys leaked, CVE-2026-111943). Keep this after the

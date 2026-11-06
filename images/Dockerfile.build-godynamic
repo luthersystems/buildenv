@@ -132,9 +132,10 @@ ARG DOCKER_CLI_VERSION
 ARG GO_PIN_GRPC
 ARG GO_PIN_X_NET
 ARG GO_PIN_GO_JOSE
+ARG GO_PIN_KLAUSPOST_COMPRESS
 RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
     go mod init _dockercli && \
-    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v${GO_PIN_GRPC} golang.org/x/net@v${GO_PIN_X_NET} github.com/go-jose/go-jose/v4@v${GO_PIN_GO_JOSE} && \
+    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" google.golang.org/grpc@v${GO_PIN_GRPC} golang.org/x/net@v${GO_PIN_X_NET} github.com/go-jose/go-jose/v4@v${GO_PIN_GO_JOSE} github.com/klauspost/compress@v${GO_PIN_KLAUSPOST_COMPRESS} && \
     CGO_ENABLED=0 go build -tags "grpcnotrace,osusergo,netgo" \
       -ldflags "-X github.com/docker/cli/cli/version.Version=${DOCKER_CLI_VERSION} -X github.com/docker/cli/cli/version.GitCommit=unknown -X github.com/docker/cli/cli/version.BuildTime=unknown -X github.com/docker/cli/cli/version.PlatformName=Docker" \
       -o /go/bin/docker "github.com/docker/cli/cmd/docker" && \
@@ -151,7 +152,7 @@ ARG GO_PIN_X_NET
 ARG GO_PIN_CONTAINERD
 RUN mkdir /tmp/compose && cd /tmp/compose && \
     go mod init _compose && \
-    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v${GO_PIN_GRPC} github.com/moby/go-archive@v${GO_PIN_MOBY_GO_ARCHIVE} golang.org/x/crypto@v${GO_PIN_X_CRYPTO} golang.org/x/net@v${GO_PIN_X_NET} github.com/containerd/containerd/v2@v${GO_PIN_CONTAINERD} && \
+    go get "github.com/docker/compose/v5/cmd@v${DOCKER_COMPOSE_VERSION}" google.golang.org/grpc@v${GO_PIN_GRPC} github.com/moby/go-archive@v${GO_PIN_MOBY_GO_ARCHIVE} golang.org/x/crypto@v${GO_PIN_X_CRYPTO} golang.org/x/net@v${GO_PIN_X_NET} github.com/containerd/containerd/v2@v${GO_PIN_CONTAINERD} github.com/klauspost/compress@v${GO_PIN_KLAUSPOST_COMPRESS} && \
     go build -o /go/bin/docker-compose "github.com/docker/compose/v5/cmd" && \
     cd / && rm -rf /tmp/compose
 
@@ -187,8 +188,10 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
 # the fix is backported to 3.24 stable, then drop them.
 # rsync: the patched rsync (>= 3.5.2-r0, fixes CVE-2026-119741) is only in alpine
 # edge; 3.24 stable still ships 3.5.0-r0. Same rule: drop it once backported.
+# zlib: the patched zlib (>= 1.4-r0, fixes CVE-2026-4738) is only in alpine
+# edge; 3.24 stable still ships 1.3.2-r1. Same rule: drop it once backported.
 RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache jq curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-dev@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'rsync@edge>=3.5.2-r0'
+  apk add --no-cache jq curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-dev@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'rsync@edge>=3.5.2-r0' 'zlib@edge>=1.4-r0'
 
 # Docker CLI, built from source in the go-alpine-downloader stage above --
 # the published static tarball carries an unpatched Go stdlib (#115).
