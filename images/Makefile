@@ -141,6 +141,8 @@ $(call IMAGE_DUMMY,luthersystems/%): Dockerfile.$$(call repo,$$*) ${HARDEN_FILES
 		--build-arg DOCKER_CLI_VERSION=${DOCKER_CLI_VERSION} \
 		--build-arg DOCKER_COMPOSE_VERSION=${DOCKER_COMPOSE_VERSION} \
 		--build-arg AZCLI_VER=${AZCLI_VER} \
+		--build-arg MAVEN_VERSION=${MAVEN_VERSION} \
+		--build-arg JAVA_17_MIN_VERSION=${JAVA_17_MIN_VERSION} \
 		--build-arg AWSCLI_VER=${AWSCLI_VER} \
 		--build-arg DIND_VERSION=${DIND_VERSION} \
 		--build-arg FABRIC_TOOLS_VERSION=${FABRIC_TOOLS_VERSION} \

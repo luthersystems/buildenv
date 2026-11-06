@@ -94,12 +94,12 @@ ENV AZCLI_VER=$AZCLI_VER
 RUN apt-get update && apt-get install -y --no-install-recommends azure-cli=${AZCLI_VER}\* && \
     rm -rf /var/lib/apt/lists/*
 
-# certifi 2026.10.19 in azure-cli's own Python (/opt/az): the package ships
-# certifi 2024.7.4, whose bundle trusts the emSign roots (GHSA-6q48-6c7w-9gw2,
-# CVE-2026-111943). The newer certifi drops them upstream; the kit below still
-# strips any listed certificate that is left. build-godynamic pins the same.
-RUN /opt/az/bin/python3 -m pip install --no-cache-dir --disable-pip-version-check certifi==2026.10.19 && \
-    /opt/az/bin/python3 -c 'import certifi, sys; v = certifi.__version__; print("az certifi", v); sys.exit(v != "2026.10.19")'
+# azure-cli's own Python (/opt/az) must carry certifi 2026.10.19 or later: the
+# bundle of older certifi releases trusts the emSign roots (GHSA-6q48-6c7w-9gw2,
+# CVE-2026-111943). azure-cli 2.92.0 bundles 2026.10.19 (#174), so this only
+# checks it; before 2.92.0 this step installed that certifi over the bundled
+# one. The kit below still strips any listed certificate that is left.
+RUN /opt/az/bin/python3 -c 'import certifi, sys; v = certifi.__version__; print("az certifi", v); sys.exit(tuple(int(p) for p in v.split(".")[:3]) < (2026, 10, 19))'
 
 # Node trusts its built-in root list (it holds the emSign roots) unless
 # --use-openssl-ca makes it read only OpenSSL's store, which the kit
