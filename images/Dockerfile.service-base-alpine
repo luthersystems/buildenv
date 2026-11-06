@@ -5,6 +5,13 @@ RUN echo "nobody:x:1:1:nobody:/:/bin/sh" >> /etc/passwd
 RUN echo "nobody:x:1:" >> /etc/group
 RUN chmod 1777 /tmp
 RUN apk update && apk upgrade --no-cache && apk add --no-cache libltdl tini ca-certificates
+# musl: the patched musl (>= 1.2.6-r6, fixes CVE-2026-107891) is only in alpine
+# edge; 3.24 stable still ships 1.2.6-r3. Pull musl and musl-utils from edge
+# (Scout reports musl-utils under its source package musl, so an r3 musl-utils
+# still reads as the vulnerable musl) until the fix is backported to 3.24
+# stable, then drop it.
+RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
+  apk add --no-cache 'musl@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6'
 # Harden the image with the build-harden kit (images/harden): today it makes
 # the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
 # and intermediates whose keys leaked, CVE-2026-111943). Keep this after the
