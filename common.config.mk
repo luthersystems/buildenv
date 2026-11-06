@@ -22,10 +22,12 @@ FABRIC_TOOLS_VERSION=2.5.6
 # fabric-baseos and fabric-ccenv bases, one per Fabric minor:
 # hyperledger/fabric-{baseos,ccenv}:${FABRIC_<minor>_VERSION} (see
 # images/Dockerfile.fabric-baseos and images/Dockerfile.fabric-ccenv). 2.2 and
-# 2.4 are the last releases of those minors, amd64 only upstream.
+# 2.4 are the last releases of those minors, amd64 only upstream. 2.5 and 3.1
+# have fabric-ccenv only (#189).
 FABRIC_2_2_VERSION=2.2.15
 FABRIC_2_4_VERSION=2.4.9
 FABRIC_2_5_VERSION=2.5.16
+FABRIC_3_1_VERSION=3.1.5
 NODE_VERSION=24.22.1
 # build-java and build-swaggercodegen base:
 # maven:${MAVEN_VERSION}-eclipse-temurin-17-noble. The -noble suffix keeps the

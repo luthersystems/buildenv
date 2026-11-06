@@ -21,7 +21,7 @@ consume these as `docker run` tools or as `FROM` bases in multi-stage builds.
 | `service-base-alpine` | Minimal **prod runtime** base (runs as `nobody`) |
 | `build-harden` | The hardening kit (scripts and policy data, FROM scratch) that every image, here and in other repos, bind-mounts and runs last (exempt from grade A) |
 | `awscli`, `dind`, `fabric-tools` | Upstream `amazon/aws-cli`, `docker:dind` and `hyperledger/fabric-tools` with only the build-harden kit run, for the mars Fabric charts and the fabric-snapshot-archiver base (exempt from grade A) |
-| `fabric-baseos`, `fabric-ccenv` | Upstream `hyperledger/fabric-baseos` (2.2, 2.4) and `hyperledger/fabric-ccenv` (2.2, 2.4, 2.5) with only the build-harden kit run, one tag per Fabric minor, for Docker chaincode peers (exempt from grade A; make targets `fabric-baseos-2.2` and so on) |
+| `fabric-baseos`, `fabric-ccenv` | Upstream `hyperledger/fabric-baseos` (2.2, 2.4) and `hyperledger/fabric-ccenv` (2.2, 2.4, 2.5, 3.1) with only the build-harden kit run, one tag per Fabric minor, for Docker chaincode peers (exempt from grade A; make targets `fabric-baseos-2.2` and so on) |
 
 ## Build & test
 

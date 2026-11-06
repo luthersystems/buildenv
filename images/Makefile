@@ -34,9 +34,9 @@ ALL_IMAGES=${IMAGES}
 # 2.2-<version>[-<arch>]. There is no moving tag (no latest, no bare 2.2): a
 # peer runs these images in production, and an automation-cut patch release
 # must not reach a peer that has not chosen it, so peers pin
-# <minor>-<version>. There is no fabric-baseos-2.5: that image has no CA
-# bundle to harden.
-FABRIC_WRAPPERS=fabric-baseos-2.2 fabric-baseos-2.4 fabric-ccenv-2.2 fabric-ccenv-2.4 fabric-ccenv-2.5
+# <minor>-<version>. There is no fabric-baseos-2.5 or -3.1: those images have
+# no CA bundle to harden (#189).
+FABRIC_WRAPPERS=fabric-baseos-2.2 fabric-baseos-2.4 fabric-ccenv-2.2 fabric-ccenv-2.4 fabric-ccenv-2.5 fabric-ccenv-3.1
 # Upstream publishes 2.2 and 2.4 for amd64 only. Keep the arm64 excludes in
 # .github/workflows/build.yml and publish.yml in step with this list.
 ARCHES_fabric-baseos-2.2=amd64

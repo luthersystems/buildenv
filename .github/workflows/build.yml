@@ -66,6 +66,7 @@ jobs:
           - fabric-ccenv-2.2
           - fabric-ccenv-2.4
           - fabric-ccenv-2.5
+          - fabric-ccenv-3.1
           - nginx-frontend
           - service-base-alpine
         # Upstream publishes Fabric 2.2 and 2.4 for amd64 only (ARCHES_* in
