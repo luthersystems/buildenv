@@ -180,13 +180,14 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
 # everything else stays stable. (jq >= 1.8.2-r0 and libexpat >= 2.9.0-r0 have
 # reached 3.24 stable, so they no longer come from edge.)
 # musl: the patched musl (>= 1.2.6-r6, fixes CVE-2026-107891) is only in alpine
-# edge; 3.24 stable still ships 1.2.6-r3. Pull musl (with musl-dev, which pins
-# the same musl release) from edge until the fix is backported to 3.24 stable,
-# then drop it.
+# edge; 3.24 stable still ships 1.2.6-r3. Pull musl, musl-dev and musl-utils
+# from edge: Scout reports a subpackage under its source package musl, so a
+# musl-utils left at r3 still reads as the vulnerable musl. Keep them until
+# the fix is backported to 3.24 stable, then drop them.
 # rsync: the patched rsync (>= 3.5.2-r0, fixes CVE-2026-119741) is only in alpine
 # edge; 3.24 stable still ships 3.5.0-r0. Same rule: drop it once backported.
 RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache jq curl@edge libcurl@edge musl@edge musl-dev@edge rsync@edge
+  apk add --no-cache jq curl@edge libcurl@edge musl@edge musl-dev@edge musl-utils@edge rsync@edge
 
 # Docker CLI, built from source in the go-alpine-downloader stage above --
 # the published static tarball carries an unpatched Go stdlib (#115).
