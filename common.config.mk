@@ -87,7 +87,7 @@ GO_PIN_GO_JOSE=4.1.6
 GO_PIN_QUIC_GO=0.59.1
 # github.com/klauspost/compress (buf, docker CLI, compose): CVE-2026-63209
 # (1.18.7), CVE-2026-116591 (1.20.2).
-GO_PIN_KLAUSPOST_COMPRESS=1.20.3
+GO_PIN_KLAUSPOST_COMPRESS=1.20.2
 # github.com/moby/go-archive (compose): CVE-2026-17106 (0.3.0); 0.3.3 matches
 # the docker CLI build.
 GO_PIN_MOBY_GO_ARCHIVE=0.3.3

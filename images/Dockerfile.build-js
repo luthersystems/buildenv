@@ -11,6 +11,8 @@ FROM golang:$GOLANG_VERSION AS docker-cli-builder
 # the final image's GOPROXY is downstream users' business, not ours.
 ENV GOPROXY="https://proxy.golang.org|https://proxy.golang.org|https://proxy.golang.org"
 ARG DOCKER_CLI_VERSION
+# klauspost/compress pin (CVE-2026-116591): common.config.mk.
+ARG GO_PIN_KLAUSPOST_COMPRESS
 # Built from source, not the download.docker.com static tarball: Docker builds
 # its published CLI with whatever Go release it happened to use (29.6.1 is
 # stamped go1.26.4, and even the current 29.7.2 only go1.26.5), so the six
@@ -23,7 +25,7 @@ ARG DOCKER_CLI_VERSION
 # Alpine variants; the ldflags preserve `docker --version`.
 RUN mkdir /tmp/dockercli && cd /tmp/dockercli && \
     go mod init _dockercli && \
-    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" && \
+    go get "github.com/docker/cli/cmd/docker@v${DOCKER_CLI_VERSION}" github.com/klauspost/compress@v${GO_PIN_KLAUSPOST_COMPRESS} && \
     CGO_ENABLED=0 go build -tags "grpcnotrace,osusergo,netgo" \
       -ldflags "-X github.com/docker/cli/cli/version.Version=${DOCKER_CLI_VERSION} -X github.com/docker/cli/cli/version.GitCommit=unknown -X github.com/docker/cli/cli/version.BuildTime=unknown -X github.com/docker/cli/cli/version.PlatformName=Docker" \
       -o /go/bin/docker "github.com/docker/cli/cmd/docker" && \

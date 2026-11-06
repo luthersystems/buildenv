@@ -9,10 +9,16 @@ ARG ALPINE_VERSION=3.24
 # which Python 3.12 removed (PEP 632), so we stay on 3.11 (EOL Oct 2027).
 FROM python:3.11-alpine AS aws
 
+# zlib from edge (>= 1.4-r0, CVE-2026-4738), as in the final stage below:
+# make-exe (PyInstaller) copies this stage's libz.so.1 into the AWS CLI bundle,
+# so the final stage's apk zlib alone would leave the old one in `aws`. Drop
+# it once 3.24 stable has the fix.
 RUN set -ex; \
+  echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories; \
   apk add --no-cache \
   git unzip groff \
-  build-base libffi-dev cmake
+  build-base libffi-dev cmake \
+  'zlib@edge>=1.4-r0'
 
 ARG AWSCLI_VER
 ENV AWSCLI_VER=$AWSCLI_VER
