@@ -11,7 +11,7 @@ RUN apk update && apk upgrade --no-cache && apk add --no-cache libltdl tini ca-c
 # still reads as the vulnerable musl) until the fix is backported to 3.24
 # stable, then drop it.
 RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache musl@edge musl-utils@edge
+  apk add --no-cache 'musl@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6'
 # Harden the image with the build-harden kit (images/harden): today it makes
 # the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
 # and intermediates whose keys leaked, CVE-2026-111943). Keep this after the

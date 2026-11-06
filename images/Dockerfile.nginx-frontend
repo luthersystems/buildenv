@@ -15,10 +15,11 @@ USER root
 # edge; 3.24 stable still ships 1.2.6-r3. Pull musl and musl-utils from edge
 # (Scout reports musl-utils under its source package musl, so an r3 musl-utils
 # still reads as the vulnerable musl) until the fix is backported to 3.24
-# stable, then drop it.
+# stable, then drop it. The version floor is needed: a bare musl@edge only
+# allows edge, and in this image apk kept the stable r3 without an error.
 RUN apk update && apk upgrade --no-cache && \
   echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache curl@edge libcurl@edge musl@edge musl-utils@edge
+  apk add --no-cache curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6'
 # Harden the image with the build-harden kit (images/harden): today it makes
 # the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
 # and intermediates whose keys leaked, CVE-2026-111943). Keep this after the
