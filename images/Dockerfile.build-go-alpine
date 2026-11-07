@@ -87,8 +87,15 @@ RUN apk update && apk upgrade --no-cache && apk add --no-cache \
 # edge; 3.24 stable still ships 3.5.0-r0. Same rule: drop it once backported.
 # zlib: the patched zlib (>= 1.4-r0, fixes CVE-2026-4738) is only in alpine
 # edge; 3.24 stable still ships 1.3.2-r1. Same rule: drop it once backported.
+# openssh: the patched openssh (>= 10.6_p2-r0, fixes CVE-2026-123158) is only in
+# alpine edge; 3.24 stable still ships 10.3_p1-r2. Pull openssh and every
+# installed subpackage from edge (Scout reports them under the source package
+# openssh, as with musl). Same rule: drop them once backported.
 RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache jq@edge 'musl@edge>=1.2.6-r6' 'musl-dev@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'rsync@edge>=3.5.2-r0' 'zlib@edge>=1.4-r0'
+  apk add --no-cache jq@edge 'musl@edge>=1.2.6-r6' 'musl-dev@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'rsync@edge>=3.5.2-r0' 'zlib@edge>=1.4-r0' \
+    'openssh@edge>=10.6_p2-r0' 'openssh-client-common@edge>=10.6_p2-r0' 'openssh-client-default@edge>=10.6_p2-r0' \
+    'openssh-keygen@edge>=10.6_p2-r0' 'openssh-server@edge>=10.6_p2-r0' 'openssh-server-common@edge>=10.6_p2-r0' \
+    'openssh-sftp-server@edge>=10.6_p2-r0'
 
 COPY --from=go-alpine-downloader /go/bin/go-bindata /go/bin/go-bindata
 COPY --from=go-alpine-downloader /go/bin/gotestsum /go/bin/gotestsum
