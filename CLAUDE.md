@@ -70,10 +70,12 @@ path (azure-cli's vendored crypto, the swagger-codegen JAR's libs, build-e2e's
 bundled binaries), so there's no buildenv-side fix and a VEX `not_affected` would
 be false; tracked in
 [`docs/upstream-cve-backlog.md`](docs/upstream-cve-backlog.md), re-promoted once
-the bundled artifact goes clean. `build-godynamic` and `build-java` stay grade-A
+the bundled artifact goes clean. `build-godynamic`, `build-java`, `build-api`
+and `build-go` stay grade-A
 via OpenVEX `not_affected` waivers ([`.github/vex/`](.github/vex/)) for
 upstream-frozen findings (build-godynamic: moby CVE-2026-34040 and pip's
-vendored setuptools, msgpack and urllib3; build-java: Maven's guava), each
+vendored setuptools, msgpack and urllib3; build-java: Maven's guava;
+build-api and build-go: Debian openssh-client's sshd-only KEV CVE-2026-123158), each
 listed in the backlog with its drop trigger. The PR gate
 ([`scripts/scout-cve-gate.sh`](scripts/scout-cve-gate.sh)) lists fixable C/H
 findings and drops VEX-waived ones, fail-closed (Scout's own `cves --exit-code`
