@@ -1,0 +1,31 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://luthersystems.com/vex/buildenv/build-api",
+  "author": "Luther Systems (buildenv CI)",
+  "timestamp": "2026-11-10T00:00:00Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "CVE-2026-123158",
+        "description": "sshd in OpenSSH before 10.6p2 on Linux, built against musl libc without PAM, lacks a workaround for a password authentication bypass (a string misread as a password hash), so for some account configurations any password of 256 to 1024 characters succeeds. On the CISA KEV list."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-api",
+          "subcomponents": [
+            {
+              "@id": "pkg:deb/debian/openssh-client@1%3A10.0p1-7%2Bdeb13u4?os_distro=trixie&os_name=debian&os_version=13"
+            },
+            {
+              "@id": "pkg:deb/debian/openssh@1%3A10.0p1-7%2Bdeb13u4?os_distro=trixie&os_name=debian&os_version=13"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "SOURCE: the finding is Debian trixie openssh-client 1:10.0p1-7+deb13u4 (source package openssh), from the base image golang:1.27.3 (Debian 13). The image installs only the ssh client; there is no openssh-server and no /usr/sbin/sshd. ABSENCE: the defect is in sshd password authentication (the crypt/password-hash comparison that the upstream fix, openssh-portable commit 4353fdc, changes), and only when sshd is built against musl libc without PAM. The client never verifies a local password hash, so the vulnerable code is not in the image. The image is also glibc (Debian GLIBC 2.41) with libpam0g, the configuration the defect does not affect. NO DEBIAN FIX: Debian rates the CVE unimportant for trixie and ships no update (Scout: fixed version \"not fixed\"); upstream fixed it in OpenSSH 10.6p2. This statement stops holding if any buildenv image installs openssh-server on musl without PAM. DROP TRIGGER: Scout no longer reports CVE-2026-123158 for Debian trixie openssh (Debian marks trixie not-affected or ships openssh >= 10.6p2); then delete this statement and its .github/vex-ttl.json entry. No GHSA exists for this OS-package CVE. TTL: .github/vex-ttl.json. Tracked in #196."
+    }
+  ]
+}
