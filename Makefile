@@ -52,6 +52,15 @@ check-go-pins:
 test-check-go-pins:
 	bash scripts/test-check-go-pins.sh
 
+# Every Dockerfile `ARG X=<v>` default must match common.config.mk (#199).
+.PHONY: check-arg-defaults
+check-arg-defaults:
+	bash scripts/check-arg-defaults.sh
+
+.PHONY: test-check-arg-defaults
+test-check-arg-defaults:
+	bash scripts/test-check-arg-defaults.sh
+
 # Self-test for the check above, with fixture Dockerfiles.
 .PHONY: test-check-harden
 test-check-harden:

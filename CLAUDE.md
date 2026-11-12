@@ -48,7 +48,8 @@ Alpine, golangci-lint, buf, go-swagger, git-lfs, aws/az CLI, node, …). The
 Dockerfiles take them as `ARG`s; the Makefile passes the central value at build.
 Dockerfile `ARG <X>=<default>` lines are fallbacks only — when you bump a
 version, bump `common.config.mk`, and update the matching `ARG` default if it
-drifts (CI builds use the central value regardless).
+drifts (CI builds use the central value regardless; `make check-arg-defaults`,
+run in CI, fails on a default that differs from `common.config.mk`).
 
 **Go module security pins** (the transitive modules the from-source Go tools
 `go get` at patched versions: x/net, x/crypto, grpc, …) live there too, one
