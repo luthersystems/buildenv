@@ -52,6 +52,11 @@ check-go-pins:
 test-check-go-pins:
 	bash scripts/test-check-go-pins.sh
 
+# Self-test for the check above, with fixture Dockerfiles.
+.PHONY: test-check-harden
+test-check-harden:
+	bash scripts/test-harden-dockerfile-check.sh
+
 # Every Dockerfile `ARG X=<v>` default must match common.config.mk (#199).
 .PHONY: check-arg-defaults
 check-arg-defaults:
@@ -60,11 +65,6 @@ check-arg-defaults:
 .PHONY: test-check-arg-defaults
 test-check-arg-defaults:
 	bash scripts/test-check-arg-defaults.sh
-
-# Self-test for the check above, with fixture Dockerfiles.
-.PHONY: test-check-harden
-test-check-harden:
-	bash scripts/test-harden-dockerfile-check.sh
 
 # Build the kit's fixture images (scripts/testdata/harden) on real base
 # images and check each one (needs docker, network, keytool and certutil).
