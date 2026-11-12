@@ -34,7 +34,7 @@ FROM luthersystems/pdfserv:${PDFSERV_VERSION} AS pdfserv
 FROM ubuntu:22.04
 # jammy: matches the official wkhtmltox jammy .deb (amd64 + arm64 both exist).
 ARG TARGETARCH
-ARG GOLANG_VERSION=1.26.4
+ARG GOLANG_VERSION=1.27.4
 ARG GIT_LFS_VERSION
 ARG SUBSTRATE_VERSION=v2.225.2
 ENV DEBIAN_FRONTEND=noninteractive
