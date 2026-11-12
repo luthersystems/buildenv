@@ -201,11 +201,16 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
 # installed subpackage (openrc adds openssh-server-common-openrc) from edge:
 # Scout reports them under the source package openssh, as with musl. Same rule:
 # drop them once backported.
+# git: the patched git (>= 2.56.1-r0, fixes CVE-2026-105437, flagged on
+# perl-git) is only in alpine edge; 3.24 stable still ships 2.54.1-r0. Pull git
+# and every installed subpackage (git-init-template, git-perl, perl-git) from
+# edge, as with musl and openssh. Same rule: drop them once backported.
 RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
   apk add --no-cache jq curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-dev@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'rsync@edge>=3.5.2-r0' 'zlib@edge>=1.4-r0' \
     'openssh@edge>=10.6_p2-r0' 'openssh-client-common@edge>=10.6_p2-r0' 'openssh-client-default@edge>=10.6_p2-r0' \
     'openssh-keygen@edge>=10.6_p2-r0' 'openssh-server@edge>=10.6_p2-r0' 'openssh-server-common@edge>=10.6_p2-r0' \
-    'openssh-server-common-openrc@edge>=10.6_p2-r0' 'openssh-sftp-server@edge>=10.6_p2-r0'
+    'openssh-server-common-openrc@edge>=10.6_p2-r0' 'openssh-sftp-server@edge>=10.6_p2-r0' \
+    'git@edge>=2.56.1-r0' 'git-init-template@edge>=2.56.1-r0' 'git-perl@edge>=2.56.1-r0' 'perl-git@edge>=2.56.1-r0'
 
 # Docker CLI, built from source in the go-alpine-downloader stage above --
 # the published static tarball carries an unpatched Go stdlib (#115).
