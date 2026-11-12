@@ -23,6 +23,7 @@
 ARG SUBSTRATE_VERSION=v2.225.2
 ARG MARTIN_VERSION=v0.2.0
 ARG PDFSERV_VERSION=v0.2.0
+ARG GOLANG_VERSION=1.27.4
 
 # Pin the source images as named stages. ARG expansion in `FROM image:${ARG}`
 # is reliable; ARG expansion in `COPY --from=image:${ARG}` stage-name position
@@ -30,11 +31,16 @@ ARG PDFSERV_VERSION=v0.2.0
 FROM luthersystems/shirotester:${SUBSTRATE_VERSION} AS shirotester
 FROM luthersystems/martin:${MARTIN_VERSION} AS martin
 FROM luthersystems/pdfserv:${PDFSERV_VERSION} AS pdfserv
+# Go toolchain: taken from the signed official golang image rather than an
+# unchecked go.dev tarball download (#199). Its /usr/local/go is the official
+# release tarball, which the image build checks against its sha256. The alpine
+# variant carries the same static toolchain in a much smaller image than the
+# Debian one, and we copy only /usr/local/go.
+FROM golang:${GOLANG_VERSION}-alpine AS golang
 
 FROM ubuntu:22.04
 # jammy: matches the official wkhtmltox jammy .deb (amd64 + arm64 both exist).
 ARG TARGETARCH
-ARG GOLANG_VERSION=1.27.4
 ARG GIT_LFS_VERSION
 ARG SUBSTRATE_VERSION=v2.225.2
 ENV DEBIAN_FRONTEND=noninteractive
@@ -56,7 +62,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
  && rm -rf /var/lib/apt/lists/*
 
 # Go toolchain — used to build the app's Go services statically (apps have no cgo).
-RUN curl -fsSL "https://go.dev/dl/go${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz" | tar -C /usr/local -xz
+# Copied from the golang stage above, which buildx resolves for ${TARGETARCH}.
+COPY --from=golang /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:/go/bin:$PATH GOPATH=/go
 
 # GO_PIN_* versions, and the CVEs each one clears: common.config.mk.
