@@ -7,7 +7,8 @@
 # error here (fail closed). The heavy jobs still run, so their required check
 # names report, but they skip their steps (build.yml, `changes` job).
 #
-# Usage: ci-changes.sh <base-sha> <head-sha>
+# Usage: ci-changes.sh <base-sha> <head-sha>   (pull requests)
+#        ci-changes.sh                         (any other event: full CI)
 #   Prints full=true|false; appends it to $GITHUB_OUTPUT when that is set.
 set -uo pipefail
 
@@ -26,10 +27,11 @@ fi
 
 # --no-renames: a rename lists its old path too, so moving a script into
 # docs/ is not docs-only.
-# Docs-only paths. Never list a path a build, gate or workflow reads.
+# Docs-only paths: the org standard's list, the same in every luthersystems
+# repo. Never list a path a build, gate or workflow reads.
 docs_only() {
   case "$1" in
-    *.md | docs/* | .claude/* | LICENSE | .gitignore) return 0 ;;
+    *.md | docs/* | .claude/*) return 0 ;;
     *) return 1 ;;
   esac
 }

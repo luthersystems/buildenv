@@ -12,23 +12,37 @@ on:
 jobs:
   # Docs-only PRs skip the image builds and CVE scans (scripts/ci-changes.sh;
   # anything else, or an error, runs them). The heavy jobs still run, so their
-  # required check names report; their steps are skipped. Steps run unless the
-  # output is exactly 'false', so a failed or empty result runs everything.
+  # check names report; their steps are skipped. Steps run unless the output
+  # is exactly 'false', so a failed or empty result runs everything. Only a
+  # pull request may skip: a merge group, the run that gates the merge, always
+  # builds and scans everything.
   changes:
     name: Decide whether the PR needs image CI
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
     outputs:
       full: ${{ steps.diff.outputs.full }}
     steps:
+      # On a pull request this checks out the merge commit. Its first parent
+      # is the base branch tip, so depth 2 is enough for the diff.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: 2
           persist-credentials: false
+      # A bug that prints full=false for a code change would skip every build
+      # while the gate stays green, so the script's tests run first. They also
+      # check that the gate below needs every job in this workflow.
+      - name: Test the decision script and the gate's needs list
+        run: bash scripts/test-ci-changes.sh
       - id: diff
         env:
-          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
-          HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
-        run: bash scripts/ci-changes.sh "$BASE" "$HEAD"
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            bash scripts/ci-changes.sh HEAD^1 HEAD
+          else
+            bash scripts/ci-changes.sh
+          fi
 
   build:
     name: ${{ matrix.image }} - ${{ matrix.arch }} docker build
@@ -105,8 +119,6 @@ jobs:
         run: make test-scout-grade # CI grade + VEX-aware CVE gate (#150)
       - name: make vex-ttl-check
         run: make vex-ttl-check # every VEX waiver has a live TTL (#180)
-      - name: make test-ci-changes
-        run: make test-ci-changes # docs-only CI skip
       - name: make check-harden
         run: make check-harden # every image runs the build-harden kit last
       - name: make test-check-harden
@@ -333,12 +345,11 @@ jobs:
   # The one check main's ruleset requires for this workflow
   # (common-infrastructure github-org-admin/main_protection.json). Requiring
   # each job by name does not work here: matrix jobs get one check per entry,
-  # so the list in the ruleset would drift each time the matrix changes. This
-  # job fails when any job above failed or was cancelled, and passes when they
-  # passed or were skipped, as a skipped required check does.
+  # so the list in the ruleset would drift each time the matrix changes.
   # `always()`, not `!cancelled()`: a cancelled run must fail this check. With
   # `!cancelled()` the job is skipped, and GitHub counts a skipped required
-  # check as passed.
+  # check as passed. scripts/test-ci-changes.sh fails when a job is missing
+  # from the needs list.
   ci-all:
     name: CI (all required checks)
     if: ${{ always() }}
@@ -346,11 +357,20 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
-      - name: Fail if a needed job failed or was cancelled
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+      # Pass only if the changes job succeeded and every other job succeeded.
+      # A docs-only PR skips steps, not jobs, so no job here is ever skipped
+      # on purpose: any skipped job means it did not run, and fails the gate.
+      - name: Fail unless every required job passed
+        if: >-
+          needs.changes.result != 'success'
+          || contains(needs.*.result, 'failure')
+          || contains(needs.*.result, 'cancelled')
+          || contains(needs.*.result, 'skipped')
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS_JSON"
-          echo "::error::A job this check needs failed or was cancelled."
+          echo "::error::A required CI job failed, was cancelled or was skipped."
           exit 1
+      - name: Every required job passed
+        run: echo "ok"
