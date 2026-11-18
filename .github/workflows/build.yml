@@ -329,3 +329,28 @@ jobs:
           done
           echo "::notice::Non-root audit complete; see the job summary for the full table."
           [ "$fail" -eq 0 ] || { echo "A required grade-A image defaults to root — see errors above."; exit 1; }
+
+  # The one check main's ruleset requires for this workflow
+  # (common-infrastructure github-org-admin/main_protection.json). Requiring
+  # each job by name does not work here: matrix jobs get one check per entry,
+  # so the list in the ruleset would drift each time the matrix changes. This
+  # job fails when any job above failed or was cancelled, and passes when they
+  # passed or were skipped, as a skipped required check does.
+  # `always()`, not `!cancelled()`: a cancelled run must fail this check. With
+  # `!cancelled()` the job is skipped, and GitHub counts a skipped required
+  # check as passed.
+  ci-all:
+    name: CI (all required checks)
+    if: ${{ always() }}
+    needs: [changes, build, script-tests, harden-tests, scout-config, cve-scan, non-root-audit]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Fail if a needed job failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS_JSON"
+          echo "::error::A job this check needs failed or was cancelled."
+          exit 1
