@@ -38,7 +38,11 @@ and passes the Docker Scout gate." The automation logic in `scripts/*.cjs` has
 `node:test` unit tests (`make test-scripts`, CI job `script-tests`). A PR that
 changes only docs (`*.md`, `docs/`, `.claude/`) skips the image builds and CVE
 scans: those jobs still report their check names but skip their steps
-(`scripts/ci-changes.sh`; any other path, or an error, runs them all). Releases
+(`scripts/ci-changes.sh`; any other path, an error or a merge group runs them
+all). The ruleset on `main` requires the gate job `CI (all required checks)`
+(`ci-all` in build.yml), which fails when any job in the workflow failed, was
+cancelled or was skipped; `scripts/test-ci-changes.sh` fails when a new job is
+missing from its `needs`. Releases
 happen on `v*` tag push (publish.yml) — created via the GitHub release UI.
 
 ## Versions are centralized — change them in ONE place
@@ -175,7 +179,7 @@ the strictly-better republish (section F) and the SLA.** Verify with
    ride a **report-only** grade gate (`publish.yml` `release-meta` detects
    `claude[bot]`) with the daily drift watch + SLA escalation as the enforcement.
    **Human-cut releases stay hard grade-A; minor/major, and any UNREVIEWED source
-   change, stay human.** Required-checks list + apply command:
+   change, stay human.** Required checks and why:
    [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md).
 2. **Pin, don't float, security-driven dep bumps in from-source tool builds.**
    The `GO_PIN_*` transitive pins in `common.config.mk` exist to clear specific
