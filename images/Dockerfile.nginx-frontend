@@ -30,15 +30,29 @@ USER root
 # `apk upgrade` never moves it, and the base doesn't keep nginx.org's repo
 # configured. Pull nginx and its modules (only) from nginx.org's signed repo,
 # whose key (nginx_signing.rsa.pub) the base already installs. Don't switch to
-# Alpine's own nginx package: it is a different build and layout. Drop these
-# lines once a nginx-unprivileged:${NGINX_VERSION}-alpine${ALPINE_VERSION}
-# base ships nginx >= 1.30.7.
+# Alpine's own nginx package: it is a different build and layout.
+# Each package is held to the base's nginx line (~${NGINX_VERSION}), because
+# nginx.org's stable repo also gets each new stable line: with only a floor,
+# a later rebuild would move the image to, say, 1.32 on a base tagged 1.30.
+# `--upgrade` is needed because the base's 1.30.6 already meets ~1.30, and
+# without it apk keeps 1.30.6 with no error. The check after it fails the
+# build if nginx is still below the CVE floor 1.30.7. The repo line is removed
+# after the install, so a child image's `apk add` needs only the Alpine
+# mirrors, not nginx.org; its world keeps the tag-free names, which the
+# installed packages satisfy. Drop these lines once a
+# nginx-unprivileged:${NGINX_VERSION}-alpine${ALPINE_VERSION} base ships
+# nginx >= 1.30.7.
+ARG NGINX_VERSION
 ARG ALPINE_VERSION
 RUN apk update && apk upgrade --no-cache && \
   echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
   echo "@nginxorg https://nginx.org/packages/alpine/v${ALPINE_VERSION}/main" >> /etc/apk/repositories && \
-  apk add --no-cache curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'zlib@edge>=1.4-r0' 'libcrypto3@edge>=3.5.9-r1' 'libssl3@edge>=3.5.9-r1' \
-    'nginx@nginxorg>=1.30.7-r1' 'nginx-module-geoip@nginxorg>=1.30.7-r1' 'nginx-module-image-filter@nginxorg>=1.30.7-r1' 'nginx-module-njs@nginxorg>=1.30.7' 'nginx-module-xslt@nginxorg>=1.30.7-r1'
+  apk add --no-cache curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'zlib@edge>=1.4-r0' 'libcrypto3@edge>=3.5.9-r1' 'libssl3@edge>=3.5.9-r1' && \
+  apk add --no-cache --upgrade "nginx@nginxorg~${NGINX_VERSION}" "nginx-module-geoip@nginxorg~${NGINX_VERSION}" "nginx-module-image-filter@nginxorg~${NGINX_VERSION}" "nginx-module-njs@nginxorg~${NGINX_VERSION}" "nginx-module-xslt@nginxorg~${NGINX_VERSION}" && \
+  nginx_installed="$(nginx -v 2>&1 | sed 's|.*nginx/||')" && \
+  [ "$(apk version -t "$nginx_installed" 1.30.7)" != "<" ] && \
+  sed -i '/^@nginxorg /d' /etc/apk/repositories && \
+  sed -i 's/@nginxorg//' /etc/apk/world
 # Harden the image with the build-harden kit (images/harden): today it makes
 # the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
 # and intermediates whose keys leaked, CVE-2026-111943). Keep this after the
