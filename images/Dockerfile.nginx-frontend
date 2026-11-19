@@ -24,9 +24,21 @@ USER root
 # 3.24 stable still ships 3.5.9-r0. Pull libcrypto3 and libssl3 from edge
 # (Scout reports them under the source package openssl). Same rule: drop them
 # once backported.
+# nginx: the base ships nginx.org's nginx 1.30.6-r1, which has CVE-2026-123634,
+# CVE-2026-123633, CVE-2026-123007, CVE-2026-121810, CVE-2026-113425 and
+# CVE-2026-118899 (fixed in 1.30.7). Its modules pin nginx~1.30.6, so
+# `apk upgrade` never moves it, and the base doesn't keep nginx.org's repo
+# configured. Pull nginx and its modules (only) from nginx.org's signed repo,
+# whose key (nginx_signing.rsa.pub) the base already installs. Don't switch to
+# Alpine's own nginx package: it is a different build and layout. Drop these
+# lines once a nginx-unprivileged:${NGINX_VERSION}-alpine${ALPINE_VERSION}
+# base ships nginx >= 1.30.7.
+ARG ALPINE_VERSION
 RUN apk update && apk upgrade --no-cache && \
   echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'zlib@edge>=1.4-r0' 'libcrypto3@edge>=3.5.9-r1' 'libssl3@edge>=3.5.9-r1'
+  echo "@nginxorg https://nginx.org/packages/alpine/v${ALPINE_VERSION}/main" >> /etc/apk/repositories && \
+  apk add --no-cache curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'zlib@edge>=1.4-r0' 'libcrypto3@edge>=3.5.9-r1' 'libssl3@edge>=3.5.9-r1' \
+    'nginx@nginxorg>=1.30.7-r1' 'nginx-module-geoip@nginxorg>=1.30.7-r1' 'nginx-module-image-filter@nginxorg>=1.30.7-r1' 'nginx-module-njs@nginxorg>=1.30.7' 'nginx-module-xslt@nginxorg>=1.30.7-r1'
 # Harden the image with the build-harden kit (images/harden): today it makes
 # the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
 # and intermediates whose keys leaked, CVE-2026-111943). Keep this after the
