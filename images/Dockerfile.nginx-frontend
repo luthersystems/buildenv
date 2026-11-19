@@ -36,23 +36,33 @@ USER root
 # a later rebuild would move the image to, say, 1.32 on a base tagged 1.30.
 # `--upgrade` is needed because the base's 1.30.6 already meets ~1.30, and
 # without it apk keeps 1.30.6 with no error. The check after it fails the
-# build if nginx is still below the CVE floor 1.30.7. The repo line is removed
-# after the install, so a child image's `apk add` needs only the Alpine
-# mirrors, not nginx.org; its world keeps the tag-free names, which the
-# installed packages satisfy. Drop these lines once a
+# build unless `nginx -v` reports at least the CVE floor (nginx_floor). The
+# repo line is removed after the install, so a child image's `apk add` needs
+# only the Alpine mirrors, not nginx.org. The world pins nginx to the exact
+# installed nginx.org version: Alpine main also ships a package named nginx,
+# and with a tag-free `nginx~1.30` a child's `apk upgrade` could swap in a
+# later Alpine 1.30.x-rN build under nginx.org's modules.
+# Limits: the repo path is nginx.org's stable tree, so NGINX_VERSION must be a
+# stable (even) line, and nginx.org builds Alpine packages for x86_64 and
+# aarch64 only. Drop these lines, nginx_floor with them, once a
 # nginx-unprivileged:${NGINX_VERSION}-alpine${ALPINE_VERSION} base ships
 # nginx >= 1.30.7.
 ARG NGINX_VERSION
 ARG ALPINE_VERSION
-RUN apk update && apk upgrade --no-cache && \
+RUN nginx_floor=1.30.7 && \
+  apk update && apk upgrade --no-cache && \
   echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
   echo "@nginxorg https://nginx.org/packages/alpine/v${ALPINE_VERSION}/main" >> /etc/apk/repositories && \
   apk add --no-cache curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'zlib@edge>=1.4-r0' 'libcrypto3@edge>=3.5.9-r1' 'libssl3@edge>=3.5.9-r1' && \
   apk add --no-cache --upgrade "nginx@nginxorg~${NGINX_VERSION}" "nginx-module-geoip@nginxorg~${NGINX_VERSION}" "nginx-module-image-filter@nginxorg~${NGINX_VERSION}" "nginx-module-njs@nginxorg~${NGINX_VERSION}" "nginx-module-xslt@nginxorg~${NGINX_VERSION}" && \
-  nginx_installed="$(nginx -v 2>&1 | sed 's|.*nginx/||')" && \
-  [ "$(apk version -t "$nginx_installed" 1.30.7)" != "<" ] && \
+  nginx_installed="$(nginx -v 2>&1 | sed -n 's|^nginx version: nginx/||p')" && \
+  [ -n "$nginx_installed" ] && \
+  case "$(apk version -t "$nginx_installed" "$nginx_floor")" in '>'|'=') ;; *) echo "nginx $nginx_installed is below $nginx_floor" >&2; exit 1;; esac && \
+  nginx_pkgver="$(apk list --installed nginx | sed -n 's/^nginx-\([0-9][^ ]*\) .*/\1/p')" && \
+  [ -n "$nginx_pkgver" ] && \
   sed -i '/^@nginxorg /d' /etc/apk/repositories && \
-  sed -i 's/@nginxorg//' /etc/apk/world
+  sed -i -e "s/^nginx@nginxorg~.*/nginx=${nginx_pkgver}/" -e 's/@nginxorg//' /etc/apk/world && \
+  grep -qx "nginx=${nginx_pkgver}" /etc/apk/world
 # Harden the image with the build-harden kit (images/harden): today it makes
 # the image trust no CA in harden/policy/ca-distrust.list (the eMudhra roots
 # and intermediates whose keys leaked, CVE-2026-111943). Keep this after the
