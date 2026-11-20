@@ -4,9 +4,10 @@ Governance for the protected `main` branch. The goal: the CI gates that keep the
 strict grade-A images healthy are **merge-blocking**, and **automation can open
 PRs but never merge them** — a human always approves.
 
-> These settings are applied in repo **Settings → Branches** (or via the API
-> command below). They are not expressible as a committed file, so this doc is
-> the source of truth / runbook; keep it in sync when the required checks change.
+> `main` is protected by repository rulesets in
+> luthersystems/common-infrastructure (`github-org-admin/main_protection.json`
+> and the org ruleset), not by classic branch protection. Change a required
+> check there. This doc records why the checks are what they are.
 
 ## Why this matters for automation
 
@@ -24,28 +25,22 @@ to **propose** fixes, not ship them. The lock that enforces "propose, don't merg
 
 ## Required status checks
 
-Strict (security/grade-A — **must** be required):
+- `CI (all required checks)` — the gate job `ci-all` in `build.yml`. It needs
+  every job in that workflow (the image builds, the CVE scans, the non-root
+  audit, the script tests and the docs-only decision), and fails when any of
+  them failed, was cancelled or was skipped. `scripts/test-ci-changes.sh`,
+  run by the `changes` job, fails when a job is missing from its `needs`.
+- `quality / result` and `security / result` — the org's shared workflows.
 
-- `Resolve Docker Scout image lists`
-- `Decide whether the PR needs image CI` — the docs-only skip (`scripts/ci-changes.sh`)
-- `Non-root user audit (all images)` — hard-fails only on a strict-image root regression
-- `CVE scan (build-api)`
-- `CVE scan (build-go-alpine)`
-- `CVE scan (service-base-alpine)`
+One gate instead of each job by name: the build and CVE scan jobs are
+matrices, one check per entry, so a list of names in the ruleset would drift
+each time the matrix or `.github/scout-required-images.json` changes.
 
-Build integrity for the strict images (**recommended** — don't merge a broken build):
+A docs-only PR (`*.md`, `docs/`, `.claude/`) still runs every job, with the
+image steps skipped (`scripts/ci-changes.sh`). A merge group always runs
+everything.
 
-- `build-api - amd64 docker build`, `build-api - arm64 docker build`
-- `build-go-alpine - amd64 docker build`, `build-go-alpine - arm64 docker build`
-- `service-base-alpine - amd64 docker build`, `service-base-alpine - arm64 docker build`
-
-Optional (broader net): `CVE scan (build-go)` and the remaining
-`<image> - <arch> docker build` checks for the non-strict images.
-
-> The strict set tracks `.github/scout-required-images.json`. If you promote a
-> 4th image to strict there, add its `CVE scan (...)` and build checks here too.
-
-## Settings
+## Settings (kept in the ruleset)
 
 - **Require a pull request before merging** → Require approvals: **1**;
   **Dismiss stale approvals when new commits are pushed** (so a bot can't push
@@ -62,56 +57,6 @@ Optional (broader net): `CVE scan (build-go)` and the remaining
 - Optional: add a `.github/CODEOWNERS` and enable **Require review from Code
   Owners** to pin who must approve image changes.
 
-## Apply via API (one shot)
-
-An admin can apply the strict + recommended set with `gh`:
-
-```bash
-cat > /tmp/buildenv-main-protection.json <<'JSON'
-{
-  "required_status_checks": {
-    "strict": true,
-    "contexts": [
-      "Resolve Docker Scout image lists",
-      "Decide whether the PR needs image CI",
-      "Non-root user audit (all images)",
-      "CVE scan (build-api)",
-      "CVE scan (build-go-alpine)",
-      "CVE scan (service-base-alpine)",
-      "build-api - amd64 docker build",
-      "build-api - arm64 docker build",
-      "build-go-alpine - amd64 docker build",
-      "build-go-alpine - arm64 docker build",
-      "service-base-alpine - amd64 docker build",
-      "service-base-alpine - arm64 docker build"
-    ]
-  },
-  "enforce_admins": true,
-  "required_pull_request_reviews": {
-    "required_approving_review_count": 1,
-    "dismiss_stale_reviews": true,
-    "require_code_owner_reviews": false
-  },
-  "restrictions": null,
-  "required_linear_history": false,
-  "allow_force_pushes": false,
-  "allow_deletions": false,
-  "required_conversation_resolution": true
-}
-JSON
-
-gh api -X PUT repos/luthersystems/buildenv/branches/main/protection \
-  -H "Accept: application/vnd.github+json" \
-  --input /tmp/buildenv-main-protection.json
-```
-
-Verify:
-
-```bash
-gh api repos/luthersystems/buildenv/branches/main/protection \
-  --jq '{checks: .required_status_checks.contexts, reviews: .required_pull_request_reviews.required_approving_review_count, admins: .enforce_admins.enabled}'
-```
-
-> Note: a required check that never reports (e.g. its job was skipped because an
-> upstream job failed) leaves the PR un-mergeable — which is the intended
-> fail-closed behavior.
+> Note: a required check that never reports leaves the PR un-mergeable, which
+> is the intended fail-closed behavior. The gate runs with `always()` so it
+> reports on every run.
