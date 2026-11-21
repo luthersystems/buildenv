@@ -85,7 +85,7 @@ GO_PIN_GRPC=1.83.2
 GO_PIN_GO_JOSE=4.1.6
 # github.com/quic-go/quic-go (buf): CVE-2026-40898.
 GO_PIN_QUIC_GO=0.59.1
-# github.com/klauspost/compress (buf, docker CLI, compose): CVE-2026-63209
+# github.com/klauspost/compress (buf, docker CLI, compose, git-lfs): CVE-2026-63209
 # (1.18.7), CVE-2026-116591 (1.20.2).
 GO_PIN_KLAUSPOST_COMPRESS=1.20.2
 # github.com/moby/go-archive (compose): CVE-2026-17106 (0.3.0); 0.3.3 matches

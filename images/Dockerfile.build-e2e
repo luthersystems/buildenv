@@ -76,10 +76,11 @@ ARG GO_PIN_X_NET
 # triple listing is a native two-shot retry: `|` falls back on ANY error
 # (including a mid-download stream reset -- the three failed v0.1.16 publish
 # attempts, run 32405801237) and Go does not dedupe the list.
+ARG GO_PIN_KLAUSPOST_COMPRESS
 RUN export GOPROXY="https://proxy.golang.org|https://proxy.golang.org|https://proxy.golang.org" && \
     mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v${GO_PIN_X_CRYPTO} golang.org/x/net@v${GO_PIN_X_NET} && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v${GO_PIN_X_CRYPTO} golang.org/x/net@v${GO_PIN_X_NET} github.com/klauspost/compress@v${GO_PIN_KLAUSPOST_COMPRESS} && \
     go build -o /usr/local/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
