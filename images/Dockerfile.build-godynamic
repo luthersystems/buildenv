@@ -191,10 +191,10 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
 # libcurl (>= 8.23.0-r0, CVE-2026-92392), rsync (>= 3.5.2-r0, CVE-2026-119741),
 # zlib (>= 1.4-r0, CVE-2026-4738) and libcrypto3 and libssl3 (>= 3.5.9-r1,
 # CVE-2026-95691, CVE-2026-95692, CVE-2026-88823, CVE-2026-107496) came from
-# edge until 3.24 stable shipped the fix (#207).
-# They now come from stable. The floors stay because a base or a mirror that is
-# behind would otherwise give the old package with no error; with the floor,
-# apk fails the build. (libexpat >= 2.9.0-r0 has reached 3.24 stable too.)
+# edge until 3.24 stable shipped the fix (#207). They now come from stable.
+# The floors stay because a base or a mirror that is behind would otherwise
+# give the old package with no error; with the floor, apk fails the build.
+# (libexpat >= 2.9.0-r0 has reached 3.24 stable too.)
 # The packages below come from edge. The @edge tag scopes edge to the named
 # packages; everything else stays stable.
 # musl: the patched musl (>= 1.2.6-r6, fixes CVE-2026-107891) is only in alpine
