@@ -7,7 +7,10 @@ ARG ALPINE_VERSION=3.24
 
 # python:3.11-alpine: awscli's make-exe script still imports `distutils`,
 # which Python 3.12 removed (PEP 632), so we stay on 3.11 (EOL Oct 2027).
-FROM python:3.11-alpine AS aws
+# The tag names the Alpine release (ALPINE_VERSION) so this stage's stable
+# repo is the one the floors below were checked against, and the libraries
+# make-exe copies into the bundle come from the same Alpine as the final stage.
+FROM python:3.11-alpine${ALPINE_VERSION} AS aws
 
 # zlib (>= 1.4-r0, CVE-2026-4738) and libcrypto3 and libssl3 (>= 3.5.9-r1,
 # CVE-2026-95691 and others, see the final stage) with a floor, as in the final
@@ -184,14 +187,14 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
   apk upgrade --no-cache && \
   apk add --no-cache ca-certificates tzdata libltdl rsync zip openssh git bash shadow gcc musl-dev make linux-headers curl tini gcompat python3-dev py3-pip groff openrc
 
-# Stable floors: curl and libcurl (>= 8.23.0-r0, CVE-2026-92392), rsync
-# (>= 3.5.2-r0, CVE-2026-119741), zlib (>= 1.4-r0, CVE-2026-4738) and libcrypto3
-# and libssl3 (>= 3.5.9-r1, CVE-2026-95691, CVE-2026-95692, CVE-2026-88823,
-# CVE-2026-107496) came from edge until 3.24 stable shipped the fix (#207).
+# Stable floors: jq (>= 1.8.2-r0, CVE-2026-32316 and CVE-2026-40164), curl and
+# libcurl (>= 8.23.0-r0, CVE-2026-92392), rsync (>= 3.5.2-r0, CVE-2026-119741),
+# zlib (>= 1.4-r0, CVE-2026-4738) and libcrypto3 and libssl3 (>= 3.5.9-r1,
+# CVE-2026-95691, CVE-2026-95692, CVE-2026-88823, CVE-2026-107496) came from
+# edge until 3.24 stable shipped the fix (#207).
 # They now come from stable. The floors stay because a base or a mirror that is
 # behind would otherwise give the old package with no error; with the floor,
-# apk fails the build. (jq >= 1.8.2-r0 and libexpat >= 2.9.0-r0 have reached
-# 3.24 stable too.)
+# apk fails the build. (libexpat >= 2.9.0-r0 has reached 3.24 stable too.)
 # The packages below come from edge. The @edge tag scopes edge to the named
 # packages; everything else stays stable.
 # musl: the patched musl (>= 1.2.6-r6, fixes CVE-2026-107891) is only in alpine
@@ -212,7 +215,7 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
 # alpine edge; 3.24 stable still ships 26.1.2-r1. Both build on python3 3.14.
 # Same rule: drop it once backported.
 RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache jq 'curl>=8.23.0-r0' 'libcurl>=8.23.0-r0' 'rsync>=3.5.2-r0' 'zlib>=1.4-r0' 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1' \
+  apk add --no-cache 'jq>=1.8.2-r0' 'curl>=8.23.0-r0' 'libcurl>=8.23.0-r0' 'rsync>=3.5.2-r0' 'zlib>=1.4-r0' 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1' \
     'musl@edge>=1.2.6-r6' 'musl-dev@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' \
     'openssh@edge>=10.6_p2-r0' 'openssh-client-common@edge>=10.6_p2-r0' 'openssh-client-default@edge>=10.6_p2-r0' \
     'openssh-keygen@edge>=10.6_p2-r0' 'openssh-server@edge>=10.6_p2-r0' 'openssh-server-common@edge>=10.6_p2-r0' \
