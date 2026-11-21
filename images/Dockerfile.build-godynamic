@@ -214,7 +214,9 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
 # (Scout reports them under the source package openssl). Same rule: drop them
 # once backported.
 # py3-pip: the patched py3-pip (>= 26.2.1-r1, fixes CVE-2026-133949) is only in
-# alpine edge; 3.24 stable still ships 26.1.2-r1. Both build on python3 3.14.
+# alpine edge; 3.24 stable still ships 26.1.2-r1. Both build on python3 3.14;
+# python3~3.14 keeps python3 on stable, so an edge py3-pip built for a newer
+# python fails the build instead of pulling python3 from edge.
 # Same rule: drop it once backported.
 RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
   apk add --no-cache jq curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-dev@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'rsync@edge>=3.5.2-r0' 'zlib@edge>=1.4-r0' \
@@ -222,7 +224,7 @@ RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/rep
     'openssh-keygen@edge>=10.6_p2-r0' 'openssh-server@edge>=10.6_p2-r0' 'openssh-server-common@edge>=10.6_p2-r0' \
     'openssh-server-common-openrc@edge>=10.6_p2-r0' 'openssh-sftp-server@edge>=10.6_p2-r0' \
     'git@edge>=2.56.1-r0' 'git-init-template@edge>=2.56.1-r0' 'git-perl@edge>=2.56.1-r0' 'perl-git@edge>=2.56.1-r0' \
-    'libcrypto3@edge>=3.5.9-r1' 'libssl3@edge>=3.5.9-r1' 'py3-pip@edge>=26.2.1-r1'
+    'libcrypto3@edge>=3.5.9-r1' 'libssl3@edge>=3.5.9-r1' 'py3-pip@edge>=26.2.1-r1' 'python3~3.14'
 
 # Docker CLI, built from source in the go-alpine-downloader stage above --
 # the published static tarball carries an unpatched Go stdlib (#115).

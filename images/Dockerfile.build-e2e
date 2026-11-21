@@ -69,6 +69,7 @@ ENV PATH=/usr/local/go/bin:/go/bin:$PATH GOPATH=/go
 # GO_PIN_* versions, and the CVEs each one clears: common.config.mk.
 ARG GO_PIN_X_CRYPTO
 ARG GO_PIN_X_NET
+ARG GO_PIN_KLAUSPOST_COMPRESS
 # export (not ENV): build-e2e's go commands run in the FINAL stage, and a
 # stage-level ENV GOPROXY would ship to downstream consumers of the published
 # image, silently dropping their default `direct` fallback -- a runtime-contract
@@ -76,7 +77,6 @@ ARG GO_PIN_X_NET
 # triple listing is a native two-shot retry: `|` falls back on ANY error
 # (including a mid-download stream reset -- the three failed v0.1.16 publish
 # attempts, run 32405801237) and Go does not dedupe the list.
-ARG GO_PIN_KLAUSPOST_COMPRESS
 RUN export GOPROXY="https://proxy.golang.org|https://proxy.golang.org|https://proxy.golang.org" && \
     mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \

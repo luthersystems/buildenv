@@ -78,8 +78,8 @@ be false; tracked in
 the bundled artifact goes clean. `build-godynamic`, `build-java`, `build-api`
 and `build-go` stay grade-A
 via OpenVEX `not_affected` waivers ([`.github/vex/`](.github/vex/)) for
-upstream-frozen findings (build-godynamic: moby CVE-2026-34040 and pip's
-vendored setuptools, msgpack and urllib3; build-java: Maven's guava;
+upstream-frozen findings (build-godynamic: moby CVE-2026-34040, pip's
+vendored setuptools, msgpack and urllib3, and Alpine py3-pip's vendored certifi; build-java: Maven's guava;
 build-api and build-go: Debian openssh-client's sshd-only KEV CVE-2026-123158), each
 listed in the backlog with its drop trigger. The PR gate
 ([`scripts/scout-cve-gate.sh`](scripts/scout-cve-gate.sh)) lists fixable C/H
