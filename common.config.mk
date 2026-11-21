@@ -5,7 +5,7 @@ GO_TESTSUM_VERSION=1.13.0
 GOLANGCI_LINT_VERSION=2.13.2
 BUF_VERSION=1.68.2
 GO_SWAGGER_VERSION=0.33.2
-GIT_LFS_VERSION=3.7.1
+GIT_LFS_VERSION=3.8.1
 DOCKER_CLI_VERSION=29.6.1
 DOCKER_COMPOSE_VERSION=5.2.0
 # azure-cli (build-godynamic: pip; build-js: Microsoft apt package). 2.92.0 is
@@ -91,5 +91,5 @@ GO_PIN_KLAUSPOST_COMPRESS=1.20.2
 # github.com/moby/go-archive (compose): CVE-2026-17106 (0.3.0); 0.3.3 matches
 # the docker CLI build.
 GO_PIN_MOBY_GO_ARCHIVE=0.3.3
-# github.com/containerd/containerd/v2 (compose): CVE-2026-95837 (2.2.7).
-GO_PIN_CONTAINERD=2.2.7
+# github.com/containerd/containerd/v2 (compose): CVE-2026-95837 (2.2.7), CVE-2026-95839 (2.2.10).
+GO_PIN_CONTAINERD=2.2.10
