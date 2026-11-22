@@ -7,20 +7,23 @@ ARG ALPINE_VERSION=3.24
 
 # python:3.11-alpine: awscli's make-exe script still imports `distutils`,
 # which Python 3.12 removed (PEP 632), so we stay on 3.11 (EOL Oct 2027).
-FROM python:3.11-alpine AS aws
+# The tag names the Alpine release (ALPINE_VERSION) so this stage's stable
+# repo is the one the floors below were checked against, and the libraries
+# make-exe copies into the bundle come from the same Alpine as the final stage.
+FROM python:3.11-alpine${ALPINE_VERSION} AS aws
 
-# zlib from edge (>= 1.4-r0, CVE-2026-4738), as in the final stage below:
-# make-exe (PyInstaller) copies this stage's libz.so.1 into the AWS CLI bundle,
-# so the final stage's apk zlib alone would leave the old one in `aws`. Drop
-# it once 3.24 stable has the fix.
-# libcrypto3 and libssl3 from edge (>= 3.5.9-r1, CVE-2026-95691 and others, see
-# the final stage) for the same reason: the bundle copies libssl and libcrypto.
+# zlib (>= 1.4-r0, CVE-2026-4738) and libcrypto3 and libssl3 (>= 3.5.9-r1,
+# CVE-2026-95691 and others, see the final stage) with a floor, as in the final
+# stage below: make-exe (PyInstaller) copies this stage's libz, libssl and
+# libcrypto into the AWS CLI bundle, so the final stage's apk packages alone
+# would leave old copies in `aws`. They came from edge until 3.24 stable shipped
+# the fix (#207). The floor makes the build fail if the python base is on an
+# Alpine release, or a mirror, without the fix.
 RUN set -ex; \
-  echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories; \
   apk add --no-cache \
   git unzip groff \
   build-base libffi-dev cmake \
-  'zlib@edge>=1.4-r0' 'libcrypto3@edge>=3.5.9-r1' 'libssl3@edge>=3.5.9-r1'
+  'zlib>=1.4-r0' 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1'
 
 ARG AWSCLI_VER
 ENV AWSCLI_VER=$AWSCLI_VER
@@ -120,10 +123,11 @@ ARG GIT_LFS_VERSION
 ARG GO_PIN_X_CRYPTO
 ARG GO_PIN_X_NET
 ARG GO_PIN_X_SYS
+ARG GO_PIN_KLAUSPOST_COMPRESS
 RUN apk add --no-cache gcc git musl-dev && \
     mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v${GO_PIN_X_CRYPTO} golang.org/x/net@v${GO_PIN_X_NET} golang.org/x/sys@v${GO_PIN_X_SYS} && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v${GO_PIN_X_CRYPTO} golang.org/x/net@v${GO_PIN_X_NET} golang.org/x/sys@v${GO_PIN_X_SYS} github.com/klauspost/compress@v${GO_PIN_KLAUSPOST_COMPRESS} && \
     go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
@@ -183,21 +187,21 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
   apk upgrade --no-cache && \
   apk add --no-cache ca-certificates tzdata libltdl rsync zip openssh git bash shadow gcc musl-dev make linux-headers curl tini gcompat python3-dev py3-pip groff openrc
 
-# curl: the patched libcurl (>= 8.23.0-r0, fixes CVE-2026-92392) is only in
-# alpine edge; 3.24 stable still ships the vulnerable 8.22.0-r0. Pull curl +
-# libcurl (only) from edge via a tagged repo until the fix is backported to 3.24
-# stable, then drop this. The @edge tag scopes edge to those two packages;
-# everything else stays stable. (jq >= 1.8.2-r0 and libexpat >= 2.9.0-r0 have
-# reached 3.24 stable, so they no longer come from edge.)
+# Stable floors: jq (>= 1.8.2-r0, CVE-2026-32316 and CVE-2026-40164), curl and
+# libcurl (>= 8.23.0-r0, CVE-2026-92392), rsync (>= 3.5.2-r0, CVE-2026-119741),
+# zlib (>= 1.4-r0, CVE-2026-4738) and libcrypto3 and libssl3 (>= 3.5.9-r1,
+# CVE-2026-95691, CVE-2026-95692, CVE-2026-88823, CVE-2026-107496) came from
+# edge until 3.24 stable shipped the fix (#207). They now come from stable.
+# The floors stay because a base or a mirror that is behind would otherwise
+# give the old package with no error; with the floor, apk fails the build.
+# (libexpat >= 2.9.0-r0 has reached 3.24 stable too.)
+# The packages below come from edge. The @edge tag scopes edge to the named
+# packages; everything else stays stable.
 # musl: the patched musl (>= 1.2.6-r6, fixes CVE-2026-107891) is only in alpine
 # edge; 3.24 stable still ships 1.2.6-r3. Pull musl, musl-dev and musl-utils
 # from edge: Scout reports a subpackage under its source package musl, so a
 # musl-utils left at r3 still reads as the vulnerable musl. Keep them until
 # the fix is backported to 3.24 stable, then drop them.
-# rsync: the patched rsync (>= 3.5.2-r0, fixes CVE-2026-119741) is only in alpine
-# edge; 3.24 stable still ships 3.5.0-r0. Same rule: drop it once backported.
-# zlib: the patched zlib (>= 1.4-r0, fixes CVE-2026-4738) is only in alpine
-# edge; 3.24 stable still ships 1.3.2-r1. Same rule: drop it once backported.
 # openssh: the patched openssh (>= 10.6_p2-r0, fixes CVE-2026-123158) is only in
 # alpine edge; 3.24 stable still ships 10.3_p1-r2. Pull openssh and every
 # installed subpackage (openrc adds openssh-server-common-openrc) from edge:
@@ -207,18 +211,19 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
 # perl-git) is only in alpine edge; 3.24 stable still ships 2.54.1-r0. Pull git
 # and every installed subpackage (git-init-template, git-perl, perl-git) from
 # edge, as with musl and openssh. Same rule: drop them once backported.
-# openssl: the patched openssl (>= 3.5.9-r1, fixes CVE-2026-95691,
-# CVE-2026-95692, CVE-2026-88823 and CVE-2026-107496) is only in alpine edge;
-# 3.24 stable still ships 3.5.9-r0. Pull libcrypto3 and libssl3 from edge
-# (Scout reports them under the source package openssl). Same rule: drop them
-# once backported.
+# py3-pip: the patched py3-pip (>= 26.2.1-r1, fixes CVE-2026-133949) is only in
+# alpine edge; 3.24 stable still ships 26.1.2-r1. Both build on python3 3.14;
+# python3~3.14 keeps python3 on stable, so an edge py3-pip built for a newer
+# python fails the build instead of pulling python3 from edge.
+# Same rule: drop it once backported.
 RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
-  apk add --no-cache jq curl@edge libcurl@edge 'musl@edge>=1.2.6-r6' 'musl-dev@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'rsync@edge>=3.5.2-r0' 'zlib@edge>=1.4-r0' \
+  apk add --no-cache 'jq>=1.8.2-r0' 'curl>=8.23.0-r0' 'libcurl>=8.23.0-r0' 'rsync>=3.5.2-r0' 'zlib>=1.4-r0' 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1' \
+    'musl@edge>=1.2.6-r6' 'musl-dev@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' \
     'openssh@edge>=10.6_p2-r0' 'openssh-client-common@edge>=10.6_p2-r0' 'openssh-client-default@edge>=10.6_p2-r0' \
     'openssh-keygen@edge>=10.6_p2-r0' 'openssh-server@edge>=10.6_p2-r0' 'openssh-server-common@edge>=10.6_p2-r0' \
     'openssh-server-common-openrc@edge>=10.6_p2-r0' 'openssh-sftp-server@edge>=10.6_p2-r0' \
     'git@edge>=2.56.1-r0' 'git-init-template@edge>=2.56.1-r0' 'git-perl@edge>=2.56.1-r0' 'perl-git@edge>=2.56.1-r0' \
-    'libcrypto3@edge>=3.5.9-r1' 'libssl3@edge>=3.5.9-r1'
+    'py3-pip@edge>=26.2.1-r1' 'python3~3.14'
 
 # Docker CLI, built from source in the go-alpine-downloader stage above --
 # the published static tarball carries an unpatched Go stdlib (#115).

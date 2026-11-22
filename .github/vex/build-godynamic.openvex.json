@@ -2,8 +2,8 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://luthersystems.com/vex/buildenv/build-godynamic",
   "author": "Luther Systems (buildenv CI)",
-  "timestamp": "2026-10-28T00:00:00Z",
-  "version": 8,
+  "timestamp": "2026-11-21T00:00:00Z",
+  "version": 9,
   "statements": [
     {
       "vulnerability": {
@@ -156,6 +156,25 @@
       "status": "not_affected",
       "justification": "vulnerable_code_not_present",
       "impact_statement": "Duplicate identifier for CVE-2026-114613; the analysis and drop trigger are the same as that statement. Remove both together."
+    },
+    {
+      "vulnerability": {
+        "name": "GHSA-6q48-6c7w-9gw2",
+        "description": "certifi releases from 2019.03.09 up to 2026.10.18 trust the eMudhra (emSign) roots whose intermediates' keys leaked (CVE-2026-111943). Fixed in certifi 2026.10.19, which drops them."
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/luthersystems/build-godynamic",
+          "subcomponents": [
+            {
+              "@id": "pkg:pypi/certifi@2026.6.17"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The finding is the CA bundle that pip 26.2.1 vendors (pip/_vendor/certifi/cacert.pem) in Alpine's system py3-pip 26.2.1-r1, which build-godynamic pulls from edge to fix CVE-2026-133949. The defect is data, not code: the bundle lists the eMudhra roots. The build-harden kit (images/harden, ca-distrust module), run last in the image's final stage, removes every certificate in policy/ca-distrust.list from every PEM file in the image, pip's vendored certifi bundle included, and images/harden/check/image.sh fails the CI build if a listed certificate is still in any trust store. So the vulnerable content is not in the image. The azure-cli venv's own pip is already 26.2.2 (certifi 2026.10.19). NO UPSTREAM FIX THE IMAGE CAN TAKE: pip 26.2.2 vendors certifi 2026.10.19, but Alpine packages only py3-pip 26.2.1-r1 (edge) and 26.1.2-r1 (3.24, which has CVE-2026-133949). DROP TRIGGER: an Alpine py3-pip package at pip 26.2.2 or later; then pull it and delete this statement."
     }
   ]
 }

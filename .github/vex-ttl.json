@@ -32,6 +32,10 @@
     "GHSA-j586-36cw-2gc2": {
       "expires": "2027-01-26",
       "issue": "#180"
+    },
+    "GHSA-6q48-6c7w-9gw2": {
+      "expires": "2027-02-19",
+      "issue": "#209"
     }
   },
   "build-java": {
