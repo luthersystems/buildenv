@@ -77,9 +77,10 @@ ARG GIT_LFS_VERSION
 ARG GO_PIN_X_CRYPTO
 ARG GO_PIN_X_NET
 ARG GO_PIN_X_SYS
+ARG GO_PIN_KLAUSPOST_COMPRESS
 RUN mkdir /tmp/gitlfs && cd /tmp/gitlfs && \
     go mod init _gitlfs && \
-    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v${GO_PIN_X_CRYPTO} golang.org/x/net@v${GO_PIN_X_NET} golang.org/x/sys@v${GO_PIN_X_SYS} && \
+    go get "github.com/git-lfs/git-lfs/v3@v${GIT_LFS_VERSION}" golang.org/x/crypto@v${GO_PIN_X_CRYPTO} golang.org/x/net@v${GO_PIN_X_NET} golang.org/x/sys@v${GO_PIN_X_SYS} github.com/klauspost/compress@v${GO_PIN_KLAUSPOST_COMPRESS} && \
     go build -o /go/bin/git-lfs "github.com/git-lfs/git-lfs/v3" && \
     cd / && rm -rf /tmp/gitlfs
 
