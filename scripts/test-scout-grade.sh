@@ -192,6 +192,24 @@ ttlcheck "ttl-check fails on an issue that is not #N" 1
 echo '{"img":{"CVE-2026-1111":{"expires":"2027-12-01","issue":"#1"},"CVE-2026-2222":{"expires":"2026-12-01","issue":"#2"}}}' > "$FIX/vex-ttl.json"
 ttlcheck "ttl-check fails on a date past the 120-day cap" 1
 
+# #212: Scout prints each finding's VEX statement text; an ID named in that text
+# is not a finding.
+base_fixture "$FIX"
+cat > "$FIX/cves-critical.txt" <<'EOF2'
+    ✗ CRITICAL GHSA-6q48-6c7w-9gw2 [Improper Certificate Validation]
+      VEX            : not affected [vulnerable code not present]
+                     : pulled from edge to fix CVE-2026-133949. The defect
+EOF2
+cat > "$FIX/vex/img.openvex.json" <<'EOF2'
+{"statements":[{"vulnerability":{"name":"GHSA-6q48-6c7w-9gw2"},"status":"not_affected","products":[{"@id":"pkg:docker/luthersystems/img"}]}]}
+EOF2
+echo '{"img":{"GHSA-6q48-6c7w-9gw2":{"expires":"2026-10-28"}}}' > "$FIX/vex-ttl.json"
+check "an ID in VEX text is not a finding" 0 critical=no grade=pass
+
+base_fixture "$FIX"
+printf '    ✗ HIGH CVE-2026-1111\n      VEX : see CVE-2026-2222\n' > "$FIX/cves-high.txt"
+check "an unwaived finding next to VEX text still fails" 1 high=yes
+
 base_fixture "$FIX"
 echo "  ✗ CRITICAL (no id printed)" > "$FIX/cves-critical.txt"
 check "findings without a parsed id fail closed" 1 critical=yes
