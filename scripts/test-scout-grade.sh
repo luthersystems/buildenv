@@ -209,6 +209,29 @@ check "an ID in VEX text is not a finding" 0 critical=no grade=pass
 base_fixture "$FIX"
 printf '    ✗ HIGH CVE-2026-1111\n      VEX : see CVE-2026-2222\n' > "$FIX/cves-high.txt"
 check "an unwaived finding next to VEX text still fails" 1 high=yes
+logged "only the finding is unwaived" "  - CVE-2026-1111"
+if grep -q "CVE-2026-2222" "$work/log"; then echo "FAIL an ID in VEX text is listed as unwaived"; fails=$((fails + 1)); fi
+
+# A title that names another CVE is not a second finding.
+base_fixture "$FIX"
+printf '    ✗ HIGH CVE-2026-1111 [Incomplete fix for CVE-2025-1000]\n' > "$FIX/cves-high.txt"
+echo '{"statements":[{"vulnerability":{"name":"CVE-2026-1111"},"status":"not_affected","products":[{"@id":"pkg:docker/luthersystems/img"}]}]}' > "$FIX/vex/img.openvex.json"
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-10-28"}}}' > "$FIX/vex-ttl.json"
+check "a CVE named in a finding's title is not a finding" 0 high=no grade=pass
+
+# One finding line without a parsable ID fails closed, even next to a parsed one.
+base_fixture "$FIX"
+printf '    ✗ HIGH CVE-2026-1111\n    ✗ HIGH GO-2026-0042\n      https://scout.docker.com/v/CVE-2026-5555\n' > "$FIX/cves-high.txt"
+echo '{"statements":[{"vulnerability":{"name":"CVE-2026-1111"},"status":"not_affected","products":[{"@id":"pkg:docker/luthersystems/img"}]}]}' > "$FIX/vex/img.openvex.json"
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-10-28"}}}' > "$FIX/vex-ttl.json"
+check "a finding line without a parsable ID fails closed" 1 high=yes
+
+# Scout's summary line ("✗ Detected N vulnerable packages") is not a finding.
+base_fixture "$FIX"
+printf '    ✗ Detected 1 vulnerable package with a total of 1 vulnerability\n    ✗ HIGH CVE-2026-1111\n' > "$FIX/cves-high.txt"
+echo '{"statements":[{"vulnerability":{"name":"CVE-2026-1111"},"status":"not_affected","products":[{"@id":"pkg:docker/luthersystems/img"}]}]}' > "$FIX/vex/img.openvex.json"
+echo '{"img":{"CVE-2026-1111":{"expires":"2026-10-28"}}}' > "$FIX/vex-ttl.json"
+check "the Detected summary line is not a finding" 0 high=no grade=pass
 
 base_fixture "$FIX"
 echo "  ✗ CRITICAL (no id printed)" > "$FIX/cves-critical.txt"
