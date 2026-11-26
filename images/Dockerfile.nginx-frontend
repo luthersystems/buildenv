@@ -20,6 +20,10 @@ USER root
 # still reads as the vulnerable musl) until the fix is backported to 3.24
 # stable, then drop it. The version floor is needed: a bare musl@edge only
 # allows edge, and in this image apk kept the stable r3 without an error.
+# libxml2: the patched libxml2 (>= 2.13.9-r4, fixes HIGH CVE-2026-86140, #216)
+# is only in alpine edge; 3.24 stable still ships 2.13.9-r3. Pull libxml2
+# (only) from edge, with the same version floor as musl, until the fix is
+# backported to 3.24 stable, then drop it.
 # nginx: the base ships nginx.org's nginx 1.30.6-r1, which has CVE-2026-123634,
 # CVE-2026-123633, CVE-2026-123007, CVE-2026-121810, CVE-2026-113425 and
 # CVE-2026-118899 (fixed in 1.30.7). Its modules pin nginx~1.30.6, so
@@ -49,7 +53,7 @@ RUN nginx_floor=1.30.7 && \
   apk update && apk upgrade --no-cache && \
   echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
   echo "@nginxorg https://nginx.org/packages/alpine/v${ALPINE_VERSION}/main" >> /etc/apk/repositories && \
-  apk add --no-cache 'curl>=8.23.0-r0' 'libcurl>=8.23.0-r0' 'zlib>=1.4-r0' 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1' 'musl@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' && \
+  apk add --no-cache 'curl>=8.23.0-r0' 'libcurl>=8.23.0-r0' 'zlib>=1.4-r0' 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1' 'musl@edge>=1.2.6-r6' 'musl-utils@edge>=1.2.6-r6' 'libxml2@edge>=2.13.9-r4' && \
   apk add --no-cache --upgrade "nginx@nginxorg~${NGINX_VERSION}" "nginx-module-geoip@nginxorg~${NGINX_VERSION}" "nginx-module-image-filter@nginxorg~${NGINX_VERSION}" "nginx-module-njs@nginxorg~${NGINX_VERSION}" "nginx-module-xslt@nginxorg~${NGINX_VERSION}" && \
   nginx_installed="$(nginx -v 2>&1 | sed -n 's|^nginx version: nginx/||p')" && \
   [ -n "$nginx_installed" ] && \
